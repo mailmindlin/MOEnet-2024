@@ -1,20 +1,21 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional, Dict, Union, List
-import logging, os.path
+import logging, os.path, time
 from multiprocessing import Process, get_context
 from queue import Empty
 from pathlib import Path
 from logging import Logger
 from typedef import worker
+from typedef.common import AprilTagFieldJSON
 from typedef.cfg import (
 	SlamConfig, NNConfig, LocalConfig,
-	AprilTagFieldJSON, CameraConfig, OakSelector,
-	AprilTagFieldRef, AprilTagFieldConfig, AprilTagInfo, AprilTagList,
+	CameraConfig, OakSelector,
+	AprilTagFieldRef, AprilTagFieldConfig, AprilTagInfo,
+	AprilTagList, Mat44, Vec4
 )
 
 if TYPE_CHECKING:
 	from typedef.common import Pose3dJSON
-	from typedef.cfg import Mat44
 	from multiprocessing.context import BaseContext
 
 class CameraId:
@@ -36,7 +37,7 @@ class WorkerManager:
 		self.config_path = config_path
 		self.at_cache: Dict[Union[str, AprilTagFieldJSON], Path] = dict()
 		self.nn_cache: Dict[str, worker.ObjectDetectionConfig] = dict()
-		self._tempfiles = list()
+		self._tempdir = None
 		self._workers: List['WorkerHandle'] = list()
 	
 	def _resolve_path(self, relpart: Union[str, Path]) -> Path:
@@ -156,16 +157,16 @@ class WorkerManager:
 				z = quat["Z"]
 				trans = pose["translation"]
 
-				return [
-					[2*(w*w+x*x) - 1, 2*(x*y-w*z),     2*(x*z-w*y),     trans['x']],
-					[2*(x*y+w*z),     2*(w*w-y*y) - 1, 2*(y*z-w*x),     trans['y']],
-					[2*(x*z-w*y),     2*(y*z+w*x),     2*(w*w-z*z) - 1, trans['z']],
-					[0.0, 0.0, 0.0, 1.0],
-				]
+				return Mat44([
+					Vec4([2*(w*w+x*x) - 1, 2*(x*y-w*z),     2*(x*z-w*y),     trans['x']]),
+					Vec4([2*(x*y+w*z),     2*(w*w-y*y) - 1, 2*(y*z-w*x),     trans['y']]),
+					Vec4([2*(x*z-w*y),     2*(y*z+w*x),     2*(w*w-z*z) - 1, trans['z']]),
+					Vec4([0.0, 0.0, 0.0, 1.0]),
+				])
 			
 			atData = AprilTagFieldConfig(
 				field=atRaw.field,
-				tags=AprilTagList(__root__=[
+				tags=AprilTagList([
 					AprilTagInfo(
 						id=tag.ID,
 						size=apriltag.tagSize,
@@ -184,14 +185,15 @@ class WorkerManager:
 				atData = apriltag
 				cache_key = apriltag
 		
-		from tempfile import NamedTemporaryFile
-		apriltagFile = NamedTemporaryFile('w', suffix='.json', encoding='utf8')
-		apriltagFile.write(atData.json())
-		apriltagFile.flush()
-		self._tempfiles.append(apriltagFile)
-		result = Path(apriltagFile.name).absolute()
+		if self._tempdir is None:
+			from tempfile import TemporaryDirectory
+			self._tempdir = TemporaryDirectory()
+
+		result = Path(self._tempdir.name) / f'{int(time.time_ns())}.json'
+		with open(result, 'w') as apriltagFile:
+			apriltagFile.write(atData.model_dump_json())
 		self.log.info("Create temp file %s", result)
-		self.log.info("AprilTag info: %s", atData.json())
+		self.log.debug("AprilTag info: %s", atData.model_dump_json())
 		assert result.exists()
 		self.at_cache[cache_key] = result
 		return result
@@ -250,6 +252,8 @@ class WorkerManager:
 		for child in self._workers:
 			child.stop()
 		self._workers.clear()
+		if self._tempdir is not None:
+			self._tempdir.cleanup()
 	
 	def __iter__(self):
 		return self._workers.__iter__()

@@ -1,4 +1,5 @@
-from typing import List, Dict, Literal, Optional, TypedDict
+from typing import List, Dict, Literal, Optional
+from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 
 class FieldLayoutJSON(TypedDict):
@@ -61,6 +62,6 @@ class SlamConfigBase(BaseModel):
 class OakSelector(BaseModel):
 	ordinal: Optional[int] = Field(None, description="Pick the nth camera found (unstable, starts at 1)", ge=1)
 	mxid: Optional[str] = Field(None, description="Filter camera by mxid")
-	name: Optional[str]
-	platform: Optional[Literal["X_LINK_ANY_PLATFORM", "X_LINK_MYRIAD_2", "X_LINK_MYRIAD_X"]]
-	protocol: Optional[Literal["X_LINK_ANY_PROTOCOL", "X_LINK_IPC", "X_LINK_NMB_OF_PROTOCOLS", "X_LINK_PCIE", "X_LINK_TCP_IP", "X_LINK_USB_CDC", "X_LINK_USB_VSC"]]
+	name: Optional[str] = Field(None, description="Device name")
+	platform: Optional[Literal["X_LINK_ANY_PLATFORM", "X_LINK_MYRIAD_2", "X_LINK_MYRIAD_X"]] = Field(None)
+	protocol: Optional[Literal["X_LINK_ANY_PROTOCOL", "X_LINK_IPC", "X_LINK_NMB_OF_PROTOCOLS", "X_LINK_PCIE", "X_LINK_TCP_IP", "X_LINK_USB_CDC", "X_LINK_USB_VSC"]] = Field(None)

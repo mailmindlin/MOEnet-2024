@@ -82,7 +82,7 @@ class MoeNet:
 		for i, worker in enumerate(self.camera_workers):
 			# self.log.info("Poll worker %d", i)
 			for packet in worker.poll():
-				self.log.info("Recv packet %s", repr(packet))
+				# self.log.info("Recv packet %s", repr(packet))
 				active = True
 	
 	def run(self):

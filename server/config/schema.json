@@ -1,0 +1,802 @@
+{
+  "title": "LocalConfig",
+  "description": "Local config data",
+  "type": "object",
+  "properties": {
+    "nt": {
+      "$ref": "#/definitions/NetworkTablesConfig"
+    },
+    "timer": {
+      "title": "Timer",
+      "description": "Timer for synchronizing with RoboRIO",
+      "default": "system",
+      "anyOf": [
+        {
+          "enum": [
+            "system"
+          ],
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/NavXConfig"
+        }
+      ]
+    },
+    "log": {
+      "$ref": "#/definitions/LogConfig"
+    },
+    "pipelines": {
+      "title": "Pipelines",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ObjectDetectionDefinition"
+      }
+    },
+    "camera_selectors": {
+      "title": "Camera Selectors",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CameraSelectorConfig"
+      }
+    },
+    "cameras": {
+      "title": "Cameras",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CameraConfig"
+      }
+    },
+    "slam": {
+      "$ref": "#/definitions/SlamConfig"
+    }
+  },
+  "required": [
+    "nt",
+    "pipelines",
+    "cameras"
+  ],
+  "definitions": {
+    "NetworkTablesConfig": {
+      "title": "NetworkTablesConfig",
+      "description": "Configure NetworkTables. Must be provided locally",
+      "type": "object",
+      "properties": {
+        "team": {
+          "title": "Team",
+          "description": "FRC team number",
+          "default": 365,
+          "type": "integer"
+        },
+        "port": {
+          "title": "Port",
+          "default": 1735,
+          "type": "integer"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "default": true,
+          "type": "boolean"
+        },
+        "host": {
+          "title": "Host",
+          "description": "NetworkTables host IP",
+          "type": "string"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "description": "Client connection name",
+          "default": "MOEnet",
+          "type": "string"
+        },
+        "table": {
+          "title": "Table",
+          "description": "Root table name",
+          "default": "moenet",
+          "type": "string"
+        },
+        "log_level": {
+          "title": "Log Level",
+          "description": "Minimum level to send logs",
+          "default": "error",
+          "type": "string"
+        },
+        "log_lines": {
+          "title": "Log Lines",
+          "description": "Number of log lines to retain",
+          "default": 10,
+          "type": "integer"
+        },
+        "subscribeSleep": {
+          "title": "Subscribesleep",
+          "description": "Should we listen for sleep control at `/moenet/rio_request_sleep`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "subscribeConfig": {
+          "title": "Subscribeconfig",
+          "description": "Should we listen for config updates at `/moenet/rio_dynamic_config`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishLog": {
+          "title": "Publishlog",
+          "description": "Should we publish logs to `/moenet/client_log`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishPing": {
+          "title": "Publishping",
+          "description": "Should we publish ping updates to `/moenet/client_ping`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishErrors": {
+          "title": "Publisherrors",
+          "description": "Should we publish errors updates to `/moenet/client_error`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishStatus": {
+          "title": "Publishstatus",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishConfig": {
+          "title": "Publishconfig",
+          "description": "Should we publish this config to `/moenet/client_config`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishSystemInfo": {
+          "title": "Publishsysteminfo",
+          "description": "Should we publish system info to `/moenet/client_telemetry`?",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishDetectionsRs": {
+          "title": "Publishdetectionsrs",
+          "description": "Publish object detections in robot-space to `/moenet/client_det_rs`",
+          "default": true,
+          "type": "boolean"
+        },
+        "publishDetectionsFs": {
+          "title": "Publishdetectionsfs",
+          "description": "Publish object detections in field-space to `/moenet/client_det_fs`",
+          "default": true,
+          "type": "boolean"
+        },
+        "tfFieldToRobot": {
+          "title": "Tffieldtorobot",
+          "description": "field -> robot transform (absolute pose)",
+          "default": "pub",
+          "anyOf": [
+            {
+              "enum": [
+                "sub",
+                "pub"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                false
+              ],
+              "type": "boolean"
+            }
+          ]
+        },
+        "tfFieldToOdom": {
+          "title": "Tffieldtoodom",
+          "description": "field -> odom transform (odometry estimate)",
+          "default": "pub",
+          "anyOf": [
+            {
+              "enum": [
+                "sub",
+                "pub"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                false
+              ],
+              "type": "boolean"
+            }
+          ]
+        },
+        "tfOodomToRobot": {
+          "title": "Tfoodomtorobot",
+          "description": "odom->robot transform (odometry correction)",
+          "default": "pub",
+          "anyOf": [
+            {
+              "enum": [
+                "sub",
+                "pub"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                false
+              ],
+              "type": "boolean"
+            }
+          ]
+        }
+      }
+    },
+    "NavXConfig": {
+      "title": "NavXConfig",
+      "description": "NavX configuration",
+      "type": "object",
+      "properties": {
+        "port": {
+          "title": "Port",
+          "type": "string"
+        }
+      },
+      "required": [
+        "port"
+      ]
+    },
+    "LogConfig": {
+      "title": "LogConfig",
+      "type": "object",
+      "properties": {
+        "level": {
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ]
+    },
+    "NNConfig": {
+      "title": "NNConfig",
+      "description": "Base config for NN",
+      "type": "object",
+      "properties": {
+        "confidence_threshold": {
+          "title": "Confidence Threshold",
+          "type": "number"
+        },
+        "iou_threshold": {
+          "title": "Iou Threshold",
+          "type": "number"
+        },
+        "labels": {
+          "title": "Labels",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "depthLowerThreshold": {
+          "title": "Depthlowerthreshold",
+          "type": "integer"
+        },
+        "depthUpperThreshold": {
+          "title": "Depthupperthreshold",
+          "type": "integer"
+        },
+        "classes": {
+          "title": "Classes",
+          "type": "integer"
+        },
+        "coordinateSize": {
+          "title": "Coordinatesize",
+          "type": "integer"
+        },
+        "anchors": {
+          "title": "Anchors",
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "anchor_masks": {
+          "title": "Anchor Masks",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "required": [
+        "confidence_threshold",
+        "iou_threshold",
+        "labels",
+        "depthLowerThreshold",
+        "depthUpperThreshold",
+        "classes",
+        "coordinateSize",
+        "anchors",
+        "anchor_masks"
+      ]
+    },
+    "ObjectDetectionDefinition": {
+      "title": "ObjectDetectionDefinition",
+      "description": "Configure an object detection pipeline",
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "blobPath": {
+          "title": "Blobpath",
+          "type": "string"
+        },
+        "configPath": {
+          "title": "Configpath",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/definitions/NNConfig"
+        }
+      },
+      "required": [
+        "id",
+        "blobPath"
+      ]
+    },
+    "Vector3": {
+      "title": "Vector3",
+      "type": "object",
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "Quaternion": {
+      "title": "Quaternion",
+      "type": "object",
+      "properties": {
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "w",
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "Pose": {
+      "title": "Pose",
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/definitions/Vector3"
+        },
+        "rotation": {
+          "$ref": "#/definitions/Quaternion"
+        }
+      },
+      "required": [
+        "translation",
+        "rotation"
+      ]
+    },
+    "CameraSelectorConfig": {
+      "title": "CameraSelectorConfig",
+      "type": "object",
+      "properties": {
+        "ordinal": {
+          "title": "Ordinal",
+          "description": "Pick the nth camera found (unstable, starts at 1)",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mxid": {
+          "title": "Mxid",
+          "description": "Filter camera by mxid",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "platform": {
+          "title": "Platform",
+          "enum": [
+            "X_LINK_ANY_PLATFORM",
+            "X_LINK_MYRIAD_2",
+            "X_LINK_MYRIAD_X"
+          ],
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "enum": [
+            "X_LINK_ANY_PROTOCOL",
+            "X_LINK_IPC",
+            "X_LINK_NMB_OF_PROTOCOLS",
+            "X_LINK_PCIE",
+            "X_LINK_TCP_IP",
+            "X_LINK_USB_CDC",
+            "X_LINK_USB_VSC"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "description": "Human-readable ID",
+          "type": "string"
+        },
+        "pose": {
+          "$ref": "#/definitions/Pose"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "OakSelector": {
+      "title": "OakSelector",
+      "type": "object",
+      "properties": {
+        "ordinal": {
+          "title": "Ordinal",
+          "description": "Pick the nth camera found (unstable, starts at 1)",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "mxid": {
+          "title": "Mxid",
+          "description": "Filter camera by mxid",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "platform": {
+          "title": "Platform",
+          "enum": [
+            "X_LINK_ANY_PLATFORM",
+            "X_LINK_MYRIAD_2",
+            "X_LINK_MYRIAD_X"
+          ],
+          "type": "string"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "enum": [
+            "X_LINK_ANY_PROTOCOL",
+            "X_LINK_IPC",
+            "X_LINK_NMB_OF_PROTOCOLS",
+            "X_LINK_PCIE",
+            "X_LINK_TCP_IP",
+            "X_LINK_USB_CDC",
+            "X_LINK_USB_VSC"
+          ],
+          "type": "string"
+        }
+      }
+    },
+    "AprilTagFieldRef": {
+      "title": "AprilTagFieldRef",
+      "type": "object",
+      "properties": {
+        "format": {
+          "title": "Format",
+          "enum": [
+            "frc"
+          ],
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "description": "Path to AprilTag configuration",
+          "type": "string"
+        },
+        "tagFamily": {
+          "title": "Tagfamily",
+          "type": "string"
+        },
+        "tagSize": {
+          "title": "Tagsize",
+          "type": "number"
+        }
+      },
+      "required": [
+        "format",
+        "path",
+        "tagFamily",
+        "tagSize"
+      ]
+    },
+    "FieldLayoutJSON": {
+      "title": "FieldLayoutJSON",
+      "type": "object",
+      "properties": {
+        "length": {
+          "title": "Length",
+          "type": "number"
+        },
+        "width": {
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "length",
+        "width"
+      ]
+    },
+    "Translation3dJSON": {
+      "title": "Translation3dJSON",
+      "type": "object",
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "Quaternion3dJSON": {
+      "title": "Quaternion3dJSON",
+      "type": "object",
+      "properties": {
+        "W": {
+          "title": "W",
+          "type": "number"
+        },
+        "X": {
+          "title": "X",
+          "type": "number"
+        },
+        "Y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "Z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "W",
+        "X",
+        "Y",
+        "Z"
+      ]
+    },
+    "Rotation3dJSON": {
+      "title": "Rotation3dJSON",
+      "type": "object",
+      "properties": {
+        "quaternion": {
+          "$ref": "#/definitions/Quaternion3dJSON"
+        }
+      },
+      "required": [
+        "quaternion"
+      ]
+    },
+    "Pose3dJSON": {
+      "title": "Pose3dJSON",
+      "type": "object",
+      "properties": {
+        "translation": {
+          "$ref": "#/definitions/Translation3dJSON"
+        },
+        "rotation": {
+          "$ref": "#/definitions/Rotation3dJSON"
+        }
+      },
+      "required": [
+        "translation",
+        "rotation"
+      ]
+    },
+    "FieldTagJSON": {
+      "title": "FieldTagJSON",
+      "type": "object",
+      "properties": {
+        "ID": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "pose": {
+          "$ref": "#/definitions/Pose3dJSON"
+        }
+      },
+      "required": [
+        "ID",
+        "pose"
+      ]
+    },
+    "AprilTagFieldConfig": {
+      "title": "AprilTagFieldConfig",
+      "type": "object",
+      "properties": {
+        "field": {
+          "$ref": "#/definitions/FieldLayoutJSON"
+        },
+        "tags": {
+          "title": "Tags",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FieldTagJSON"
+          }
+        }
+      },
+      "required": [
+        "field",
+        "tags"
+      ]
+    },
+    "SlamConfig": {
+      "title": "SlamConfig",
+      "description": "Configure SLAM settings",
+      "type": "object",
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "default": "sai",
+          "enum": [
+            "sai"
+          ],
+          "type": "string"
+        },
+        "syncNN": {
+          "title": "Syncnn",
+          "default": false,
+          "type": "boolean"
+        },
+        "slam": {
+          "title": "Slam",
+          "default": true,
+          "type": "boolean"
+        },
+        "vio": {
+          "title": "Vio",
+          "description": "Enable VIO",
+          "default": false,
+          "type": "boolean"
+        },
+        "debugImage": {
+          "title": "Debugimage",
+          "default": false,
+          "type": "boolean"
+        },
+        "debugImageRate": {
+          "title": "Debugimagerate",
+          "type": "integer"
+        },
+        "apriltag": {
+          "title": "Apriltag",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AprilTagFieldRef"
+            },
+            {
+              "$ref": "#/definitions/AprilTagFieldConfig"
+            }
+          ]
+        }
+      }
+    },
+    "CameraConfig": {
+      "title": "CameraConfig",
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "description": "Human-readable name",
+          "type": "string"
+        },
+        "selector": {
+          "title": "Selector",
+          "description": "Which camera are we referencing?",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/definitions/OakSelector"
+            }
+          ]
+        },
+        "max_usb": {
+          "title": "Max Usb",
+          "enum": [
+            "FULL",
+            "HIGH",
+            "LOW",
+            "SUPER",
+            "SUPER_PLUS",
+            "UNKNOWN"
+          ],
+          "type": "string"
+        },
+        "optional": {
+          "title": "Optional",
+          "description": "Is it an error if this camera is not detected?",
+          "default": false,
+          "type": "boolean"
+        },
+        "pose": {
+          "title": "Pose",
+          "description": "Camera pose (in robot-space)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pose"
+            }
+          ]
+        },
+        "slam": {
+          "title": "Slam",
+          "description": "Enable SLAM on this camera",
+          "default": true,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/definitions/SlamConfig"
+            }
+          ]
+        },
+        "object_detection": {
+          "title": "Object Detection",
+          "description": "Which object detection pipeline should we use?",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selector"
+      ]
+    }
+  }
+}

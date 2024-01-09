@@ -1,0 +1,62 @@
+{
+	"$schema": "./schema.json",
+	"timer": "system",
+	"log": {
+		"level": "debug"
+	},
+	"nt": {
+		"team": 365,
+		"publishErrors": true,
+		"publishPing": true,
+		"subscribeSleep": false,
+		"subscribeConfig": false,
+		"transforms": {
+			"fieldToOdom": "pub",
+			"fieldToRobot": false,
+			"odomToRobot": false
+		}
+	},
+	"pipelines": [
+		{
+			"id": "moenet-2023-v1",
+			"blobPath": "./moenet-2023-v1/nn.blob",
+			"configPath": "./moenet-2023-v1/pipeline.json"
+		}
+	],
+	"slam1": {
+		"apriltag": {
+			"format": "frc",
+			"path": "./apriltag/2023-chargedup.json",
+			"tagFamily": "25h9",
+			"tagSize": 0.1524
+		},
+		"backend": "sai"
+	},
+	"camera_selectors": [
+		{
+			"id": "main",
+			"ordinal": 1
+		}
+	],
+	"cameras": [
+		{
+			"id": "S2",
+			"selector": "main",
+			"pose": {
+				"translation": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				},
+				"rotation": {
+					"w": 1,
+					"x": 0,
+					"y": 0,
+					"z": 0
+				}
+			},
+			"object_detection": "moenet-2023-v1",
+			"slam": true
+		}
+	]
+}

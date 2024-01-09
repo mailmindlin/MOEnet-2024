@@ -1,0 +1,37 @@
+{
+	"$schema": "./schema.json",
+	"timer": "system",
+	"nt": {
+		"enabled": false
+	},
+	"pipelines": [
+		{
+			"id": "moenet-2023-v1",
+			"blobPath": "./foo"
+		}
+	],
+	"slam": {
+		"backend": "sai",
+		
+	},
+	"cameras": [
+		{
+			"id": "S2",
+			"pose": {
+				"translation": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				},
+				"rotation": {
+					"w": 1,
+					"x": 0,
+					"y": 0,
+					"z": 0
+				}
+			},
+			"object_detection": "moenet-2023-v1",
+			"slam": true
+		}
+	]
+}

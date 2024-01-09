@@ -1,21 +1,23 @@
 from typing import List, Optional, Literal, Union, Tuple
-from pydantic import BaseModel, Field
-from networktables import NetworkTablesInstance
+from pydantic import BaseModel, Field, RootModel
+
+from ntcore import NetworkTableInstance
+
 if __name__ == '__main__':
-    from common import NNConfig, SlamConfigBase, OakSelector, AprilTagFieldJSON, FieldLayoutJSON, FieldTagJSON
+    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON, FieldTagJSON
     from geom import Pose
 else:
-    from .common import NNConfig, SlamConfigBase, OakSelector, AprilTagFieldJSON, FieldLayoutJSON, FieldTagJSON
+    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON, FieldTagJSON
     from .geom import Pose
 
 class NetworkTablesConfig(BaseModel):
     "Configure NetworkTables. Must be provided locally"
     team: int = Field(365, description="FRC team number")
-    port: int = NetworkTablesInstance.DEFAULT_PORT
-    
     "FRC team number"
+    port: int = Field(NetworkTableInstance.kDefaultPort4)
+    
     enabled: bool = True
-    host: Optional[str] = Field(description="NetworkTables host IP")
+    host: Optional[str] = Field(None, description="NetworkTables host IP")
     client_id: str = Field("MOEnet", description="Client connection name")
     "Connection client name"
     table: str = Field("moenet", description="Root table name")
@@ -43,9 +45,9 @@ class ObjectDetectionDefinition(BaseModel):
     "Configure an object detection pipeline"
     id: str
     blobPath: str
-    configPath: Optional[str]
+    configPath: Optional[str] = None
     "Configuration path (relative to file)"
-    config: Optional[NNConfig]
+    config: Optional[NNConfig] = None
 
 class NavXConfig(BaseModel):
     "NavX configuration"
@@ -57,19 +59,16 @@ class AprilTagFieldRef(BaseModel):
     tagFamily: str
     tagSize: float
 
-class Vec4(BaseModel):
-    __root__: Tuple[float, float, float, float]
-class Mat44(BaseModel):
-    __root__: Tuple[Vec4, Vec4, Vec4, Vec4]
+Vec4 = RootModel[Tuple[float, float, float, float]]
+Mat44 = RootModel[Tuple[Vec4, Vec4, Vec4, Vec4]]
 
 class AprilTagInfo(BaseModel):
-    id: str
+    id: int
     size: float
     family: str
     tagToWorld: Mat44
 
-class AprilTagList(BaseModel):
-    __root__: List[AprilTagInfo]
+AprilTagList = RootModel[List[AprilTagInfo]]
 
 class AprilTagFieldConfig(BaseModel):
     field: FieldLayoutJSON
@@ -81,7 +80,7 @@ class SlamConfig(SlamConfigBase):
 class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")
     selector: Union[str, OakSelector] = Field(description="Which camera are we referencing?")
-    max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]]
+    max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
     optional: bool = Field(False, description="Is it an error if this camera is not detected?")
     pose: Optional[Pose] = Field(description="Camera pose (in robot-space)")
     slam: Union[bool, SlamConfig] = Field(True, description="Enable SLAM on this camera")
@@ -92,7 +91,7 @@ class LogConfig(BaseModel):
 
 class CameraSelectorConfig(OakSelector):
     id: str = Field(description="Human-readable ID")
-    pose: Optional[Pose]
+    pose: Optional[Pose] = None
 
 class LocalConfig(BaseModel):
     "Local config data"
@@ -101,7 +100,7 @@ class LocalConfig(BaseModel):
     log: Optional[LogConfig]
     "Timer for synchronizing with RoboRIO"
     pipelines: List[ObjectDetectionDefinition]
-    camera_selectors: Optional[List[CameraSelectorConfig]]
+    camera_selectors: Optional[List[CameraSelectorConfig]] = None
     cameras: List[CameraConfig]
     slam: Optional[SlamConfig] = None
 

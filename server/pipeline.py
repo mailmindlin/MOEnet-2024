@@ -1,18 +1,15 @@
 import depthai as dai
 from pathlib import Path
-import time
 from typing import Optional, Any, TYPE_CHECKING
 from dataclasses import dataclass
-from typedef.cfg import NNConfig
 from typedef.worker import ObjectDetectionConfig
 import numpy as np
 from functools import cached_property
-from datetime import datetime
 from clock import IPTimeMapper
 
 if TYPE_CHECKING:
     import spectacularAI as sai
-    from .sai_types import VioOutput, VioSession, MapperOutput
+    from .sai_types import VioSession, MapperOutput
 
 
 @dataclass
@@ -49,12 +46,13 @@ class MoeNetPipeline:
         if self.config.apriltag_path is not None:
             sai_config.aprilTagPath = self.config.apriltag_path
         sai_config.internalParameters = {
-            "ffmpegVideoCodec": "libx264 -crf 15 -preset ultrafast",
-            "computeStereoPointCloud": "true",
-            "computeDenseStereoDepthKeyFramesOnly": "true",
-            "alreadyRectified": "true"
+            # "ffmpegVideoCodec": "libx264 -crf 15 -preset ultrafast",
+            # "computeStereoPointCloud": "true",
+            # "computeDenseStereoDepthKeyFramesOnly": "true",
+            # "alreadyRectified": "true"
         }
         sai_config.useSlam = self.config.slam
+        # sai_config.useColor = True
         return sai.depthai.Pipeline(self.pipeline, sai_config, self.onMappingOutput)
     
     @cached_property
@@ -82,8 +80,10 @@ class MoeNetPipeline:
     @cached_property
     def node_depth(self) -> dai.node.StereoDepth:
         vio_pipeline = self.vio_pipeline
-        if vio_pipeline is not None:
-            return vio_pipeline.stereo
+        if (vio_pipeline is not None) and False:
+            node = vio_pipeline.stereo
+            # node.setDepthAlign(dai.CameraBoardSocket.RGB)
+            return node
         
         stereo = self.pipeline.createStereoDepth()
         stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
@@ -103,9 +103,10 @@ class MoeNetPipeline:
     @cached_property
     def node_rgb(self) -> dai.node.ColorCamera:
         #TODO: is this right?
-        # vio_pipeline = self.vio_pipeline
-        # if (vio_pipeline is not None) and (getattr(vio_pipeline, 'color', None) is not None):
-        #     return vio_pipeline.color
+        vio_pipeline = self.vio_pipeline
+        if (vio_pipeline is not None) and (getattr(vio_pipeline, 'color', None) is not None):
+            node: dai.node.ColorCamera = vio_pipeline.color
+            return node
 
         camRgb = self.pipeline.createColorCamera()
         camRgb.setPreviewSize(416, 416)

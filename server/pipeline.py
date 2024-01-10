@@ -270,19 +270,19 @@ class MoeNetSession:
         vio_out = self.vio_session.getOutput()
         # cam = vio_out.getCameraPose(0)
 
-        pc = vio_out.positionCovariance
-        vc = vio_out.velocityCovariance
+        pc = np.asarray(vio_out.positionCovariance)
+        vc = np.asarray(vio_out.velocityCovariance)
 
         timestamp = self.clock.apply_ns(int(vio_out.pose.time * 1e9))
 
-        from typedef.geom import Vector3, Pose, Quaternion
+        from typedef.geom import Vector3, Pose, Quaternion, Twist
         from typedef.worker import MsgPose
 
         yield MsgPose(
             timestamp=timestamp,
             view_mat=vio_out.pose.asMatrix(),
             pose=Pose(
-                position=Vector3(
+                translation=Vector3(
                     x = vio_out.pose.position.x,
                     y = vio_out.pose.position.y,
                     z = vio_out.pose.position.z,
@@ -294,7 +294,7 @@ class MoeNetSession:
                     z = vio_out.pose.orientation.z,
                 )
             ),
-            poseCovariance=np.ndarray([
+            poseCovariance=np.asarray([
                 [pc[0, 0], pc[0, 1], pc[0, 2], 0, 0, 0],
                 [pc[1, 0], pc[1, 1], pc[1, 2], 0, 0, 0],
                 [pc[2, 0], pc[2, 1], pc[2, 2], 0, 0, 0],
@@ -302,8 +302,8 @@ class MoeNetSession:
                 [0, 0, 0, 0, 0.0001, 0],
                 [0, 0, 0, 0, 0, 0.0001],
             ], dtype=np.float32),
-            twist=Pose(
-                position=Vector3(
+            twist=Twist(
+                velocity=Vector3(
                     x = vio_out.velocity.x,
                     y = vio_out.velocity.y,
                     z = vio_out.velocity.z,
@@ -314,7 +314,7 @@ class MoeNetSession:
                     z = vio_out.angularVelocity.z,
                 )
             ),
-            twistCovariance=np.ndarray([
+            twistCovariance=np.asarray([
                 [vc[0, 0], vc[0, 1], vc[0, 2], 0, 0, 0],
                 [vc[1, 0], vc[1, 1], vc[1, 2], 0, 0, 0],
                 [vc[2, 0], vc[2, 1], vc[2, 2], 0, 0, 0],
@@ -326,11 +326,9 @@ class MoeNetSession:
         return True
 
     def poll(self):
-        from typedef.geom import Vector3, Pose, Quaternion
-        from typedef.worker import MsgDetections, MsgPose, MsgDetection
         did_work = True
         while did_work:
             did_work = False
 
             did_work |= yield from self._poll_dets()
-            did_work |= yield from self._poll_vio()
+            cmx = self.device.getCmxMemoryUsage()

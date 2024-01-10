@@ -331,4 +331,11 @@ class MoeNetSession:
             did_work = False
 
             did_work |= yield from self._poll_dets()
-            cmx = self.device.getCmxMemoryUsage()
+            did_work |= yield from self._poll_vio()
+            # cmx = self.device.getCmxMemoryUsage()
+            # ddr = self.device.getDdrMemoryUsage()
+            # print("Device CMX %f DDR %f LEON CSS %f MSS %f" % (
+            #               100.0 * cmx.used / cmx.total,
+            #               100.0 * ddr.used / ddr.total,
+            #               100.0 * self.device.getLeonCssCpuUsage().average,
+            #               100.0 * self.device.getLeonMssCpuUsage().average))

@@ -141,7 +141,9 @@ class CameraWorker:
 	def poll(self):
 		self.log.debug("Poll camera")
 		for packet in self.session.poll():
-			if isinstance(packet, MsgPose) or (isinstance(packet, MsgDetections) and len(packet.detections)>0):
+			if isinstance(packet, MsgPose):
+				self.log.info(" -> Pose %05.03f %05.03f %05.05f", packet.pose.translation.x, packet.pose.translation.y, packet.pose.translation.z)
+			elif (isinstance(packet, MsgDetections) and len(packet.detections)>0):
 				self.log.info(" -> Send packet %s", repr(packet))
 			self.data_queue.put(packet)
 	

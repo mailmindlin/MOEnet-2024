@@ -77,13 +77,20 @@ class MoeNet:
 	def poll(self):
 		# self.log.debug("Tick start")
 		self.nt.update()
+		from typedef.worker import MsgPose, MsgDetections
 
-		active = False
-		for i, worker in enumerate(self.camera_workers):
-			# self.log.info("Poll worker %d", i)
-			for packet in worker.poll():
-				# self.log.info("Recv packet %s", repr(packet))
-				active = True
+		active = True
+		while active:
+			active = False
+			for i, worker in enumerate(self.camera_workers):
+				# self.log.info("Poll worker %d", i)
+				for packet in worker.poll():
+					# self.log.info("Recv packet %s", repr(packet))
+					if isinstance(packet, MsgPose):
+						self.nt.tx_pose(packet.pose)
+					elif isinstance(packet, MsgDetections):
+						self.nt.tx_detections(packet.detections)
+					active = True
 	
 	def run(self):
 		import time

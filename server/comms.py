@@ -1,5 +1,7 @@
 from typing import TypeVar, Callable, Optional, List, TYPE_CHECKING, Generic, Protocol, overload, Any, Union
 from typedef.cfg import LocalConfig, RemoteConfig
+from typedef.geom import Pose
+from typedef.worker import MsgDetection
 from ntcore import (
 	NetworkTableInstance,
 	PubSubOptions,
@@ -181,16 +183,16 @@ class Comms:
 		self._pub_status = DynamicPublisher(lambda: self.table.getIntegerTopic("client_status").publish(PubSubOptions(sendAll=True)))
 		self._pub_config = DynamicPublisher(lambda: self.table.getStringTopic("client_config").publish(PubSubOptions(sendAll=True, periodic=1)))
 		self._pub_telem  = DynamicPublisher(lambda: self.table.getIntegerTopic("client_telemetry").publish(PubSubOptions(periodic=0.5)))
-		self._pub_tf_field_odom  = DynamicPublisher(lambda: self.table.getIntegerTopic("tf_field_odom").publish(PubSubOptions(periodic=0.01)))
-		self._pub_tf_field_robot = DynamicPublisher(lambda: self.table.getIntegerTopic("tf_field_robot").publish(PubSubOptions(periodic=0.01)))
-		self._pub_tf_odom_robot  = DynamicPublisher(lambda: self.table.getIntegerTopic("tf_odom_robot").publish(PubSubOptions(periodic=0.01)))
+		self._pub_tf_field_odom  = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_field_odom").publish(PubSubOptions(periodic=0.01)))
+		self._pub_tf_field_robot = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_field_robot").publish(PubSubOptions(periodic=0.01)))
+		self._pub_tf_odom_robot  = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_odom_robot").publish(PubSubOptions(periodic=0.01)))
 
 		self._pub_det_rs = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("client_det_rs").publish(PubSubOptions(periodic=0.01)))
 		self._pub_det_fs = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("client_det_fs").publish(PubSubOptions(periodic=0.01)))
 
-		self._sub_tf_field_odom  = DynamicSubscriber(lambda: self.table.getIntegerTopic("tf_field_odom").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_field_robot = DynamicSubscriber(lambda: self.table.getIntegerTopic("tf_field_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_odom_robot  = DynamicSubscriber(lambda: self.table.getIntegerTopic("tf_odom_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_field_odom  = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_field_odom").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_field_robot = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_field_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_odom_robot  = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_odom_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
 
 		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config").subscribe("", PubSubOptions()))
 		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep").subscribe(False, PubSubOptions()))
@@ -285,11 +287,23 @@ class Comms:
 		self._pub_status.set(int(status))
 		self.log.info("NT send status: %s", status)
 
-	def tx_pose(self, pose):
-		pass
+	def tx_pose(self, pose: Pose):
+		self._pub_tf_field_robot.set([
+			pose.translation.x,
+			pose.translation.y,
+			pose.translation.z,
+			pose.rotation.w,
+			pose.rotation.x,
+			pose.rotation.y,
+			pose.rotation.z,
+		])
+		#TODO: compute other transforms
 
-	def tx_detections(self, detections: List):
-		pass
+	def tx_detections(self, detections: List[MsgDetection]):
+		#TODO: fixme
+		self._pub_det_rs.set([
+			len(detections)
+		])
 
 	def rx_sleep(self) -> bool:
 		return self._sub_sleep.get(False)

@@ -43,7 +43,7 @@ class MoeNetPipeline:
 
         import spectacularAI as sai
         sai_config = sai.depthai.Configuration()
-        if self.config.apriltag_path is not None:
+        if (self.config.apriltag_path is not None) and self.config.slam:
             sai_config.aprilTagPath = self.config.apriltag_path
         sai_config.internalParameters = {
             # "ffmpegVideoCodec": "libx264 -crf 15 -preset ultrafast",

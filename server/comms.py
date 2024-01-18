@@ -1,38 +1,28 @@
 from typing import TypeVar, Callable, Optional, List, TYPE_CHECKING, Generic, Protocol, overload, Any, Union
-from typedef.cfg import LocalConfig, RemoteConfig
-from typedef.geom import Pose
-from typedef.worker import MsgDetection
 from ntcore import (
 	NetworkTableInstance,
 	PubSubOptions,
-	IntegerPublisher,
-	IntegerSubscriber,
-	StringPublisher,
-	StringSubscriber,
-	BooleanPublisher,
-	BooleanSubscriber,
-	RawPublisher,
-	RawSubscriber,
-	TimestampedInteger,
-	NetworkTable,
 )
-from enum import IntEnum
+from wpimath.geometry import Pose3d, Transform3d
 import logging
+try:
+	import psutil
+except ImportError:
+	psutil = None
+
+from typedef.cfg import LocalConfig
+from typedef.geom import Pose
+from typedef.worker import MsgDetection
+from typedef.net import Status
 
 if TYPE_CHECKING:
 	from .main import MoeNet
+
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
 T = TypeVar("T")
 
 logging.basicConfig(level=logging.DEBUG)
-
-class Status(IntEnum):
-	NOT_READY = 0
-	INITIALIZING = 1
-	SLEEPING = 2
-	READY = 2
-	ERROR = 3
 
 class ProtoPublisher(Protocol, Generic[P]):
 	"Interface for NetworkTables' XXXPublisher"
@@ -185,17 +175,18 @@ class Comms:
 		self._pub_log    = DynamicPublisher(lambda: self.table.getStringTopic("client_log").publish(PubSubOptions(sendAll=True)))
 		self._pub_status = DynamicPublisher(lambda: self.table.getIntegerTopic("client_status").publish(PubSubOptions(sendAll=True)))
 		self._pub_config = DynamicPublisher(lambda: self.table.getStringTopic("client_config").publish(PubSubOptions(sendAll=True, periodic=1)))
-		self._pub_telem  = DynamicPublisher(lambda: self.table.getIntegerTopic("client_telemetry").publish(PubSubOptions(periodic=0.5)))
-		self._pub_tf_field_odom  = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_field_odom").publish(PubSubOptions(periodic=0.01)))
-		self._pub_tf_field_robot = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_field_robot").publish(PubSubOptions(periodic=0.01)))
-		self._pub_tf_odom_robot  = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("tf_odom_robot").publish(PubSubOptions(periodic=0.01)))
+		self._pub_telem_cpu  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("cpu").publish(PubSubOptions(periodic=0.5)))
+		self._pub_telem_ram  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("ram").publish(PubSubOptions(periodic=0.5)))
+		self._pub_tf_field_odom: DynamicPublisher[Pose3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d).publish(PubSubOptions(periodic=0.01)))
+		self._pub_tf_field_robot: DynamicPublisher[Pose3d] = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robotodom", Pose3d).publish(PubSubOptions(periodic=0.01)))
+		self._pub_tf_odom_robot: DynamicPublisher[Transform3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d).publish(PubSubOptions(periodic=0.1)))
 
 		self._pub_det_rs = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("client_det_rs").publish(PubSubOptions(periodic=0.01)))
 		self._pub_det_fs = DynamicPublisher(lambda: self.table.getDoubleArrayTopic("client_det_fs").publish(PubSubOptions(periodic=0.01)))
 
-		self._sub_tf_field_odom  = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_field_odom").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_field_robot = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_field_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_odom_robot  = DynamicSubscriber(lambda: self.table.getDoubleArrayTopic("tf_odom_robot").subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_field_odom: DynamicSubscriber[Pose3d]  = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_field_robot: DynamicSubscriber[Pose3d] = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
+		self._sub_tf_odom_robot: DynamicSubscriber[Transform3d]  = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d).subscribe(PubSubOptions(periodic=0.1, disableLocal=True)))
 
 		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config").subscribe("", PubSubOptions()))
 		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep").subscribe(False, PubSubOptions()))

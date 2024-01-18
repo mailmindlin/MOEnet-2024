@@ -217,13 +217,10 @@ class Comms:
 			self.table = None
 			return
 		
+		# Connect to NT
 		self.nt = NetworkTableInstance.create()
-		if config.nt.client_id is not None:
-			self.log.info("Setting NetworkTables identity to %s", config.nt.client_id)
-			# self.nt.setNetworkIdentity(config.client_id)
-			nt_id = config.nt.client_id
-		else:
-			nt_id = 'moenet'
+		self.log.info("Setting NetworkTables identity to %s", config.nt.client_id)
+		nt_id = config.nt.client_id
 		
 		if config.nt.host is not None:
 			self.log.info("Starting client with host %s (port=%d)", config.nt.host, config.nt.port)
@@ -235,12 +232,13 @@ class Comms:
 			self.nt.setServerTeam(config.nt.team, config.nt.port)
 		
 		self.nt.startClient4(nt_id)
-		
 		self.table = self.nt.getTable(config.nt.table)
 		self._reset()
 
-		if (self._pub_config is not None):
-			self._pub_config.set(config.json())
+		self._pub_config.set(config.model_dump_json())
+
+		root_log = logging.getLogger()
+		# root_log.addHandler(self._handler)
 	
 	def update_config(self, config: LocalConfig):
 		self.config = config

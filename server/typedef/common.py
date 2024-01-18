@@ -1,6 +1,9 @@
 from typing import List, Dict, Literal, Optional
 from pydantic import BaseModel, Field
-from .wpilib_compat import FieldLayoutJSON, FieldTagJSON
+try:
+	from .wpilib_compat import FieldLayoutJSON, FieldTagJSON
+except ImportError:
+	from wpilib_compat import FieldLayoutJSON, FieldTagJSON
 
 class NNConfig(BaseModel):
 	"Base config for NN"

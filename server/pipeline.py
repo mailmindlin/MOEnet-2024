@@ -1,9 +1,6 @@
-import depthai as dai
-from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
+from pathlib import Path
 from dataclasses import dataclass
-from typedef.worker import ObjectDetectionConfig
-import numpy as np
 from functools import cached_property
 
 import numpy as np
@@ -235,15 +232,17 @@ class MoeNetSession:
         else:
             self.vio_session: 'VioSession' = FakeVioSession()
         
-        self.clock = IPTimeMapper()
+        self.clock = FixedOffsetMapper(MonoClock(), WallClock())
     
     def onMappingOutput(self, mapping: 'MapperOutput'):
+        #TODO: is this useful?
         pass
 
     def close(self):
         self.vio_session.close()
     
     def _poll_dets(self):
+        "Poll object detection queue"
         from typedef.worker import MsgDetections, MsgDetection
         from typedef.geom import Vector3
 
@@ -270,6 +269,7 @@ class MoeNetSession:
         return True
 
     def _poll_vio(self):
+        "Poll VIO queue"
         if not self.vio_session.hasOutput():
             return False
         vio_out = self.vio_session.getOutput()
@@ -283,9 +283,17 @@ class MoeNetSession:
         from typedef.geom import Vector3, Pose, Quaternion, Twist
         from typedef.worker import MsgPose
 
+        # Why is orientation covariance 1e-4?
+        # Because I said so
+        ROTATION_COV = 1e-4
+        ANG_VEL_COV = 1e-3
+
         yield MsgPose(
             timestamp=timestamp,
+            # Not sure if we need this property
             view_mat=vio_out.pose.asMatrix(),
+            # I wish there was a better way to do this, but spectacularAI types are native wrappers,
+            # and they can't be nicely shared between processes
             pose=Pose(
                 translation=Vector3(
                     x = vio_out.pose.position.x,
@@ -303,9 +311,9 @@ class MoeNetSession:
                 [pc[0, 0], pc[0, 1], pc[0, 2], 0, 0, 0],
                 [pc[1, 0], pc[1, 1], pc[1, 2], 0, 0, 0],
                 [pc[2, 0], pc[2, 1], pc[2, 2], 0, 0, 0],
-                [0, 0, 0, 0.0001, 0, 0],
-                [0, 0, 0, 0, 0.0001, 0],
-                [0, 0, 0, 0, 0, 0.0001],
+                [0, 0, 0, ROTATION_COV, 0, 0],
+                [0, 0, 0, 0, ROTATION_COV, 0],
+                [0, 0, 0, 0, 0, ROTATION_COV],
             ], dtype=np.float32),
             twist=Twist(
                 velocity=Vector3(
@@ -323,9 +331,9 @@ class MoeNetSession:
                 [vc[0, 0], vc[0, 1], vc[0, 2], 0, 0, 0],
                 [vc[1, 0], vc[1, 1], vc[1, 2], 0, 0, 0],
                 [vc[2, 0], vc[2, 1], vc[2, 2], 0, 0, 0],
-                [0, 0, 0, 0.001, 0, 0],
-                [0, 0, 0, 0, 0.001, 0],
-                [0, 0, 0, 0, 0, 0.001],
+                [0, 0, 0, ANG_VEL_COV, 0, 0],
+                [0, 0, 0, 0, ANG_VEL_COV, 0],
+                [0, 0, 0, 0, 0, ANG_VEL_COV],
             ], dtype=np.float32),
         )
         return True

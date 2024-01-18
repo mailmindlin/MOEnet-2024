@@ -326,3 +326,7 @@ class Comms:
 
 	def rx_sleep(self) -> bool:
 		return self._sub_sleep.get(False)
+
+	def close(self):
+		self.nt.stopClient()
+		del self.moenet

@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field, RootModel, root_validator
 from ntcore import NetworkTableInstance
 
 if __name__ == '__main__':
-    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON, FieldTagJSON
+    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON
     from geom import Pose
 else:
-    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON, FieldTagJSON
+    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON
     from .geom import Pose
 
 class NetworkTablesConfig(BaseModel):
@@ -45,16 +45,24 @@ class NetworkTablesConfig(BaseModel):
 class ObjectDetectionDefinition(BaseModel):
     "Configure an object detection pipeline"
     id: str
-    blobPath: str
-    configPath: Optional[str] = None
+    blobPath: Path = Field(description="Path to NN blob")
+    configPath: Optional[Path] = Field(None, description="Path to NN config")
     "Configuration path (relative to file)"
     config: Optional[NNConfig] = Field(None, description="Inline NN config")
 
+    @root_validator()
+    def check_config_once(cls, values: Dict[str, Any]):
+        if (values.get('configPath') is None) == (values.get("config") is None):
+            raise ValueError('Exactly ONE of `config` and `configPath` are required')
+        return values
+
 class NavXConfig(BaseModel):
     "NavX configuration"
-    port: str
+    port: str = Field(description="NavX serial port path")
+    update_rate: int = Field(60, description="NavX poll rate (in hertz)", gt=0, le=255)
 
 class AprilTagFieldRef(BaseModel):
+    "Reference to a WPIlib AprilTag JSON file"
     format: Literal["frc"]
     path: Path = Field(description="Path to AprilTag configuration")
     tagFamily: Literal['16h5', '25h9', '36h11'] = Field(description="AprilTag family")
@@ -74,6 +82,10 @@ AprilTagList = RootModel[List[AprilTagInfo]]
 class AprilTagFieldConfig(BaseModel):
     field: FieldLayoutJSON
     tags: AprilTagList
+
+class PoseEstimatorConfig(BaseModel):
+    "Configuration for "
+    pass
 
 class SlamConfig(SlamConfigBase):
     apriltag: Union[AprilTagFieldRef, AprilTagFieldConfig, None]
@@ -104,16 +116,20 @@ class LocalConfig(BaseModel):
     timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
     log: Optional[LogConfig]
     pipelines: List[ObjectDetectionDefinition]
-    camera_selectors: Optional[List[CameraSelectorConfig]] = None
+    camera_selectors: List[CameraSelectorConfig] = Field(default_factory=list)
     cameras: List[CameraConfig]
-    slam: Optional[SlamConfig] = None
+    slam: Optional[SlamConfig] = Field(None)
 
     def merge(self, update: 'RemoteConfig') -> 'LocalConfig':
-        result = self.copy()
+        "Merge in a remote configuration"
+        result = self.model_copy()
         if update.slam is not None:
             result.slam = update.slam
         if update.cameras is not None:
-            result.cameras
+            for i, camera in enumerate(update.cameras):
+                if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, AprilTagFieldRef):
+                    raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
+            result.cameras = update.cameras
 
 class RemoteConfig(BaseModel):
     slam: Optional[SlamConfig] = None

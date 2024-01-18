@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING, Any, List, Dict, Optional
 if TYPE_CHECKING:
     import numpy as np
+    from depthai.node import MonoCamera, StereoDepth, ColorCamera
+    from depthai import Device
 
     class Vector3d:
         x: float
@@ -17,12 +19,10 @@ if TYPE_CHECKING:
         orientation: Quaternion
         position: Vector3d
         time: float
-        def asMatrix(self) -> np.ndarray:
-            ...
+        def asMatrix(self) -> np.ndarray: ...
     
     class Camera:
-        def getIntrinsicMatrix(self) -> np.ndarray:
-            ...
+        def getIntrinsicMatrix(self) -> np.ndarray: ...
     
     class CameraPose:
         pose: Pose
@@ -37,8 +37,7 @@ if TYPE_CHECKING:
         velocity: Vector3d
         velocityCovariance: np.ndarray
 
-        def getCameraPose(self, id: int) -> CameraPose:
-            ...
+        def getCameraPose(self, id: int) -> CameraPose: ...
     
     class WgsCoordinates:
         "Represents the pose (position & orientation) of a device at a given time."
@@ -51,12 +50,12 @@ if TYPE_CHECKING:
             pass
         def getOutput(self) -> VioOutput:
             pass
-        def addAbsolutePose(self, arg0: Pose, arg1: List[List[float[3]][3]], arg2: float) -> None:
+        def addAbsolutePose(self, /, arg0: Pose, arg1: List[List[float[3]][3]], arg2: float) -> None:
             "Add external pose information.VIO will correct its estimates to match the pose."
-        def addGnss(self, arg0: float, arg1: WgsCoordinates, arg2: List[List[float[3]][3]]) -> None:
+        def addGnss(self, /, arg0: float, arg1: WgsCoordinates, arg2: List[List[float[3]][3]]) -> None:
             "Add GNSS input (for GNSS-VIO fusion)"
 
-        def addTrigger(self, arg0: float, arg1: int) -> None:
+        def addTrigger(self, /, arg0: float, arg1: int) -> None:
             "Add an external trigger input. Causes additional output corresponding to a certain timestamp to be generated."
 
         def close(self) -> None:
@@ -65,7 +64,7 @@ if TYPE_CHECKING:
         def getOutput(self) -> VioOutput:
             "Removes the first unread output from an internal queue and returns it"
 
-        def getRgbCameraPose(self, arg0: VioOutput) -> CameraPose:
+        def getRgbCameraPose(self, /, arg0: VioOutput) -> CameraPose:
             "Get the CameraPose corresponding to the OAK RGB camera at a certain VioOutput."
 
         def hasOutput(self) -> bool:
@@ -97,3 +96,11 @@ if TYPE_CHECKING:
         finalMap: bool
         map: Map
         updatedKeyFrames: List[int]
+    
+    class Pipeline:
+        monoLeft: MonoCamera
+        monoRight: MonoCamera
+        stereo: StereoDepth
+        color: ColorCamera
+
+        def startSession(self, /, arg0: Device) -> VioSession: ...

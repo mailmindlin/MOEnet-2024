@@ -260,7 +260,8 @@ class Comms:
 		self._pub_log.enabled = ntc.publishLog
 		self._pub_status.enabled = ntc.publishStatus
 		self._pub_config.enabled = ntc.publishConfig
-		self._pub_telem.enabled = ntc.publishSystemInfo
+		self._pub_telem_cpu.enabled = ntc.publishSystemInfo
+		self._pub_telem_ram.enabled = ntc.publishSystemInfo
 		self._pub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'pub'
 		self._pub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'pub'
 		self._pub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'pub'
@@ -280,17 +281,38 @@ class Comms:
 			self._pub_ping.set(self.ping_id)
 			self.ping_id += 1
 		
+		# Check for new config
 		if (new_cfg := self._sub_config.get_fresh(None)) is not None:
-			try:
-				new_cfg = RemoteConfig.parse_raw(new_cfg)
-			except:
-				logging.exception("Error parsing client config")
-			else:
-				self.moenet.update_config(new_cfg)
+			self.moenet.update_config(new_cfg)
 		
+		# Check for sleep
 		if self._sub_sleep.enabled:
 			sleep = self._sub_sleep.get()
 			self.moenet.sleeping = sleep
+		
+		# Publish telemetry
+		if psutil is not None:
+			try:
+				if self._pub_telem_cpu.enabled:
+					self._pub_telem_cpu.set(psutil.cpu_percent())
+				if self._pub_telem_ram.enabled:
+					self._pub_telem_ram.set(psutil.virtual_memory().percent)
+			except Exception:
+				self.log.exception("Error publishing telemetry to NT")
+		
+		# Get odometry
+		if (tf_field_odom := self._sub_tf_field_odom.get_fresh(None)) is not None:
+			# Probably a better way to do this
+			timestamp = self._sub_tf_field_odom._handle.getAtomic().time * 1_000
+			self.moenet.pose_estimator.record_f2o(timestamp, tf_field_odom)
+		
+		# Get field-to-robot
+		if (tf_field_robot := self._sub_tf_field_robot.get_fresh(None)) is not None:
+			pass
+
+		# Publish transforms
+		if self._pub_tf_odom_robot.enabled:
+			tf_odom_robot = self.moenet.pose_estimator.odom_to_robot()
 
 	
 	def tx_error(self, message: str):
@@ -303,6 +325,7 @@ class Comms:
 		self._pub_log.set(message)
 
 	def tx_status(self, status: Status):
+		"Send status"
 		self._pub_status.set(int(status))
 		self.log.info("NT send status: %s", status)
 

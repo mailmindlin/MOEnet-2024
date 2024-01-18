@@ -1,6 +1,8 @@
-from typing import List, Optional, Literal, Union, Tuple
-from pydantic import BaseModel, Field, RootModel
+"Type definitions for parsing the configuration"
 
+from typing import List, Optional, Literal, Union, Tuple, Dict, Any
+from pathlib import Path
+from pydantic import BaseModel, Field, RootModel, root_validator
 from ntcore import NetworkTableInstance
 
 if __name__ == '__main__':
@@ -12,16 +14,15 @@ else:
 
 class NetworkTablesConfig(BaseModel):
     "Configure NetworkTables. Must be provided locally"
+    enabled: bool = Field(True, "Should anything be sent to NetworkTables?")
+
+    # Connection info
     team: int = Field(365, description="FRC team number")
-    "FRC team number"
-    port: int = Field(NetworkTableInstance.kDefaultPort4)
-    
-    enabled: bool = True
+    port: int = Field(NetworkTableInstance.kDefaultPort4, description="Which port should we connect to?")
     host: Optional[str] = Field(None, description="NetworkTables host IP")
     client_id: str = Field("MOEnet", description="Client connection name")
-    "Connection client name"
+    
     table: str = Field("moenet", description="Root table name")
-    "Root table name"
 
     log_level: str = Field("error", description="Minimum level to send logs")
     log_lines: int = Field(10, description="Number of log lines to retain")
@@ -47,7 +48,7 @@ class ObjectDetectionDefinition(BaseModel):
     blobPath: str
     configPath: Optional[str] = None
     "Configuration path (relative to file)"
-    config: Optional[NNConfig] = None
+    config: Optional[NNConfig] = Field(None, description="Inline NN config")
 
 class NavXConfig(BaseModel):
     "NavX configuration"
@@ -55,9 +56,9 @@ class NavXConfig(BaseModel):
 
 class AprilTagFieldRef(BaseModel):
     format: Literal["frc"]
-    path: str = Field(description="Path to AprilTag configuration")
-    tagFamily: str
-    tagSize: float
+    path: Path = Field(description="Path to AprilTag configuration")
+    tagFamily: Literal['16h5', '25h9', '36h11'] = Field(description="AprilTag family")
+    tagSize: float = Field(description="AprilTag side length, in meters")
 
 Vec4 = RootModel[Tuple[float, float, float, float]]
 Mat44 = RootModel[Tuple[Vec4, Vec4, Vec4, Vec4]]
@@ -83,11 +84,15 @@ class CameraConfig(BaseModel):
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
     optional: bool = Field(False, description="Is it an error if this camera is not detected?")
     pose: Optional[Pose] = Field(description="Camera pose (in robot-space)")
-    slam: Union[bool, SlamConfig] = Field(True, description="Enable SLAM on this camera")
+    slam: Union[bool, SlamConfig] = Field(False, description="Enable SLAM on this camera")
     object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
 
 class LogConfig(BaseModel):
-    level: str
+    """
+    Configuration for logging output
+    """
+    level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
+    file: Optional[str]
 
 class CameraSelectorConfig(OakSelector):
     id: str = Field(description="Human-readable ID")
@@ -98,7 +103,6 @@ class LocalConfig(BaseModel):
     nt: NetworkTablesConfig
     timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
     log: Optional[LogConfig]
-    "Timer for synchronizing with RoboRIO"
     pipelines: List[ObjectDetectionDefinition]
     camera_selectors: Optional[List[CameraSelectorConfig]] = None
     cameras: List[CameraConfig]

@@ -1,6 +1,11 @@
-from pydantic import BaseModel, Field
+"""
+Type definitions for communicating between the master and worker processes
+"""
+
 from typing import Optional, List, Any, Literal
 from enum import IntEnum
+from pydantic import BaseModel, Field
+
 from .geom import Pose, Vector3, Twist
 from .common import NNConfig, SlamConfigBase, OakSelector
 

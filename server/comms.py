@@ -163,6 +163,24 @@ class DynamicSubscriber(Generic[P]):
 		else:
 			return default
 
+class LogHandler(logging.Handler):
+	def __init__(self, comms: 'Comms') -> None:
+		super().__init__()
+		self.comms = comms
+	
+	def emit(self, record: LogRecord) -> None:
+		try:
+			msg = self.format(record)
+			if record.levelno >= logging.ERROR:
+				self.comms.tx_error(msg)
+			else:
+				self.comms.tx_log(msg)
+		except RecursionError:  # See issue 36272
+			raise
+		except Exception:
+			self.handleError(record)
+
+
 class Comms:
 	def __init__(self, moenet: 'MoeNet', config: LocalConfig):
 		self.moenet = moenet
@@ -190,6 +208,8 @@ class Comms:
 
 		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config").subscribe("", PubSubOptions()))
 		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep").subscribe(False, PubSubOptions()))
+		
+		# self._handler = LogHandler(self)
 
 		if not self.config.nt.enabled:
 			self.log.warn("NetworkTables is disabled")
@@ -274,8 +294,13 @@ class Comms:
 
 	
 	def tx_error(self, message: str):
+		"Send error message to NetworkTables"
 		self._pub_error.set(message)
-		self.log.warn("NT Error: %s", message)
+		# self.log.warn("NT Error: %s", message)
+	
+	def tx_log(self, message: str):
+		"Send error message to NetworkTables"
+		self._pub_log.set(message)
 
 	def tx_status(self, status: Status):
 		self._pub_status.set(int(status))

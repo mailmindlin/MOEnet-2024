@@ -1,3 +1,4 @@
+from logging import _Level, LogRecord
 from typing import TypeVar, Callable, Optional, List, TYPE_CHECKING, Generic, Protocol, overload, Any, Union
 from ntcore import (
 	NetworkTableInstance,
@@ -96,6 +97,7 @@ class DynamicPublisher(Generic[P]):
 		super().__init__()
 		self._builder = builder
 		self._handle = None
+		self._last = None
 	
 	@property
 	def enabled(self) -> bool:
@@ -110,6 +112,7 @@ class DynamicPublisher(Generic[P]):
 		else:
 			self._handle.close()
 			self._handle = None
+			self._last = None
 	
 	def close(self):
 		self.enabled = False
@@ -117,6 +120,12 @@ class DynamicPublisher(Generic[P]):
 	def set(self, value: P, time: int = 0):
 		if self._handle:
 			self._handle.set(value, time)
+			self._last = value
+	
+	def set_fresh(self, value: P):
+		if self._last != value:
+			self.set(value)
+		
 
 class DynamicSubscriber(Generic[P]):
 	def __init__(self, builder: Callable[[], ProtoSubscriber[P]]) -> None:
@@ -156,8 +165,8 @@ class DynamicSubscriber(Generic[P]):
 	def get_fresh(self, default: T = None) -> Union[P, T]:
 		if self._handle is None:
 			return default
-		at = self._handle.getAtomic()
-		if (at.serverTime != self._fresh_time):
+		at = self._handle.getAtomic(None)
+		if (at.time != 0) and (at.serverTime != self._fresh_time):
 			self._fresh_time = at.serverTime
 			return at.value
 		else:
@@ -245,7 +254,7 @@ class Comms:
 		self._reset()
 
 		if self._pub_config.enabled:
-			self._pub_config.set(config.json())
+			self._pub_config.set(config.model_dump_json())
 	
 	def _reset(self):
 		"Reset NT handles based on config"

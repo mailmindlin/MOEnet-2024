@@ -269,6 +269,9 @@ class WorkerHandle:
 		self.child_state = None
 		self.log = logging.getLogger(name)
 		
+		self.config = config
+		self._restarts = 0
+		self.robot_to_camera = config.pose.as_transform()
 		self.cmd_queue = ctx.Queue()
 		self.data_queue = ctx.Queue()
 		self.proc = ctx.Process(
@@ -291,15 +294,39 @@ class WorkerHandle:
 			self.proc.join()
 		finally:
 			self.proc.close()
+		self.proc = None
 		self.log.info("Stopped")
 	
 	def poll(self):
+		if self.proc is None:
+			return
+		
+		is_alive = True
 		while True:
+			is_alive = is_alive and self.proc.is_alive()
 			try:
-				packet = self.data_queue.get(block=True, timeout=0.01)
+				# We want to process any remaining packets even if the process died
+				# but we know we don't need to block on the queue then
+				packet: Union[worker.MsgPose, worker.MsgDetections, worker.MsgChangeState] = self.data_queue.get(block=is_alive, timeout=0.01)
 			except Empty:
 				break
 			else:
 				if isinstance(packet, worker.MsgChangeState):
 					self.child_state = packet.current
 				yield packet
+		
+		if not is_alive:
+			if not self.config.optional:
+				self.log.error('Camera process unexpectedly exited')
+			else:
+				self.log.warn('Camera process unexpectedly exited')
+			# Cleanup process
+			self.child_state = worker.WorkerState.FAILED
+			self.proc.join(0.1)
+			self.proc.close()
+			self.proc = None
+
+			if (not self.config.optional):
+				raise RuntimeError('Camera unexpectedly exited')
+			
+			#TODO: restart-retry logic

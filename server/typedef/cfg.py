@@ -135,10 +135,6 @@ class RemoteConfig(BaseModel):
     slam: Optional[SlamConfig] = None
     cameras: List[CameraConfig]
 
-def load_config(path: str) -> LocalConfig:
-    "Load local config"
-    return LocalConfig.parse_file(path)
-
 if __name__ == '__main__':
     import json
-    print(json.dumps(LocalConfig.schema(), indent=2))
+    print(json.dumps(LocalConfig.model_json_schema(), indent='\t'))

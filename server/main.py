@@ -125,7 +125,14 @@ if __name__ == '__main__':
 	from sys import argv
 	
 	config_path = './config/local_nn.json' if len(argv) < 2 else argv[1]
-	local_cfg = load_config(config_path)
+	with open(config_path, 'r') as f:
+		config_data = f.read()
+	try:
+		local_cfg = LocalConfig(config_data)
+		del config_data
+	except ValidationError:
+		print("ERROR: Local config validation failure")
+		raise
 
 	moenet = MoeNet(config_path, local_cfg)
 	try:

@@ -102,21 +102,6 @@ class WorkerManager:
 		)
 		self.nn_cache[pipeline_id] = object_detection
 		return object_detection
-
-	def _write_apriltags(self, config: SlamConfig) -> Optional[Path]:
-		"Write AprilTag info to file, in a format that SpectacularAI can read"
-		
-		if config.apriltagPath is None:
-			return None
-		# Redundant spec
-		if config.apriltagConfig is not None:
-			self.log.warn("AprilTag config was specified along with path (expected exactly one)")
-			return None
-		from pathlib import Path
-		path = Path(config.apriltagPath)
-		if not path.exists():
-			self.log.error("AprilTag config path does not exist: %s", path)
-			return None
 	
 	def _resolve_selector(self, cid: CameraId, raw_selector: Union[str, OakSelector]) -> OakSelector:
 		if isinstance(raw_selector, str):

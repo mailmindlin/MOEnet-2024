@@ -13,8 +13,8 @@ from typedef.worker import ObjectDetectionConfig
 import depthai as dai
 
 if TYPE_CHECKING:
-    import spectacularAI as sai
-    from .sai_types import VioSession, MapperOutput
+    # import spectacularAI.depthai.Pipeline as SaiPipeline
+    from .sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
 
 
 @dataclass
@@ -42,7 +42,7 @@ class MoeNetPipeline:
         pass
     
     @cached_property
-    def vio_pipeline(self) -> Optional['sai.depthai.Pipeline']:
+    def vio_pipeline(self) -> Optional['SaiPipeline']:
         if not (self.config.vio or self.config.slam):
             return None
 

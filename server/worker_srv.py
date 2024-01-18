@@ -1,21 +1,21 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Union, List
+from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union
 import logging, os.path, time
 from multiprocessing import Process, get_context
 from queue import Empty
 from pathlib import Path
 from logging import Logger
 from typedef import worker
-from typedef.common import AprilTagFieldJSON
+from typedef.wpilib_compat import AprilTagFieldJSON
 from typedef.cfg import (
-	SlamConfig, NNConfig, LocalConfig,
+	SlamConfig, SlamConfigBase, NNConfig, LocalConfig,
 	CameraConfig, OakSelector,
 	AprilTagFieldRef, AprilTagFieldConfig, AprilTagInfo,
 	AprilTagList, Mat44, Vec4
 )
 
 if TYPE_CHECKING:
-	from typedef.common import Pose3dJSON
+	from typedef.wpilib_compat import Pose3dJSON
 	from multiprocessing.context import BaseContext
 
 class CameraId:
@@ -174,31 +174,39 @@ class WorkerManager:
 			from tempfile import TemporaryDirectory
 			self._tempdir = TemporaryDirectory()
 
-		result = Path(self._tempdir.name) / f'{int(time.time_ns())}.json'
+		# Write SAI-formatted AprilTag data to a temp file
+		result = Path(self._tempdir.name) / f'apriltag_{int(time.time_ns())}.json'
+		self.log.info("Create temp file %s for AprilTag data", result)
 		with open(result, 'w') as apriltagFile:
 			apriltagFile.write(atData.model_dump_json())
-		self.log.info("Create temp file %s", result)
 		self.log.debug("AprilTag info: %s", atData.model_dump_json())
-		assert result.exists()
+
+		assert result.exists(), "AprilTag file is missing"
+
 		self.at_cache[cache_key] = result
 		return result
 	
 	def _resolve_slam(self, cid: CameraId, raw_slam: Union[bool, SlamConfig]) -> Optional[SlamConfig]:
+		"Resolve SLAM configuration. We use global SLAM config for when `raw_slam=True`"
 		if raw_slam == False:
 			return None
 		elif raw_slam == True:
-			raw_slam: Optional[SlamConfig] = self.config.slam
-			if raw_slam is None:
+			slam_cfg: SlamConfig = self.config.slam
+			if slam_cfg is None:
 				self.log.warn("Camera %s requested global SLAM, but no config exists", cid)
 				return None
+		else:
+			slam_cfg = raw_slam
+		slam_cfg: SlamConfig
 		
 		try:
-			apriltagPath = self._resolve_apriltag(cid, raw_slam.apriltag)		
+			apriltagPath = self._resolve_apriltag(cid, slam_cfg.apriltag)
+			slam_cfg: SlamConfigBase
 			return worker.SlamConfig(
-				backend=raw_slam.backend,
-				syncNN=raw_slam.syncNN,
-				slam=raw_slam.slam,
-				vio=raw_slam.vio,
+				backend=slam_cfg.backend,
+				syncNN=slam_cfg.syncNN,
+				slam=slam_cfg.slam,
+				vio=slam_cfg.vio,
 				apriltagPath=str(apriltagPath),
 			)
 		except:
@@ -207,6 +215,7 @@ class WorkerManager:
 
 
 	def process_one(self, camera: CameraConfig, idx: int = 0) -> worker.InitConfig:
+		"Resolve the config for a single camera"
 		cid = CameraId(idx, camera.id)
 		selector = self._resolve_selector(cid, camera.selector)
 		slam_cfg = self._resolve_slam(cid, camera.slam)
@@ -223,6 +232,7 @@ class WorkerManager:
 		)
 
 	def start(self):
+		"Start all camera processes"
 		for i, camera in enumerate(self.config.cameras):
 			init_cfg = self.process_one(camera, i)
 			
@@ -231,6 +241,7 @@ class WorkerManager:
 			wh.start()
 	
 	def stop(self):
+		"Stop camera subprocesses"
 		print("Sending stop command to worker")
 		for child in self._workers:
 			child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
@@ -241,11 +252,12 @@ class WorkerManager:
 			self._tempdir.cleanup()
 	
 	def __iter__(self):
+		"Iterate through camera handles"
 		return self._workers.__iter__()
 
 
 class WorkerHandle:
-	"Manage a single worker"
+	"Manage a single camera worker"
 	
 	proc: Process
 	def __init__(self, name: str, config: worker.InitConfig, *, ctx: Optional['BaseContext'] = None) -> None:

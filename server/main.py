@@ -1,9 +1,14 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import signal
 import logging
 from typedef.cfg import LocalConfig, RemoteConfig
+from typedef.net import Status
+if TYPE_CHECKING:
+	from worker_srv import WorkerManager
+
 
 class InterruptHandler:
+	"Context manager to capture SIGINT"
 	def __init__(self, callback) -> None:
 		self._callback = callback
 	def __enter__(self):
@@ -11,6 +16,7 @@ class InterruptHandler:
 
 	def __exit__(self, *args):
 		assert signal.signal(signal.SIGINT, self._prev) is self._callback
+
 
 class MoeNet:
 	def __init__(self, config_path: str, config: LocalConfig):
@@ -25,12 +31,17 @@ class MoeNet:
 		self.initial_config = config
 		self.log.info('Using config from %s', config_path)
 
-		from comms import Comms, Status
+		# Set up NetworkTables
+		from comms import Comms
 		self.nt = Comms(self, self.config)
-		self.nt.tx_status(Status.NOT_READY)
+		self.status = Status.NOT_READY
 		self.sleeping = False
-		self.camera_workers = None
+		self.camera_workers: Optional['WorkerManager'] = None
 
+		from estimator import PoseEstimator
+		self.pose_estimator = PoseEstimator()
+
+		# Set up timer
 		if self.config.timer == "system":
 			from clock import TimeMapper
 			self.clock = TimeMapper()
@@ -41,35 +52,67 @@ class MoeNet:
 				from clock import NavXTimeMapper
 				self.clock = NavXTimeMapper(self.config.timer)
 			except:
-				self.nt.tx_error("Unable to construct NavX clock")
+				self.log.exception("Unable to construct NavX clock")
+				self.status = Status.FATAL
 				raise
+		
+		self.build_cameras(True)
 	
-	def update_config(self, config: RemoteConfig):
+	@property
+	def status(self) -> 'Status':
+		return self._status
+
+	@status.setter
+	def status(self, status: 'Status'):
+		if status != getattr(self, '_status', None):
+			self.nt.tx_status(status)
+		self._status = status
+	
+	def update_config(self, config: str):
 		"Apply remote config options"
 
 		self.log.info("Updating config from remote: %", config)
 
-		next_config = self.initial_config.merge(config)
+		try:
+			parsed_cfg = RemoteConfig.model_validate_json(config, strict=True)
+			next_config = self.initial_config.merge(parsed_cfg)
+		except ValidationError:
+			self.log.exception("Error when parsing remote config")
+			self.status = Status.ERROR
+			return
+		
+		# Check if we have to rebuild the camera processes
 		update_cameras = (next_config.cameras != self.config.cameras) or (next_config.slam != self.config.slam)
 
 		self.config = next_config
 		if update_cameras:
-			from comms import Status
-			self.nt.tx_status(Status.INITIALIZING)
+			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
 	
-	def build_cameras(self):
-		from worker_srv import WorkerManager
+	def stop_cameras(self):
 		if self.camera_workers is not None:
+			self.log.info("Stopping cameras")
 			self.camera_workers.stop()
 			self.camera_workers = None
+	
+	def build_cameras(self):
+		if self.camera_workers is not None:
+			return
 		
-		self.camera_workers = WorkerManager(self.log, self.config, self.config_path)
-		self.camera_workers.start()
+		from worker_srv import WorkerManager
+		try:
+			self.camera_workers = WorkerManager(self.log, self.config, self.config_path)
+			self.camera_workers.start()
+			self.status = Status.READY
+		except:
+			self.log.exception("Error starting cameras")
+			self.status = Status.ERROR
+			raise
 	
 	def reset(self, flush_cameras: bool = True):
 		if len(self.config.cameras) == 0:
 			self.nt.tx_error("No cameras")
+			self.status = Status.ERROR
 		
 		if flush_cameras:
 			self.build_cameras()
@@ -79,6 +122,13 @@ class MoeNet:
 		self.nt.update()
 		from typedef.worker import MsgPose, MsgDetections
 
+		if self.sleeping:
+			if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY):
+				self.status = Status.SLEEPING
+		else:
+			if self.status in (Status.SLEEPING, Status.INITIALIZING, Status.NOT_READY):
+				self.status = Status.READY
+
 		active = True
 		while active:
 			active = False
@@ -87,13 +137,15 @@ class MoeNet:
 				for packet in worker.poll():
 					# self.log.info("Recv packet %s", repr(packet))
 					if isinstance(packet, MsgPose):
-						self.nt.tx_pose(packet.pose)
+						self.pose_estimator.record(worker.robot_to_camera, packet)
 					elif isinstance(packet, MsgDetections):
+						self.pose_estimator.transform_detections(packet.detections)
 						self.nt.tx_detections(packet.detections)
+						
 					active = True
 	
 	def run(self):
-		import time
+		from clock import Watchdog
 		self.reset(True)
 
 		interrupt = False
@@ -104,24 +156,26 @@ class MoeNet:
 
 		with InterruptHandler(handle_interrupt):
 			while not interrupt:
-				t0 = time.monotonic_ns()
-				if self.poll():
-					continue
-				t1 = time.monotonic_ns()
-				delta = (t1 - t0)
-				# Cap at 100Hz
-				if delta < 1e7:
-					time.sleep((1e7 - delta) / 1e9)
+				with Watchdog(1/100) as w: # Cap at 100Hz
+					if self.poll():
+						w.skip()
+						continue
 	
 	def cleanup(self):
 		self.log.info("Cleanup MoeNet")
-		if self.camera_workers is not None:
-			self.camera_workers.stop()
-			self.camera_workers = None
+		try:
+			self.stop_cameras()
+		except:
+			self.log.exception("Error shutting down")
+			self.status = Status.FATAL
+		else:
+			self.status = Status.NOT_READY
+		self.nt.close()
 		self.log.info("done cleanup")
 
 if __name__ == '__main__':
-	from typedef.cfg import load_config
+	from typedef.cfg import LocalConfig
+	from pydantic import ValidationError
 	from sys import argv
 	
 	config_path = './config/local_nn.json' if len(argv) < 2 else argv[1]

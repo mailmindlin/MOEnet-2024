@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from typedef.worker import ObjectDetectionConfig
 import numpy as np
 from functools import cached_property
-from clock import IPTimeMapper
+
+import numpy as np
+
+from clock import FixedOffsetMapper, MonoClock, WallClock
+from typedef.worker import ObjectDetectionConfig
+import depthai as dai
 
 if TYPE_CHECKING:
     import spectacularAI as sai
@@ -245,7 +250,7 @@ class MoeNetSession:
         dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
         if dets is None:
             return False
-        ts = self.clock.from_offset(dets.getTimestamp())
+        ts = self.clock.a_to_b(self.clock.clock_a + dets.getTimestamp())
         yield MsgDetections(
             timestamp=ts,
             detections=[
@@ -273,7 +278,7 @@ class MoeNetSession:
         pc = np.asarray(vio_out.positionCovariance)
         vc = np.asarray(vio_out.velocityCovariance)
 
-        timestamp = self.clock.apply_ns(int(vio_out.pose.time * 1e9))
+        timestamp = self.clock.a_to_b(self.clock.clock_a.now() + int(vio_out.pose.time * 1e9))
 
         from typedef.geom import Vector3, Pose, Quaternion, Twist
         from typedef.worker import MsgPose

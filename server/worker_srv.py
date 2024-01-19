@@ -213,7 +213,6 @@ class WorkerManager:
 			self.log.exception("Error resolving SLAM config for camera %s", cid)
 			return None
 
-
 	def process_one(self, camera: CameraConfig, idx: int = 0) -> worker.InitConfig:
 		"Resolve the config for a single camera"
 		cid = CameraId(idx, camera.id)

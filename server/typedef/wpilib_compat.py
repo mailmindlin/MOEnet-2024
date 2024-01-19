@@ -32,5 +32,6 @@ class FieldTagJSON(BaseModel):
     pose: Pose3dJSON
 
 class AprilTagFieldJSON(BaseModel):
+    "Format of WPIlib AprilTag JSON files"
     field: FieldLayoutJSON
     tags: List[FieldTagJSON]

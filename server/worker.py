@@ -69,6 +69,7 @@ class CameraWorker:
 		)
 	
 	def attach_oak(self) -> 'Device':
+		"Find and acquire to OAK camera"
 		import depthai as dai
 		sel = self.config.selector
 		desc = dai.DeviceDesc()

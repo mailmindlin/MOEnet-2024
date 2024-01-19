@@ -5,6 +5,7 @@ from typedef.cfg import LocalConfig, RemoteConfig
 from typedef.net import Status
 if TYPE_CHECKING:
 	from worker_srv import WorkerManager
+	from wpimath.geometry import Pose3d
 
 
 class InterruptHandler:
@@ -49,7 +50,7 @@ class MoeNet:
 		else:
 			try:
 				self.log.info("Connecting to NavX timer")
-				from clock import NavXTimeMapper
+				from clock.navx import NavXTimeMapper
 				self.clock = NavXTimeMapper(self.config.timer)
 			except:
 				self.log.exception("Unable to construct NavX clock")

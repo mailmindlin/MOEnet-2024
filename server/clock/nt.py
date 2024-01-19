@@ -2,12 +2,11 @@ from . import TimeMapper, MonoClock, OffsetClock, Clock, OffsetClockMapper
 from ntcore import NetworkTableInstance, Event, EventFlags, TimeSyncEventData, _now
 
 class WpiClock(Clock):
-    def __init__(self) -> None:
+    def __new__(cls):
         # pseudo-singleton
-        if getattr(WpiClock, 'INSTANCE', None) is None:
-            WpiClock.INSTANCE = self
-        else:
-            return WpiClock.INSTANCE
+        if getattr(cls, 'INSTANCE', None) is None:
+            cls.INSTANCE = super().__new__(cls)
+        return cls.INSTANCE
     
     def now(self) -> int:
         # wpilib::Now() returns microseconds

@@ -30,12 +30,11 @@ class Clock(ABC):
 
 class MonoClock(Clock):
     "Monotonic clock"
-    def __init__(self):
+    def __new__(cls):
         # pseudo-singleton
-        if getattr(MonoClock, 'INSTANCE', None) is None:
-            MonoClock.INSTANCE = self
-        else:
-            return MonoClock.INSTANCE
+        if getattr(cls, 'INSTANCE', None) is None:
+            cls.INSTANCE = super().__new__(cls)
+        return cls.INSTANCE
     
     def now(self) -> int:
         return time.monotonic_ns()

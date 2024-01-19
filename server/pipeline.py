@@ -11,8 +11,8 @@ import depthai as dai
 
 if TYPE_CHECKING:
     # import spectacularAI.depthai.Pipeline as SaiPipeline
-    from .sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
-
+    from typedef.sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
+    from typedef.geom import Pose
 
 @dataclass
 class PipelineConfig:
@@ -210,6 +210,8 @@ class FakeVioSession:
         return False
     def getOutput(self) -> Any:
         return None
+    def addTrigger(self, *args):
+        return
     def close(self):
         pass
 
@@ -233,6 +235,10 @@ class MoeNetSession:
             self.vio_session: 'VioSession' = FakeVioSession()
         
         self.clock = FixedOffsetMapper(MonoClock(), WallClock())
+
+        self._vio_require_tag = 0
+        self._vio_last_tag = 0
+        self._device_require_ts = 0
     
     def onMappingOutput(self, mapping: 'MapperOutput'):
         #TODO: is this useful?
@@ -250,6 +256,7 @@ class MoeNetSession:
         if dets is None:
             return False
         ts = self.clock.a_to_b(self.clock.clock_a + dets.getTimestamp())
+        SCALE = 1000 # DepthAI output is in millimeters
         yield MsgDetections(
             timestamp=ts,
             detections=[
@@ -257,9 +264,9 @@ class MoeNetSession:
                     label=self.pipeline.labels[detection.label],
                     confidence=detection.confidence,
                     position=Vector3(
-                        x=detection.spatialCoordinates.x / 1000,
-                        y=detection.spatialCoordinates.y / 1000,
-                        z=detection.spatialCoordinates.z / 1000,
+                        x=detection.spatialCoordinates.x / SCALE,
+                        y=detection.spatialCoordinates.y / SCALE,
+                        z=detection.spatialCoordinates.z / SCALE,
                     ),
                 )
                 for detection in dets.detections
@@ -273,6 +280,13 @@ class MoeNetSession:
         if not self.vio_session.hasOutput():
             return False
         vio_out = self.vio_session.getOutput()
+
+        if vio_out.tag > 0:
+            self._vio_last_tag = vio_out.tag
+        
+        # Ensure we've completed all VIO flushes
+        if self._vio_last_tag < self._vio_require_tag:
+            return
         # cam = vio_out.getCameraPose(0)
 
         pc = np.asarray(vio_out.positionCovariance)
@@ -337,6 +351,19 @@ class MoeNetSession:
             ], dtype=np.float32),
         )
         return True
+
+    def flush(self):
+        "Flush all previously-enqueued data from the device"
+        dev_ts = dai.Clock.now()
+        self._device_require_ts = max(self._device_require_ts, dev_ts) # Ignore any object detection packets from before now
+        self._vio_require_tag += 1
+        self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
+    
+    def override_pose(self, pose: Pose):
+        if isinstance(self.vio_session, FakeVioSession):
+            return
+        #TODO
+        # self.vio_session.addAbsolutePose()
 
     def poll(self):
         did_work = True

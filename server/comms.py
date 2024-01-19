@@ -130,6 +130,7 @@ class Comms:
 		self._sub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'sub'
 		self._sub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'sub'
 		self._sub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'sub'
+		self._sub_pose_override = ntc.subscribePoseOverride
 
 		self._sub_config.enabled = ntc.subscribeConfig
 		self._sub_sleep.enabled  = ntc.subscribeSleep
@@ -165,6 +166,10 @@ class Comms:
 			timestamp = self._sub_tf_field_odom._handle.getAtomic().time * 1_000
 			self.moenet.pose_estimator.record_f2o(timestamp, tf_field_odom)
 		
+		# Check pose override
+		if (pose_override := self._sub_pose_override.get_fresh(None)) is not None:
+			self.moenet.pose_override(pose_override)
+		
 		# Get field-to-robot
 		if (tf_field_robot := self._sub_tf_field_robot.get_fresh(None)) is not None:
 			pass
@@ -183,7 +188,7 @@ class Comms:
 		"Send error message to NetworkTables"
 		self._pub_log.set(message)
 
-	def tx_status(self, status: Status):
+	def tx_status(self, status: net.Status):
 		"Send status"
 		self._pub_status.set(int(status))
 		self.log.info("NT send status: %s", status)
@@ -202,7 +207,7 @@ class Comms:
 
 	def tx_detections(self, detections: List[MsgDetection]):
 		#TODO: fixme
-		self._pub_det_rs.set([
+		self._pub_detections.set([
 			len(detections)
 		])
 

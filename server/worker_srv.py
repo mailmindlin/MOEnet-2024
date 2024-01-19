@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union
+from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union, Any
 import logging, os.path, time
 from multiprocessing import Process, get_context
 from queue import Empty
@@ -278,6 +278,8 @@ class WorkerHandle:
 			args=[config, self.data_queue, self.cmd_queue],
 			daemon=True,
 		)
+		self._require_flush_id = 0
+		self._last_flush_id = 0
 	
 	def start(self):
 		self.proc.start()
@@ -296,6 +298,13 @@ class WorkerHandle:
 		self.proc = None
 		self.log.info("Stopped")
 	
+	def send(self, command: Union[worker.CmdChangeState, worker.CmdPoseOverride, worker.CmdFlush]):
+		self.cmd_queue.put(command, block=True, timeout=1.0)
+	
+	def flush(self):
+		self._require_flush_id += 1
+		self.send(worker.CmdFlush(id=self._require_flush_id))
+	
 	def poll(self):
 		if self.proc is None:
 			return
@@ -312,6 +321,15 @@ class WorkerHandle:
 			else:
 				if isinstance(packet, worker.MsgChangeState):
 					self.child_state = packet.current
+				elif isinstance(packet, worker.MsgFlush):
+					self.log.debug('Finished flush %d', packet.flush_id)
+					self._last_flush_id = max(self._last_flush_id, packet.flush_id)
+					continue # We don't need to forward this
+				
+				if self._last_flush_id < self._require_flush_id:
+					# Packets are invalidated by a flush
+					continue
+
 				yield packet
 		
 		if not is_alive:

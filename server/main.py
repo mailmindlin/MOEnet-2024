@@ -89,6 +89,17 @@ class MoeNet:
 			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
 	
+	def pose_override(self, pose: 'Pose3d'):
+		"Update all the "
+		self.log.info('Pose override %s', pose)
+		if self.camera_workers is not None:
+			from typedef.geom import Pose
+			from typedef.worker import CmdPoseOverride
+			cmd = CmdPoseOverride(pose=Pose.from_wpi(pose))
+			for worker in self.camera_workers:
+				worker.send(cmd)
+				worker.flush()
+	
 	def stop_cameras(self):
 		if self.camera_workers is not None:
 			self.log.info("Stopping cameras")

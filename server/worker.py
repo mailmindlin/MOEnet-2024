@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
-import time
 from typedef.worker import InitConfig, CmdChangeState, MsgChangeState, WorkerState, MsgPose, MsgDetections, CmdFlush, CmdPoseOverride, MsgFlush, AnyMsg, AnyCmd
 from clock import Watchdog
 from queue import Empty

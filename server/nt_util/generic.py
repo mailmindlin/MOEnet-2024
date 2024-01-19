@@ -1,4 +1,4 @@
-from typing import Protocol, Generic, overload, TypeVar, List, Any
+from typing import Protocol, TypeVar, List, Any, overload
 from ntcore import PubSubOptions
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])

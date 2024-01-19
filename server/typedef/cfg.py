@@ -143,14 +143,14 @@ if __name__ == '__main__':
         'LocalConfig': LocalConfig,
         'RemoteConfig': RemoteConfig,
     }
-    parser.add_argument('type', choices=types.keys(), type=types.get, help='Type to dump')
+    parser.add_argument('type', choices=types.keys(), help='Type to dump')
     parser.add_argument('--format', choices=['json', 'proto'], default='json')
     parser.add_argument('-o', '--out', type=str, default='-')
 
     args = parser.parse_args()
 
     def dump(stream: typing.TextIO):
-        dump_type: BaseModel = args.type
+        dump_type: BaseModel = types[args.type]
         if args.format == 'json':
             import json
             json.dump(dump_type.model_json_schema(), stream, indent='\t')

@@ -22,6 +22,14 @@ class Pose(BaseModel):
     translation: Vector3 = Field(default_factory=Vector3)
     rotation: Quaternion = Field(default_factory=Quaternion)
 
+    @staticmethod
+    def from_wpi(pose: geometry.Pose3d) -> 'Pose':
+        rot = pose.rotation().getQuaternion()
+        return Pose(
+            translation=Vector3(x=pose.x, y=pose.y, z=pose.z),
+            rotation=Quaternion(w=rot.W(), x=rot.X(), y=rot.Y(), z=rot.Z())
+        )
+
     def as_pose(self):
         return geometry.Pose3d(
             self.translation.as_wpi(),
@@ -36,3 +44,4 @@ class Pose(BaseModel):
 class Twist(BaseModel):
     velocity: Vector3 = Field(default_factory=Vector3)
     rotation: Vector3 = Field(default_factory=Vector3)
+    

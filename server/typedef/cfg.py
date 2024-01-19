@@ -51,8 +51,8 @@ class ObjectDetectionDefinition(BaseModel):
     config: Optional[NNConfig] = Field(None, description="Inline NN config")
 
     @model_validator(mode='after')
-    def check_config_once(cls, values: Dict[str, Any]):
-        if (values.get('configPath') is None) == (values.get("config") is None):
+    def check_config_once(cls, values: 'ObjectDetectionDefinition'):
+        if (values.configPath is None) == (values.config is None):
             raise ValueError('Exactly ONE of `config` and `configPath` are required')
         return values
 
@@ -104,7 +104,7 @@ class LogConfig(BaseModel):
     Configuration for logging output
     """
     level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
-    file: Optional[str]
+    file: Optional[str] = Field(None)
 
 class CameraSelectorConfig(OakSelector):
     id: str = Field(description="Human-readable ID")

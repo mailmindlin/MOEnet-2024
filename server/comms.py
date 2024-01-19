@@ -125,12 +125,12 @@ class Comms:
 		self._pub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'pub'
 		self._pub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'pub'
 		self._pub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'pub'
-		self._pub_detections.enabled = ntc.publishDetectionsRs
+		self._pub_detections.enabled = ntc.publishDetections
 
 		self._sub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'sub'
 		self._sub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'sub'
 		self._sub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'sub'
-		self._sub_pose_override = ntc.subscribePoseOverride
+		self._sub_pose_override.enabled = ntc.subscribePoseOverride
 
 		self._sub_config.enabled = ntc.subscribeConfig
 		self._sub_sleep.enabled  = ntc.subscribeSleep

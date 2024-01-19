@@ -2,7 +2,7 @@
 	"$schema": "./schema.json",
 	"timer": "system",
 	"log": {
-		"level": "debug"
+		"level": "DEBUG"
 	},
 	"nt": {
 		"enabled": false

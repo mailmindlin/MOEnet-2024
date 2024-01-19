@@ -359,7 +359,7 @@ class MoeNetSession:
         self._vio_require_tag += 1
         self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
     
-    def override_pose(self, pose: Pose):
+    def override_pose(self, pose: 'Pose'):
         if isinstance(self.vio_session, FakeVioSession):
             return
         #TODO

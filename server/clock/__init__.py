@@ -165,7 +165,7 @@ class OffsetClockMapper(TimeMapper):
 
 
 class Watchdog:
-    def __init__(self, period: Union[timedelta, float], clock: Optional[Clock]) -> None:
+    def __init__(self, period: Union[timedelta, float], clock: Optional[Clock] = None) -> None:
         self.period = period if isinstance(period, timedelta) else timedelta(seconds=period)
         self.clock = clock or MonoClock()
         self._skip = False

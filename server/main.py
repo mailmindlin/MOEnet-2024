@@ -57,7 +57,7 @@ class MoeNet:
 				self.status = Status.FATAL
 				raise
 		
-		self.build_cameras(True)
+		self.build_cameras()
 	
 	@property
 	def status(self) -> 'Status':
@@ -194,7 +194,7 @@ if __name__ == '__main__':
 	with open(config_path, 'r') as f:
 		config_data = f.read()
 	try:
-		local_cfg = LocalConfig(config_data)
+		local_cfg = LocalConfig.model_validate_json(config_data)
 		del config_data
 	except ValidationError:
 		print("ERROR: Local config validation failure")

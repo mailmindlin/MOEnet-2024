@@ -1,12 +1,16 @@
-from typing import List, Optional
-from typedef.worker import MsgPose, MsgDetections
-from typedef.geom import Pose, Twist, Vector3
-from typedef import net
-from clock import Clock, MonoClock, TimeMapper
+from typing import List, Optional, TYPE_CHECKING, Dict
+from collections import OrderedDict
+
+import numpy as np
 from wpimath.geometry import Transform3d, Translation3d, Rotation3d, Pose3d
 from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
 from wpimath.units import seconds
-from collections import OrderedDict
+
+from typedef.worker import MsgPose, MsgDetections, MsgDetection
+from typedef.geom import Pose, Twist, Vector3
+from typedef import net
+from clock import Clock, MonoClock, TimeMapper
+
 
 def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
     "Interpolate between `Pose3d`s"
@@ -18,7 +22,130 @@ def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
     return a.exp(twist * t)
 
 
+
+MIN_DETECTIONS = 8
+DETECTION_WINDOW = 1.0
+MAX_UNSEEN_AGE = 8.0
+CLUSTERING_DISTANCE_AT_1M = 0.3
+class TrackedObject:
+    def __init__(self, id: int, timestamp: int, position: Translation3d, label: str, confidence: float):
+        self.id = id
+        self.position = position
+        self.label = label
+        self.last_seen = timestamp
+        self.n_detections = 1
+        self.confidence = confidence
+        self._position_rs_cache = None
+
+    def update(self, other: 'TrackedObject', alpha: float = 0.2):
+        self.last_seen = other.last_seen
+
+        # LERP (TODO: use confidence?)
+        self.position = (other.position * alpha) + (self.position * (1.0 - alpha))
+        self.n_detections += 1
+    
+    @property
+    def pose(self):
+        return Pose3d(self.position, Rotation3d())
+    
+    def position_rel(self, reference_pose: Pose3d) -> Translation3d:
+        # Cache position_rs, as we'll probably compute the same transforms a lot
+        if (self._position_rs_cache is None) or (self._position_rs_cache[0] != reference_pose):
+            position_rs = self.pose.relativeTo(reference_pose).translation()
+            self._position_rs_cache = (reference_pose, position_rs)
+        
+        return self._position_rs_cache[1]
+    
+    def should_remove(self, t: float):
+        if self.n_detections < MIN_DETECTIONS and self.last_seen < t - DETECTION_WINDOW:
+            return True
+        if self.last_seen < t - MAX_UNSEEN_AGE:
+            return True
+        return False
+
+    def __str__(self):
+        return f'{self.label}@{self.id}'
+
+
+class ObjectTracker:
+    tracked_objects: Dict[str, List[TrackedObject]]
+
+    def __init__(self, clustering_distance: float = 0.3, min_depth: float = 0.5) -> None:
+        self.tracked_objects = dict()
+        self._next_id = 0
+        self.min_depth = min_depth
+        self.clustering_distance = clustering_distance
+
+    def _find_best_match(self, new_obj: TrackedObject, field_to_camera: Pose3d):
+        new_cs = new_obj.position_rel(field_to_camera)
+
+        best = None
+        best_dist = self.clustering_distance
+        for old in self.tracked_objects.setdefault(new_obj.label, []):
+            # ignore depth difference in clustering
+            old_cs = new_obj.position_rel(field_to_camera)
+
+            # Distance away from camera
+            z = max(self.min_depth, old_cs.z, new_cs.z)
+            dist: float = np.hypot(old_cs.x - new_cs.x, old_cs.y - new_cs.y) / z
+
+            if dist < best_dist:
+                best_dist = dist
+                best = old
+        # if best: print(f'matched with {best} (seen {best.n_detections} time(s))')
+        return best
+
+    def track(self, t: float, detections: MsgDetections, field_to_robot: Pose3d, robot_to_camera: Transform3d):
+        # w_to_c_mat = np.linalg.inv(view_mat)
+        field_to_camera = field_to_robot + robot_to_camera
+
+        for detection in detections:
+            cam_to_obj = Translation3d(
+                x=detection.position.x,
+                y=-detection.position.y, # Flipped y (it was in the SAI example)
+                z=detection.position.z,
+            )
+            field_to_obj = (field_to_camera + Transform3d(cam_to_obj, Rotation3d())).translation()
+            label = detection.label
+
+            id = self._next_id
+            new_obj = TrackedObject(id, t, field_to_obj, label)
+            if existing := self._find_best_match(new_obj, field_to_camera):
+                existing.update(new_obj)
+            else:
+                self._next_id += 1 # Only bump IDs for new objects
+                self.tracked_objects.setdefault(label, []) \
+                    .append(new_obj)
+    
+    def cleanup(self, t: float):
+        # remove cruft
+        tracked_objects: Dict[str, List[TrackedObject]] = dict()
+        for key, value in self.tracked_objects.items():
+            value1 = [
+                obj
+                for obj in value
+                if not obj.should_remove(t)
+            ]
+            if len(value1) > 0:
+                tracked_objects[key] = value1
+        self.tracked_objects = tracked_objects
+    
+    def items(self):
+        return (
+            o
+            for l in self.tracked_objects.values()
+            for o in l
+            if o.n_detections >= MIN_DETECTIONS
+        )
+
+    def clear(self):
+        self.tracked_objects.clear()
+
+
 class PoseEstimator:
+    """
+    We need to merge together (often) conflicting views of the world.
+    """
     def __init__(self, *, clock: Optional[Clock] = None, history_duration: seconds = 5.0) -> None:
         self.clock = clock if (clock is not None) else MonoClock()
         self._last_o2r = None
@@ -70,7 +197,7 @@ class PoseEstimator:
         timestamp = timestamp / 1e9
         self.buf_field_to_odom.addSample(timestamp, odom)
     
-    def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.Detections:
+    def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:
         "Transform detections message into robot-space"
         if mapper_loc is not None:
             assert mapper_loc.clock_b == self.clock
@@ -79,7 +206,7 @@ class PoseEstimator:
         
         # I'm not super happy with this method being on PoseEstimator, but whatever
         labels: OrderedDict[str, int] = OrderedDict()
-        res: List[net.Detection] = list()
+        res: List[net.ObjectDetection] = list()
         timestamp     = detections.timestamp
         timestamp_loc = timestamp     if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
         timestamp_net = timestamp_loc if (mapper_net is None) else mapper_net.a_to_b(timestamp_loc)
@@ -97,7 +224,7 @@ class PoseEstimator:
             positionField = field_to_camera + camera_to_object
 
             # Fix datatype (ugh)
-            detection_net = net.Detection(
+            detection_net = net.ObjectDetection(
                 timestamp=timestamp_net,
                 label_id=label_id,
                 confidence=detection.confidence,
@@ -114,7 +241,7 @@ class PoseEstimator:
             )
             res.append(detection_net)
         
-        return net.Detections(
+        return net.ObjectDetections(
             labels=list(labels.keys()),
             detections=res,
         )

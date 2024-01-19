@@ -155,6 +155,14 @@ class FixedOffsetMapper(TimeMapper):
         return self.offset_ns
 
 
+class IdentityTimeMapper(TimeMapper):
+    def __init__(self, clock: Clock) -> None:
+        super().__init__(clock, clock)
+    
+    def get_offset(self) -> int:
+        return 0
+
+
 class OffsetClockMapper(TimeMapper):
     clock_b: OffsetClock
     def __init__(self, clock: OffsetClock) -> None:

@@ -44,8 +44,8 @@ class MoeNet:
 
 		# Set up timer
 		if self.config.timer == "system":
-			from clock import TimeMapper
-			self.clock = TimeMapper()
+			from clock import IdentityTimeMapper, MonoClock
+			self.clock = IdentityTimeMapper(MonoClock())
 			self.log.info("Selected system timer")
 		else:
 			try:

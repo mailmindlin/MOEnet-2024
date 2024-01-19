@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Literal, Union, Tuple, Dict, Any
 from pathlib import Path
-from pydantic import BaseModel, Field, RootModel, root_validator
+from pydantic import BaseModel, Field, RootModel, model_validator
 from ntcore import NetworkTableInstance
 
 if __name__ == '__main__':
@@ -14,7 +14,7 @@ else:
 
 class NetworkTablesConfig(BaseModel):
     "Configure NetworkTables. Must be provided locally"
-    enabled: bool = Field(True, "Should anything be sent to NetworkTables?")
+    enabled: bool = Field(True, description="Should anything be sent to NetworkTables?")
 
     # Connection info
     team: int = Field(365, description="FRC team number")
@@ -50,7 +50,7 @@ class ObjectDetectionDefinition(BaseModel):
     "Configuration path (relative to file)"
     config: Optional[NNConfig] = Field(None, description="Inline NN config")
 
-    @root_validator()
+    @model_validator(mode='after')
     def check_config_once(cls, values: Dict[str, Any]):
         if (values.get('configPath') is None) == (values.get("config") is None):
             raise ValueError('Exactly ONE of `config` and `configPath` are required')

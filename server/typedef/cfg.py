@@ -36,11 +36,11 @@ class NetworkTablesConfig(BaseModel):
     publishStatus: bool = Field(True)
     publishConfig: bool = Field(True, description="Should we publish this config to `/moenet/client_config`?")
     publishSystemInfo: bool = Field(True, description="Should we publish system info to `/moenet/client_telemetry`?")
-    publishDetectionsRs: bool = Field(True, description="Publish object detections in robot-space to `/moenet/client_det_rs`")
-    publishDetectionsFs: bool = Field(True, description="Publish object detections in field-space to `/moenet/client_det_fs`")
+    publishDetections: bool = Field(True, description="Publish object detections to `/moenet/client_detections`")
     tfFieldToRobot: Literal["sub", "pub", False] = Field("pub", description="field -> robot transform (absolute pose)")
     tfFieldToOdom: Literal["sub", "pub", False] = Field("pub", description="field -> odom transform (odometry estimate)")
     tfOodomToRobot: Literal["sub", "pub", False] = Field("pub", description="odom->robot transform (odometry correction)")
+    subscribePoseOverride: bool = Field(True, description="Allow the Rio to override poses")
 
 class ObjectDetectionDefinition(BaseModel):
     "Configure an object detection pipeline"
@@ -136,5 +136,30 @@ class RemoteConfig(BaseModel):
     cameras: List[CameraConfig]
 
 if __name__ == '__main__':
-    import json
-    print(json.dumps(LocalConfig.model_json_schema(), indent='\t'))
+    import argparse, sys, typing
+    parser = argparse.ArgumentParser(description='Dump schema to file')
+
+    types = {
+        'LocalConfig': LocalConfig,
+        'RemoteConfig': RemoteConfig,
+    }
+    parser.add_argument('type', choices=types.keys(), type=types.get, help='Type to dump')
+    parser.add_argument('--format', choices=['json', 'proto'], default='json')
+    parser.add_argument('-o', '--out', type=str, default='-')
+
+    args = parser.parse_args()
+
+    def dump(stream: typing.TextIO):
+        dump_type: BaseModel = args.type
+        if args.format == 'json':
+            import json
+            json.dump(dump_type.model_json_schema(), stream, indent='\t')
+        elif args.format == 'proto':
+            dump_type.model_dump()
+            pass
+    
+    if args.out == '-':
+        dump(sys.stdout)
+    else:
+        with open(args.out, 'w') as f:
+            dump(f)

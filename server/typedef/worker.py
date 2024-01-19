@@ -2,7 +2,7 @@
 Type definitions for communicating between the master and worker processes
 """
 
-from typing import Optional, List, Any, Literal
+from typing import Optional, List, Any, Literal, Union, TypeAlias
 from enum import IntEnum
 from pydantic import BaseModel, Field
 
@@ -37,12 +37,21 @@ class WorkerState(IntEnum):
     STOPPING = 5
     STOPPED = 6
 
+class CmdPoseOverride(BaseModel):
+    pose: Pose
+
+class CmdFlush(BaseModel):
+    id: int
+
 class CmdChangeState(BaseModel):
     target: WorkerState
 
 class MsgChangeState(BaseModel):
     previous: Optional[WorkerState]
     current: WorkerState
+
+class MsgFlush(BaseModel):
+    id: int
 
 class MsgDetection(BaseModel):
     label: str
@@ -53,6 +62,9 @@ class MsgDetections(BaseModel):
     timestamp: int
     detections: List[MsgDetection]
 
+    def __iter__(self):
+        return iter(self.detections)
+
 class MsgPose(BaseModel):
     timestamp: int
     view_mat: Any
@@ -60,3 +72,6 @@ class MsgPose(BaseModel):
     poseCovariance: Any
     twist: Twist
     twistCovariance: Any
+
+AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState]
+AnyMsg = Union[MsgChangeState, MsgFlush, MsgDetections, MsgPose]

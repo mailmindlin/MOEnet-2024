@@ -126,22 +126,27 @@ if TYPE_CHECKING:
 	from typing import Optional, List
 	from dataclasses import dataclass
 	@dataclass
+	class Timestamp:
+		seconds: Optional[int] = None
+		nanos: Optional[int] = None
+	
+	@dataclass
 	class Translation3d:
 		x: Optional[float] = None
 		y: Optional[float] = None
 		z: Optional[float] = None
 	
 	@dataclass
-	class Detection:
-		timestamp: Optional[int] = None
+	class ObjectDetection:
+		timestamp: Optional[Timestamp] = None
 		label_id: Optional[int] = None
 		confidence: Optional[float] = None
 		positionRobot: Optional[Translation3d] = None
 		positionField: Optional[Translation3d] = None
 
 	@dataclass
-	class Detections:
+	class ObjectDetections:
 		labels: Optional[List[str]] = None
-		detections: Optional[List[Detection]] = None
+		detections: Optional[List[ObjectDetection]] = None
 else:
-	from .Detections_pb2 import Translation3d, Detection, Detections
+	from .Detections_pb2 import Timestamp, Translation3d, ObjectDetection, ObjectDetections

@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 import time
-from traceback import format_exception
-from typedef.worker import InitConfig, CmdChangeState, MsgChangeState, WorkerState, MsgPose, MsgDetections
+from typedef.worker import InitConfig, CmdChangeState, MsgChangeState, WorkerState, MsgPose, MsgDetections, CmdFlush, CmdPoseOverride, MsgFlush, AnyMsg, AnyCmd
+from clock import Watchdog
 from queue import Empty
 import signal
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 	from pipeline import MoeNetPipeline
 
 class CameraWorker:
-	def __init__(self, config: InitConfig, data_queue: Queue, command_queue: Queue) -> None:
+	def __init__(self, config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]) -> None:
 		self.config = config
 		self.data_queue = data_queue
 		self.command_queue = command_queue
@@ -144,9 +144,17 @@ class CameraWorker:
 		for packet in self.session.poll():
 			if isinstance(packet, MsgPose):
 				self.log.info(" -> Pose %05.03f %05.03f %05.05f", packet.pose.translation.x, packet.pose.translation.y, packet.pose.translation.z)
-			elif (isinstance(packet, MsgDetections) and len(packet.detections)>0):
-				self.log.info(" -> Send packet %s", repr(packet))
+			elif isinstance(packet, MsgDetections):
+				if len(packet.detections) > 0:
+					self.log.info(" -> Send packet %s", repr(packet))
 			self.data_queue.put(packet)
+	
+	def override_pose(self, pose: 'Pose'):
+		#TODO
+		self.session.override_pose(pose)
+	
+	def flush(self):
+		self.session.flush()
 	
 	def __exit__(self, *args):
 		self.state = WorkerState.STOPPING
@@ -167,47 +175,56 @@ class InterruptHandler:
 	def __exit__(self, *args):
 		assert signal.signal(signal.SIGINT, self._prev) is self._callback
 
-def main(config: InitConfig, data_queue: Queue, command_queue: Queue):
+def main(config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]):
 	# Cap at 100Hz
-	min_loop_duration_ns = 1e9 / config.maxRefresh
+	min_loop_duration = 1 / config.maxRefresh
 	signal.signal(signal.SIGINT, signal.SIG_IGN)
-	with (CameraWorker(config, data_queue, command_queue) as worker, InterruptHandler(lambda *x: print("Child SIGINT")) as x):
+	with (CameraWorker(config, data_queue, command_queue) as worker, InterruptHandler(lambda *x: print("Child SIGINT"))):
 		while True:
-			t0 = time.monotonic_ns()
-			try:
+			with Watchdog(period=min_loop_duration) as w:
 				try:
-					if worker.state == WorkerState.PAUSED:
-						command = command_queue.get()
+					try:
+						if worker.state == WorkerState.PAUSED:
+							# We're paused, so we might as well block
+							command = command_queue.get()
+						else:
+							command = command_queue.get_nowait()
+					except Empty:
+						pass
 					else:
-						command = command_queue.get_nowait()
+						# Process command
+						worker.log.info("Recv command %s", repr(command))
+						if isinstance(command, CmdChangeState):
+							worker.log.info("Got command: CHANGE STATE -> %s", command.target)
+							if worker.state == command.target:
+								worker.log.warn("Unable to switch to %s (current state is %s)", command.target, worker.state)
+							if command.target in (WorkerState.STOPPING, WorkerState.STOPPED):
+								# Exit
+								break
+							elif command.target in (WorkerState.RUNNING, WorkerState.PAUSED):
+								if worker.state in (WorkerState.RUNNING, WorkerState.PAUSED):
+									worker.state = command.target
+								else:
+									worker.log.warn("Unable to swotch to %s (current state is %s)", command.target, worker.state)
+						elif isinstance(command, CmdPoseOverride):
+							worker.log.info("Got command: OVERRIDE POSE")
+							worker.override_pose(command.pose)
+						elif isinstance(command, CmdFlush):
+							worker.log.info("Got command: FLUSH")
+							worker.flush()
+							# ACK flush
+							data_queue.put(MsgFlush(id=command.id))
+						else:
+							worker.log.warn("Unknown command: %s", repr(command))
 					
-					worker.log.info("Recv command %s", repr(command))
-					if isinstance(command, CmdChangeState):
-						worker.log.info("Got command: CHANGE STATE -> %s", command.target)
-						if worker.state == command.target:
-							worker.log.warn("Unable to switch to %s (current state is %s)", command.target, worker.state)
-						elif command.target in (WorkerState.STOPPING, WorkerState.STOPPED):
-							break
-						elif command.target in (WorkerState.RUNNING, WorkerState.PAUSED):
-							if worker.state in (WorkerState.RUNNING, WorkerState.PAUSED):
-								worker.state = command.target
-							else:
-								worker.log.warn("Unable to swotch to %s (current state is %s)", command.target, worker.state)
-				except Empty:
-					pass
-				
-				if worker.state == WorkerState.RUNNING:
-					worker.poll()
-			except Exception as e:
-				# msg = format_exception(e)
-				worker.log.exception("Error in loop")
-				break
-			t1 = time.monotonic_ns()
-			loop_speed = t1 - t0
-			if loop_speed < min_loop_duration_ns:
-				time.sleep((min_loop_duration_ns - loop_speed) / 1e9)
-			elif loop_speed > min_loop_duration_ns * 2:
-				worker.log.warn("Loop took %dns", loop_speed)
+					if worker.state == WorkerState.RUNNING:
+						worker.poll()
+				except Exception:
+					# msg = format_exception(e)
+					worker.log.exception("Error in loop")
+					worker.state = WorkerState.FAILED
+					break
+
 
 if __name__ == '__main__':
 	# Read config from CLI
@@ -216,5 +233,5 @@ if __name__ == '__main__':
 		print("Error: not enough arguments")
 		sys.exit(-1)
 	
-	config = InitConfig.parse_raw(sys.argv[1])
+	config = InitConfig.model_validate_json(sys.argv[1])
 	main(config)

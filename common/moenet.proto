@@ -1,0 +1,29 @@
+syntax = "proto3";
+option java_multiple_files = true;
+package moenet.proto;
+option java_package = "com.mindlin.moenet.proto";
+// import "google/protobuf/Timestamp.proto";
+
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+message Translation3d {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+}
+
+message ObjectDetection {
+    Timestamp timestamp = 1;
+    int32 label_id = 2;
+    double confidence = 3;
+    Translation3d positionRobot = 4;
+    Translation3d positionField = 5;
+}
+
+message ObjectDetections {
+    repeated string labels = 1;
+    repeated ObjectDetection detections = 2;
+}

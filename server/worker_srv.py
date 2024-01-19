@@ -32,7 +32,7 @@ class CameraId:
 
 class WorkerManager:
 	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None) -> None:
-		self.log = log
+		self.log = log.getChild('workers')
 		self.config = config
 		self.config_path = config_path
 		self.at_cache: Dict[Union[str, AprilTagFieldJSON], Path] = dict()
@@ -235,17 +235,19 @@ class WorkerManager:
 		for i, camera in enumerate(self.config.cameras):
 			init_cfg = self.process_one(camera, i)
 			
-			wh = WorkerHandle(f"worker_{i}", init_cfg)
+			wh = WorkerHandle(f"worker_{i}", init_cfg, log=self.log)
 			self._workers.append(wh)
 			wh.start()
 	
 	def stop(self):
 		"Stop camera subprocesses"
-		print("Sending stop command to worker")
+		self.log.info("Sending stop command to workers")
 		for child in self._workers:
 			child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+		self.log.info("Stopping workers")
 		for child in self._workers:
-			child.stop()
+			child.stop(False)
+		self.log.info("Workers stopped")
 		self._workers.clear()
 		if self._tempdir is not None:
 			self._tempdir.cleanup()
@@ -259,14 +261,14 @@ class WorkerHandle:
 	"Manage a single camera worker"
 	
 	proc: Process
-	def __init__(self, name: str, config: worker.InitConfig, *, ctx: Optional['BaseContext'] = None) -> None:
+	def __init__(self, name: str, config: worker.InitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None) -> None:
 		from worker import main as worker_main
 		if ctx is None:
 			ctx = get_context('spawn')
 		
 		self.name = name
 		self.child_state = None
-		self.log = logging.getLogger(name)
+		self.log = log.getChild(name) if (log is not None) else logging.getLogger(name)
 		
 		self.config = config
 		self._restarts = 0
@@ -277,6 +279,7 @@ class WorkerHandle:
 			target=worker_main,
 			args=[config, self.data_queue, self.cmd_queue],
 			daemon=True,
+			name=f'moenet_{name}'
 		)
 		self._require_flush_id = 0
 		self._last_flush_id = 0
@@ -284,15 +287,23 @@ class WorkerHandle:
 	def start(self):
 		self.proc.start()
 
-	def stop(self):
+	def stop(self, send_command: bool = True):
+		if self.proc is None:
+			return
 		try:
 			self.log.info("Stopping...")
-			self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
-			self.proc.join(3.0)
-			print("Joined worker")
+			if send_command:
+				self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+			try:
+				self.proc.join(3.0)
+			except:
+				self.log.exception('Worker exception on join')
 		except:
 			self.proc.kill()
-			self.proc.join()
+			try:
+				self.proc.join()
+			except:
+				self.log.exception('Worker exception on join')
 		finally:
 			self.proc.close()
 		self.proc = None
@@ -339,9 +350,7 @@ class WorkerHandle:
 				self.log.warn('Camera process unexpectedly exited')
 			# Cleanup process
 			self.child_state = worker.WorkerState.FAILED
-			self.proc.join(0.1)
-			self.proc.close()
-			self.proc = None
+			self.stop(False)
 
 			if (not self.config.optional):
 				raise RuntimeError('Camera unexpectedly exited')

@@ -121,11 +121,12 @@ class CameraWorker:
 			self.log.info("Finding OAK")
 			self.device = self.attach_oak()
 		except RuntimeError:
-			self.log.exception("Unable to find OAK")
 			if self.config.optional:
+				self.log.exception("Unable to find OAK")
 				self.state = WorkerState.STOPPED
 				exit(0)
 			else:
+				self.log.error("Unable to find OAK")
 				self.state = WorkerState.FAILED
 				raise
 		else:

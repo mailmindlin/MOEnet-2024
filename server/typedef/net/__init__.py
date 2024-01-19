@@ -149,4 +149,4 @@ if TYPE_CHECKING:
 		labels: Optional[List[str]] = None
 		detections: Optional[List[ObjectDetection]] = None
 else:
-	from .Detections_pb2 import Timestamp, Translation3d, ObjectDetection, ObjectDetections
+	from .moenet_pb2 import Timestamp, Translation3d, ObjectDetection, ObjectDetections

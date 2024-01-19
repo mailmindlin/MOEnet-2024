@@ -7,6 +7,7 @@ from wpimath import geometry
 
 if TYPE_CHECKING:
 	import numpy as np
+	from typing_extensions import Buffer
 
 
 class Status(IntEnum):
@@ -70,6 +71,45 @@ class Mat66:
 	@staticmethod
 	def from_np(src: 'np.ndarray'):
 		return Mat66(*src.flatten())
+
+# Fix Twist3d struct missing
+def _make_twist3d_descriptor():
+	from struct import Struct
+	twist3d_struct = Struct('<dddddd')
+	def _pack(value: geometry.Twist3d) -> bytes:
+		return twist3d_struct.pack(
+			value.dx,
+			value.dy,
+			value.dz,
+			value.rx,
+			value.ry,
+			value.rz,
+		)
+	def _packinto(value: geometry.Twist3d, buffer: 'Buffer'):
+		return twist3d_struct.pack_into(
+			buffer,
+			0,
+			value.dx,
+			value.dy,
+			value.dz,
+			value.rx,
+			value.ry,
+			value.rz,
+		)
+	def _unpack(b: 'Buffer') -> geometry.Twist3d:
+		dx, dy, dz, rx, ry, rz = twist3d_struct.unpack(b)
+		return geometry.Twist3d(dx, dy, dz, rx, ry, rz)
+	return wpistruct.StructDescriptor(
+		'struct:Twist3d',
+		"double dx;double dy;double dz;double rx;double ry;double rz",
+		8 * 6,
+		_pack,
+		_packinto,
+		_unpack,
+		None
+	)
+geometry.Twist3d.WPIStruct = _make_twist3d_descriptor()
+
 
 @wpistruct.make_wpistruct
 @dataclass

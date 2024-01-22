@@ -10,14 +10,14 @@ except ImportError:
 	psutil = None
 
 from typedef.cfg import LocalConfig
-from typedef.geom import Pose
+from .typedef.geom import Pose3d
 from typedef.worker import MsgDetection
 from typedef import net
 from nt_util.dynamic import DynamicPublisher, DynamicSubscriber
 from nt_util.protobuf import ProtobufTopic
 
 if TYPE_CHECKING:
-	from .main import MoeNet
+	from .__main__ import MoeNet
 
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
@@ -193,17 +193,8 @@ class Comms:
 		self._pub_status.set(int(status))
 		self.log.info("NT send status: %s", status)
 
-	def tx_pose(self, pose: Pose):
-		self._pub_tf_field_robot.set([
-			pose.translation.x,
-			pose.translation.y,
-			pose.translation.z,
-			pose.rotation.w,
-			pose.rotation.x,
-			pose.rotation.y,
-			pose.rotation.z,
-		])
-		#TODO: compute other transforms
+	def tx_pose(self, pose: Pose3d):
+		self._pub_tf_field_robot.set(pose)
 
 	def tx_detections(self, detections: List[MsgDetection]):
 		#TODO: fixme

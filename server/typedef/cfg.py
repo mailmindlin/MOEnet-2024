@@ -8,10 +8,10 @@ from datetime import timedelta
 
 if __name__ == '__main__':
     from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
-    from geom import Pose3d
+    from .geom import Pose3d, Transform3d
 else:
     from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
-    from .geom import Pose3d
+    from .geom import Pose3d, Transform3d
 
 
 class NetworkTablesConfig(BaseModel):
@@ -97,7 +97,7 @@ class CameraConfig(BaseModel):
     selector: Union[str, OakSelector] = Field(description="Which camera are we referencing?")
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
     optional: bool = Field(False, description="Is it an error if this camera is not detected?")
-    pose: Optional[Pose3d] = Field(description="Camera pose (in robot-space)")
+    pose: Optional[Transform3d] = Field(description="Camera pose (in robot-space)")
     slam: Union[bool, SlamConfig] = Field(False, description="Enable SLAM on this camera")
     object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
 

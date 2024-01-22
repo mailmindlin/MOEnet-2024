@@ -198,7 +198,6 @@ def make_pydantic_validator(t: Type[T], fields: List[FieldInfo]):
 		return res
 
 	def parse_json(raw: Any):
-		print('raw', raw)
 		values = list()
 		for field in fields:
 			value = raw[field.name]

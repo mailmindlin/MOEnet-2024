@@ -7,7 +7,7 @@ from enum import IntEnum
 from pydantic import BaseModel, Field
 
 from .common import NNConfig, SlamConfigBase, OakSelector
-from .geom import Pose3d, Translation3d, Twist3d
+from .geom import Pose3d, Translation3d, Twist3d, Transform3d
 
 class ObjectDetectionConfig(NNConfig):
     "Configure an object detection pipeline"
@@ -24,7 +24,7 @@ class InitConfig(BaseModel):
     optional: bool = Field(False)
     outputRGB: bool = Field(False)
     maxRefresh: float = Field(5)
-    pose: Pose3d
+    robot_to_camera: Transform3d
     slam: Optional[SlamConfig]
     object_detection: Optional[ObjectDetectionConfig]
 

@@ -109,11 +109,9 @@ class DynamicSubscriber(Generic[P]):
 				return v.value
 		return default
 	
-	@overload
 	def get_fresh_ts(self) -> Optional[Tuple[P, int]]:
-		if self._handle is None:
-			return None
-		at = self._handle.getAtomic(None)
-		if (at.time != 0) and (at.serverTime != self._fresh_time):
-			self._fresh_time = at.serverTime
-			return (at.value, at.serverTime)
+		if v := self.getAtomic():
+			if v.serverTime != self._fresh_time:
+				self._fresh_time = v.serverTime
+				return (v.value, v.time)
+		return None

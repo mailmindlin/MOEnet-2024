@@ -233,7 +233,7 @@ class WorkerManager:
 			selector=selector,
 			max_usb=camera.max_usb,
 			optional=camera.optional,
-			pose=camera.pose,
+			robot_to_camera=camera.pose,
 			slam=slam_cfg,
 			object_detection=object_detection,
 		)
@@ -280,7 +280,7 @@ class WorkerHandle:
 		
 		self.config = config
 		self._restarts = 0
-		self.robot_to_camera = config.pose.as_transform()
+		self.robot_to_camera = config.robot_to_camera
 		self.cmd_queue = ctx.Queue()
 		self.data_queue = ctx.Queue()
 		self.proc = ctx.Process(
@@ -303,7 +303,7 @@ class WorkerHandle:
 			if send_command:
 				self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
 			try:
-				self.proc.join(3.0)
+				self.proc.join()
 			except:
 				self.log.exception('Worker exception on join')
 		except:

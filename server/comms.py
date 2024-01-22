@@ -47,7 +47,7 @@ class Comms:
 	def __init__(self, moenet: 'MoeNet', config: LocalConfig):
 		self.moenet = moenet
 		self.config = config
-		self.log = logging.Logger('comms', level=logging.DEBUG)
+		self.log = logging.getLogger('comms')
 		self.ping_id = 0
 
 		self._pub_ping   = DynamicPublisher(lambda: self.table.getIntegerTopic("client_ping").publish(PubSubOptions()))
@@ -205,11 +205,9 @@ class Comms:
 		])
 		#TODO: compute other transforms
 
-	def tx_detections(self, detections: List[MsgDetection]):
-		#TODO: fixme
-		self._pub_detections.set([
-			len(detections)
-		])
+	def tx_detections(self, detections: net.ObjectDetections):
+		self.log.debug("Sending %d detections", len(detections.detections))
+		self._pub_detections.set(detections)
 
 	def rx_sleep(self) -> bool:
 		return self._sub_sleep.get(False)

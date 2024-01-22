@@ -1,5 +1,6 @@
 from typing import Union, Optional, List
 import time
+from functools import total_ordering
 
 from datetime import timedelta
 from abc import ABC, abstractmethod
@@ -26,6 +27,53 @@ class Clock(ABC):
     
     def close(self):
         pass
+
+
+@total_ordering
+class Timestamp:
+    @staticmethod
+    def from_seconds(seconds: float) -> 'Timestamp':
+        return Timestamp(seconds * 1e9)
+    
+    @staticmethod
+    def from_wpi(micros: int) -> 'Timestamp':
+        return Timestamp(micros * 1_000)
+
+    @staticmethod
+    def from_nanos(nanos: int) -> 'Timestamp':
+        return Timestamp(nanos)
+
+    clock: Optional['Clock']
+    nanos: int
+
+    def __init__(self, nanos: int):
+        self.nanos = int(nanos)
+    
+    def as_seconds(self) -> float:
+        "Get time in fractional seconds"
+        return self.nanos / 1_000_000_000
+    
+    def as_wpi(self) -> int:
+        return self.nanos // 1_000
+
+    def __add__(self, other: timedelta) -> 'Timestamp':
+        if isinstance(other, timedelta):
+            return Timestamp(self.nanos + other.microseconds * 1000)
+        return NotImplemented
+    def __sub__(self, other: timedelta) -> 'Timestamp':
+        if isinstance(other, timedelta):
+            return Timestamp(self.nanos - other.microseconds * 1000)
+        return NotImplemented
+    
+    def __eq__(self, other: 'Timestamp'):
+        if isinstance(other, Timestamp):
+            return self.nanos == other.nanos
+        return NotImplemented
+    
+    def __lt__(self, other: 'Timestamp'):
+        if isinstance(other, Timestamp):
+            return self.nanos < other.nanos
+        return NotImplemented
 
 
 class MonoClock(Clock):

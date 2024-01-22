@@ -255,10 +255,10 @@ class MoeNetSession:
 
         dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
         if dets is None:
-            return False
+            return None
         ts = self.clock.a_to_b(self.clock.clock_a + dets.getTimestamp())
         SCALE = 1000 # DepthAI output is in millimeters
-        yield MsgDetections(
+        return MsgDetections(
             timestamp=ts,
             detections=[
                 MsgDetection(
@@ -274,12 +274,10 @@ class MoeNetSession:
             ]
         )
 
-        return True
-
     def _poll_vio(self):
         "Poll VIO queue"
         if not self.vio_session.hasOutput():
-            return False
+            return None
         vio_out = self.vio_session.getOutput()
 
         if vio_out.tag > 0:
@@ -303,7 +301,7 @@ class MoeNetSession:
         ROTATION_COV = 1e-4
         ANG_VEL_COV = 1e-3
 
-        yield MsgPose(
+        return MsgPose(
             timestamp=timestamp,
             # Not sure if we need this property
             view_mat=vio_out.pose.asMatrix(),
@@ -347,7 +345,6 @@ class MoeNetSession:
                 [0, 0, 0, 0, 0, ANG_VEL_COV],
             ], dtype=np.float32),
         )
-        return True
 
     def flush(self):
         "Flush all previously-enqueued data from the device"
@@ -367,8 +364,14 @@ class MoeNetSession:
         while did_work:
             did_work = False
 
-            did_work |= yield from self._poll_dets()
-            did_work |= yield from self._poll_vio()
+            msg_dets = self._poll_dets()
+            msg_vio = self._poll_vio()
+            if msg_dets is not None:
+                did_work = True
+                yield msg_dets
+            if msg_vio is not None:
+                did_work = True
+                yield msg_vio
             # cmx = self.device.getCmxMemoryUsage()
             # ddr = self.device.getDdrMemoryUsage()
             # print("Device CMX %f DDR %f LEON CSS %f MSS %f" % (

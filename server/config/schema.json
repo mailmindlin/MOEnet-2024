@@ -3,7 +3,7 @@
 		"AprilTagFieldConfig": {
 			"properties": {
 				"field": {
-					"$ref": "#/$defs/FieldLayoutJSON"
+					"$ref": "#/$defs/FieldLayout"
 				},
 				"tags": {
 					"$ref": "#/$defs/RootModel_List_AprilTagInfo__"
@@ -137,13 +137,80 @@
 				"pose": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/Pose"
+							"properties": {
+								"translation": {
+									"properties": {
+										"x": {
+											"title": "X",
+											"type": "number"
+										},
+										"y": {
+											"title": "Y",
+											"type": "number"
+										},
+										"z": {
+											"title": "Z",
+											"type": "number"
+										}
+									},
+									"required": [
+										"x",
+										"y",
+										"z"
+									],
+									"title": "Translation",
+									"type": "object"
+								},
+								"rotation": {
+									"properties": {
+										"quaternion": {
+											"properties": {
+												"W": {
+													"title": "W",
+													"type": "number"
+												},
+												"X": {
+													"title": "X",
+													"type": "number"
+												},
+												"Y": {
+													"title": "Y",
+													"type": "number"
+												},
+												"Z": {
+													"title": "Z",
+													"type": "number"
+												}
+											},
+											"required": [
+												"W",
+												"X",
+												"Y",
+												"Z"
+											],
+											"title": "Quaternion",
+											"type": "object"
+										}
+									},
+									"required": [
+										"quaternion"
+									],
+									"title": "Rotation",
+									"type": "object"
+								}
+							},
+							"required": [
+								"translation",
+								"rotation"
+							],
+							"type": "object"
 						},
 						{
 							"type": "null"
 						}
 					],
-					"description": "Camera pose (in robot-space)"
+					"description": "Camera pose (in robot-space)",
+					"title": "Pose"
 				},
 				"slam": {
 					"anyOf": [
@@ -267,13 +334,80 @@
 				"pose": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/Pose"
+							"properties": {
+								"translation": {
+									"properties": {
+										"x": {
+											"title": "X",
+											"type": "number"
+										},
+										"y": {
+											"title": "Y",
+											"type": "number"
+										},
+										"z": {
+											"title": "Z",
+											"type": "number"
+										}
+									},
+									"required": [
+										"x",
+										"y",
+										"z"
+									],
+									"title": "Translation",
+									"type": "object"
+								},
+								"rotation": {
+									"properties": {
+										"quaternion": {
+											"properties": {
+												"W": {
+													"title": "W",
+													"type": "number"
+												},
+												"X": {
+													"title": "X",
+													"type": "number"
+												},
+												"Y": {
+													"title": "Y",
+													"type": "number"
+												},
+												"Z": {
+													"title": "Z",
+													"type": "number"
+												}
+											},
+											"required": [
+												"W",
+												"X",
+												"Y",
+												"Z"
+											],
+											"title": "Quaternion",
+											"type": "object"
+										}
+									},
+									"required": [
+										"quaternion"
+									],
+									"title": "Rotation",
+									"type": "object"
+								}
+							},
+							"required": [
+								"translation",
+								"rotation"
+							],
+							"type": "object"
 						},
 						{
 							"type": "null"
 						}
 					],
-					"default": null
+					"default": null,
+					"title": "Pose"
 				}
 			},
 			"required": [
@@ -282,7 +416,86 @@
 			"title": "CameraSelectorConfig",
 			"type": "object"
 		},
-		"FieldLayoutJSON": {
+		"DataLogConfig": {
+			"description": "Configuration for datalog",
+			"properties": {
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"folder": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Folder"
+				}
+			},
+			"title": "DataLogConfig",
+			"type": "object"
+		},
+		"EstimatorConfig": {
+			"properties": {
+				"pose_history": {
+					"default": "PT3S",
+					"description": "Length of pose replay buffer (seconds)",
+					"format": "duration",
+					"title": "Pose History",
+					"type": "string"
+				},
+				"object_min_detections": {
+					"default": 8,
+					"description": "Number of times to have seen an object",
+					"exclusiveMinimum": 0,
+					"title": "Object Min Detections",
+					"type": "integer"
+				},
+				"object_detected_duration": {
+					"default": "PT1S",
+					"description": "Length of time to keep an object detecting (seconds)",
+					"format": "duration",
+					"title": "Object Detected Duration",
+					"type": "string"
+				},
+				"object_history_duration": {
+					"default": "PT8S",
+					"description": "Length of time to retain an object detection (seconds)",
+					"format": "duration",
+					"title": "Object History Duration",
+					"type": "string"
+				},
+				"object_clustering_distance": {
+					"default": 0.3,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Object Clustering Distance",
+					"type": "number"
+				},
+				"object_min_depth": {
+					"default": 0.5,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Object Min Depth",
+					"type": "number"
+				},
+				"object_alpha": {
+					"default": 0.2,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Object Alpha",
+					"type": "number"
+				}
+			},
+			"title": "EstimatorConfig",
+			"type": "object"
+		},
+		"FieldLayout": {
 			"properties": {
 				"length": {
 					"title": "Length",
@@ -297,7 +510,7 @@
 				"length",
 				"width"
 			],
-			"title": "FieldLayoutJSON",
+			"title": "FieldLayout",
 			"type": "object"
 		},
 		"LogConfig": {
@@ -702,44 +915,6 @@
 			"title": "ObjectDetectionDefinition",
 			"type": "object"
 		},
-		"Pose": {
-			"properties": {
-				"translation": {
-					"$ref": "#/$defs/Vector3"
-				},
-				"rotation": {
-					"$ref": "#/$defs/Quaternion"
-				}
-			},
-			"title": "Pose",
-			"type": "object"
-		},
-		"Quaternion": {
-			"properties": {
-				"w": {
-					"default": 1.0,
-					"title": "W",
-					"type": "number"
-				},
-				"x": {
-					"default": 0.0,
-					"title": "X",
-					"type": "number"
-				},
-				"y": {
-					"default": 0.0,
-					"title": "Y",
-					"type": "number"
-				},
-				"z": {
-					"default": 0.0,
-					"title": "Z",
-					"type": "number"
-				}
-			},
-			"title": "Quaternion",
-			"type": "object"
-		},
 		"RootModel_List_AprilTagInfo__": {
 			"items": {
 				"$ref": "#/$defs/AprilTagInfo"
@@ -847,27 +1022,6 @@
 			],
 			"title": "SlamConfig",
 			"type": "object"
-		},
-		"Vector3": {
-			"properties": {
-				"x": {
-					"default": 0.0,
-					"title": "X",
-					"type": "number"
-				},
-				"y": {
-					"default": 0.0,
-					"title": "Y",
-					"type": "number"
-				},
-				"z": {
-					"default": 0.0,
-					"title": "Z",
-					"type": "number"
-				}
-			},
-			"title": "Vector3",
-			"type": "object"
 		}
 	},
 	"description": "Local config data",
@@ -889,14 +1043,13 @@
 			"title": "Timer"
 		},
 		"log": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/LogConfig"
-				},
-				{
-					"type": "null"
-				}
-			]
+			"$ref": "#/$defs/LogConfig"
+		},
+		"datalog": {
+			"$ref": "#/$defs/DataLogConfig"
+		},
+		"estimator": {
+			"$ref": "#/$defs/EstimatorConfig"
 		},
 		"pipelines": {
 			"items": {
@@ -933,7 +1086,6 @@
 	},
 	"required": [
 		"nt",
-		"log",
 		"pipelines",
 		"cameras"
 	],

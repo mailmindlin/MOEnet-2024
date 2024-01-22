@@ -1,16 +1,18 @@
 "Type definitions for parsing the configuration"
 
-from typing import List, Optional, Literal, Union, Tuple, Dict, Any
+from typing import List, Optional, Literal, Union, Tuple
 from pathlib import Path
 from pydantic import BaseModel, Field, RootModel, model_validator
 from ntcore import NetworkTableInstance
+from datetime import timedelta
 
 if __name__ == '__main__':
-    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON
-    from geom import Pose
+    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
+    from geom import Pose3d
 else:
-    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayoutJSON
-    from .geom import Pose
+    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
+    from .geom import Pose3d
+
 
 class NetworkTablesConfig(BaseModel):
     "Configure NetworkTables. Must be provided locally"
@@ -80,7 +82,7 @@ class AprilTagInfo(BaseModel):
 AprilTagList = RootModel[List[AprilTagInfo]]
 
 class AprilTagFieldConfig(BaseModel):
-    field: FieldLayoutJSON
+    field: FieldLayout
     tags: AprilTagList
 
 class PoseEstimatorConfig(BaseModel):
@@ -95,7 +97,7 @@ class CameraConfig(BaseModel):
     selector: Union[str, OakSelector] = Field(description="Which camera are we referencing?")
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
     optional: bool = Field(False, description="Is it an error if this camera is not detected?")
-    pose: Optional[Pose] = Field(description="Camera pose (in robot-space)")
+    pose: Optional[Pose3d] = Field(description="Camera pose (in robot-space)")
     slam: Union[bool, SlamConfig] = Field(False, description="Enable SLAM on this camera")
     object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
 
@@ -106,15 +108,34 @@ class LogConfig(BaseModel):
     level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
     file: Optional[str] = Field(None)
 
+
+class DataLogConfig(BaseModel):
+    "Configuration for datalog"
+    enabled: bool = Field(True)
+    folder: Optional[str] = Field(None)
+
+
+class EstimatorConfig(BaseModel):
+    pose_history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
+    object_min_detections: int = Field(8, gt=0, description="Number of times to have seen an object")
+    object_detected_duration: timedelta = Field(timedelta(seconds=1), description="Length of time to keep an object detecting (seconds)")
+    object_history_duration: timedelta = Field(timedelta(seconds=8), description="Length of time to retain an object detection (seconds)")
+    object_clustering_distance: float = Field(0.3, gt=0, description="")
+    object_min_depth: float = Field(0.5, gt=0, description="")
+    object_alpha: float = Field(0.2, gt=0, description="")
+
+
 class CameraSelectorConfig(OakSelector):
     id: str = Field(description="Human-readable ID")
-    pose: Optional[Pose] = None
+    pose: Optional[Pose3d] = None
 
 class LocalConfig(BaseModel):
     "Local config data"
     nt: NetworkTablesConfig
     timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
-    log: Optional[LogConfig]
+    log: LogConfig = Field(default_factory=DataLogConfig)
+    datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
+    estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
     pipelines: List[ObjectDetectionDefinition]
     camera_selectors: List[CameraSelectorConfig] = Field(default_factory=list)
     cameras: List[CameraConfig]

@@ -1,9 +1,9 @@
 from typing import List, Dict, Literal, Optional
 from pydantic import BaseModel, Field
 try:
-	from .wpilib_compat import FieldLayoutJSON, FieldTagJSON
+	from .wpilib_compat import FieldLayout, FieldTag
 except ImportError:
-	from wpilib_compat import FieldLayoutJSON, FieldTagJSON
+	from wpilib_compat import FieldLayout, FieldTag
 
 class NNConfig(BaseModel):
 	"Base config for NN"
@@ -18,8 +18,8 @@ class NNConfig(BaseModel):
 	anchor_masks: Dict[str, List[int]]
 
 class AprilTagFieldConfig(BaseModel):
-    field: FieldLayoutJSON
-    tags: List[FieldTagJSON]
+    field: FieldLayout
+    tags: List[FieldTag]
 
 class SlamConfigBase(BaseModel):
 	"Configure SLAM settings"

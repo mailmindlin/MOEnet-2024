@@ -12,7 +12,7 @@ import depthai as dai
 if TYPE_CHECKING:
     # import spectacularAI.depthai.Pipeline as SaiPipeline
     from typedef.sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
-    from typedef.geom import Pose
+    from server.typedef.geom import Pose3d
 
 @dataclass
 class PipelineConfig:
@@ -22,6 +22,7 @@ class PipelineConfig:
     slam: bool
     apriltag_path: Optional[Path]
     nn: Optional[ObjectDetectionConfig]
+
 
 class MoeNetPipeline:
     config: PipelineConfig
@@ -250,7 +251,7 @@ class MoeNetSession:
     def _poll_dets(self):
         "Poll object detection queue"
         from typedef.worker import MsgDetections, MsgDetection
-        from typedef.geom import Vector3
+        from typedef.geom import Translation3d
 
         dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
         if dets is None:
@@ -263,7 +264,7 @@ class MoeNetSession:
                 MsgDetection(
                     label=self.pipeline.labels[detection.label],
                     confidence=detection.confidence,
-                    position=Vector3(
+                    position=Translation3d(
                         x=detection.spatialCoordinates.x / SCALE,
                         y=detection.spatialCoordinates.y / SCALE,
                         z=detection.spatialCoordinates.z / SCALE,
@@ -294,7 +295,7 @@ class MoeNetSession:
 
         timestamp = self.clock.a_to_b(self.clock.clock_a.now() + int(vio_out.pose.time * 1e9))
 
-        from typedef.geom import Vector3, Pose, Quaternion, Twist
+        from typedef.geom import Pose3d, Translation3d, Rotation3d, Quaternion, Twist3d
         from typedef.worker import MsgPose
 
         # Why is orientation covariance 1e-4?
@@ -308,18 +309,18 @@ class MoeNetSession:
             view_mat=vio_out.pose.asMatrix(),
             # I wish there was a better way to do this, but spectacularAI types are native wrappers,
             # and they can't be nicely shared between processes
-            pose=Pose(
-                translation=Vector3(
+            pose=Pose3d(
+                translation=Translation3d(
                     x = vio_out.pose.position.x,
                     y = vio_out.pose.position.y,
                     z = vio_out.pose.position.z,
                 ),
-                rotation=Quaternion(
+                rotation=Rotation3d(Quaternion(
                     w = vio_out.pose.orientation.w,
                     x = vio_out.pose.orientation.x,
                     y = vio_out.pose.orientation.y,
                     z = vio_out.pose.orientation.z,
-                )
+                ))
             ),
             poseCovariance=np.asarray([
                 [pc[0, 0], pc[0, 1], pc[0, 2], 0, 0, 0],
@@ -329,17 +330,13 @@ class MoeNetSession:
                 [0, 0, 0, 0, ROTATION_COV, 0],
                 [0, 0, 0, 0, 0, ROTATION_COV],
             ], dtype=np.float32),
-            twist=Twist(
-                velocity=Vector3(
-                    x = vio_out.velocity.x,
-                    y = vio_out.velocity.y,
-                    z = vio_out.velocity.z,
-                ),
-                rotation=Vector3(
-                    x = vio_out.angularVelocity.x,
-                    y = vio_out.angularVelocity.y,
-                    z = vio_out.angularVelocity.z,
-                )
+            twist=Twist3d(
+                dx = vio_out.velocity.x,
+                dy = vio_out.velocity.y,
+                dz = vio_out.velocity.z,
+                rx = vio_out.angularVelocity.x,
+                ry = vio_out.angularVelocity.y,
+                rz = vio_out.angularVelocity.z,
             ),
             twistCovariance=np.asarray([
                 [vc[0, 0], vc[0, 1], vc[0, 2], 0, 0, 0],
@@ -359,7 +356,7 @@ class MoeNetSession:
         self._vio_require_tag += 1
         self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
     
-    def override_pose(self, pose: 'Pose'):
+    def override_pose(self, pose: 'Pose3d'):
         if isinstance(self.vio_session, FakeVioSession):
             return
         #TODO

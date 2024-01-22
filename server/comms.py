@@ -203,5 +203,7 @@ class Comms:
 		return self._sub_sleep.get(False)
 
 	def close(self):
-		self.nt.stopClient()
 		del self.moenet
+		self.nt.disconnect()
+		NetworkTableInstance.destroy(self.nt)
+		self.nt = None

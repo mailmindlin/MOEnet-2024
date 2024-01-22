@@ -299,7 +299,7 @@ class DataFusion:
 
             # Fix datatype (ugh)
             detection_net = net.ObjectDetection(
-                timestamp=net.Timestamp(timestamp_net // 1_000_000_000, timestamp_net % 1_000_000_000),
+                timestamp=timestamp_net,
                 label_id=label_id,
                 confidence=detection.confidence,
                 positionRobot=net.Translation3d(

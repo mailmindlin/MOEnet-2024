@@ -224,7 +224,7 @@ class DataFusion:
     pose_estimator: PoseEstimator
     object_tracker: ObjectTracker
 
-    def __init__(self, *, config: EstimatorConfig, log: Optional[logging.Logger], datalog: Optional[DataLog] = None, clock: Optional[Clock] = None) -> None:
+    def __init__(self, config: EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
         self.log = logging.getLogger("data") if log is None else log.getChild("data")
         self.datalog = datalog
         self.clock = clock or MonoClock()

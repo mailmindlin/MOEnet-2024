@@ -155,12 +155,19 @@ class MoeNet:
 				for packet in worker.poll():
 					# self.log.info("Recv packet %s", repr(packet))
 					if isinstance(packet, MsgPose):
-						self.pose_estimator.record(worker.robot_to_camera, packet)
+						self.estimator.record_f2r(worker.robot_to_camera, packet)
 					elif isinstance(packet, MsgDetections):
-						self.pose_estimator.transform_detections(packet.detections)
-						self.nt.tx_detections(packet.detections)
+						detections_net = self.estimator.transform_detections(packet.detections)
+						self.nt.tx_detections(detections_net)
 						
 					active = True
+		
+		if f2r := self.estimator.field_to_robot(fresh=True):
+			self.log.debug("Update pose")
+			self.nt.tx_pose(f2r)
+		if o2r := self.estimator.odom_to_robot(fresh=True):
+			self.log.debug("Update correction")
+			self.nt.tx_correction(o2r)
 	
 	def run(self):
 		from clock import Watchdog
@@ -168,7 +175,7 @@ class MoeNet:
 
 		interrupt = False
 		def handle_interrupt(*args):
-			self.log.info("Exiting (SIGINT)... %s", args)
+			self.log.warn("Exiting (SIGINT)... %s", args)
 			nonlocal interrupt
 			interrupt = True
 
@@ -178,6 +185,7 @@ class MoeNet:
 					if self.poll():
 						w.skip()
 						continue
+		self.log.info(f"Done running int={interrupt}")
 	
 	def cleanup(self):
 		self.log.info("Cleanup MoeNet")

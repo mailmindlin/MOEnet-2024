@@ -157,7 +157,7 @@ class MoeNet:
 					if isinstance(packet, MsgPose):
 						self.estimator.record_f2r(worker.robot_to_camera, packet)
 					elif isinstance(packet, MsgDetections):
-						detections_net = self.estimator.transform_detections(packet.detections)
+						detections_net = self.estimator.transform_detections(worker.robot_to_camera, packet)
 						self.nt.tx_detections(detections_net)
 						
 					active = True

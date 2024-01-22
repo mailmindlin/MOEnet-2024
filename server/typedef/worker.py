@@ -6,8 +6,8 @@ from typing import Optional, List, Any, Literal, Union, TypeAlias
 from enum import IntEnum
 from pydantic import BaseModel, Field
 
-from .geom import Pose, Vector3, Twist
 from .common import NNConfig, SlamConfigBase, OakSelector
+from .geom import Pose3d, Translation3d, Twist3d
 
 class ObjectDetectionConfig(NNConfig):
     "Configure an object detection pipeline"
@@ -24,7 +24,7 @@ class InitConfig(BaseModel):
     optional: bool = Field(False)
     outputRGB: bool = Field(False)
     maxRefresh: float = Field(5)
-    pose: Pose
+    pose: Pose3d
     slam: Optional[SlamConfig]
     object_detection: Optional[ObjectDetectionConfig]
 
@@ -38,7 +38,7 @@ class WorkerState(IntEnum):
     STOPPED = 6
 
 class CmdPoseOverride(BaseModel):
-    pose: Pose
+    pose: Pose3d
 
 class CmdFlush(BaseModel):
     id: int
@@ -56,7 +56,7 @@ class MsgFlush(BaseModel):
 class MsgDetection(BaseModel):
     label: str
     confidence: float
-    position: Vector3
+    position: Translation3d
 
 class MsgDetections(BaseModel):
     timestamp: int
@@ -67,10 +67,13 @@ class MsgDetections(BaseModel):
 
 class MsgPose(BaseModel):
     timestamp: int
+    "Timestamp (nanoseconds, in adjusted-local time)"
     view_mat: Any
-    pose: Pose
+    pose: Pose3d
+    "Field-to-camera pose"
     poseCovariance: Any
-    twist: Twist
+    twist: Twist3d
+    "Field-to-camera twist"
     twistCovariance: Any
 
 AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState]

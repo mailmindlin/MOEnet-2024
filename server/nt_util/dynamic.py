@@ -1,5 +1,5 @@
 from typing import Generic, TypeVar, Callable, Optional, Union, Tuple, List, overload
-from .generic import GenericPublisher, GenericSubscriber
+from .generic import GenericPublisher, GenericSubscriber, GenericTsValue
 
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
@@ -28,6 +28,12 @@ class DynamicPublisher(Generic[T]):
 			self._handle = None
 			self._last = None
 	
+	def __enter__(self):
+		return self
+	
+	def __exit__(self, *args):
+		self.close()
+	
 	def close(self):
 		self.enabled = False
 
@@ -49,6 +55,12 @@ class DynamicSubscriber(Generic[P]):
 		self._handle = None
 		self._fresh_time = None
 	
+	def __enter__(self):
+		return self
+	
+	def __exit__(self, *args):
+		self.close()
+	
 	@property
 	def enabled(self) -> bool:
 		return (self._handle is not None)
@@ -67,25 +79,35 @@ class DynamicSubscriber(Generic[P]):
 	def close(self):
 		self.enabled = False
 	
-	def get(self, default: Optional[T] = None) -> Union[P, T]:
+	def getAtomic(self) -> Optional[GenericTsValue[P]]:
 		if self._handle is None:
-			return default
+			return None
 		else:
-			return self._handle.get(default)
+			res = self._handle.getAtomic()
+			if res.time == 0:
+				return None
+			return res
+	
+	@overload
+	def get(self) -> Optional[P]: ...
+	@overload
+	def get(self, default: T) -> Union[P, T]: ...
+	def get(self, default: Optional[T] = None):
+		if v := self.getAtomic():
+			return v.value
+		else:
+			return default
 	
 	@overload
 	def get_fresh(self) -> Optional[P]: ...
 	@overload
 	def get_fresh(self, default: T) -> Union[P, T]: ...
 	def get_fresh(self, default: T = None) -> Union[P, T]:
-		if self._handle is None:
-			return default
-		at = self._handle.getAtomic(None)
-		if (at.time != 0) and (at.serverTime != self._fresh_time):
-			self._fresh_time = at.serverTime
-			return at.value
-		else:
-			return default
+		if v := self.getAtomic():
+			if v.serverTime != self._fresh_time:
+				self._fresh_time = v.serverTime
+				return v.value
+		return default
 	
 	@overload
 	def get_fresh_ts(self) -> Optional[Tuple[P, int]]:

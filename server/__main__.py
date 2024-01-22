@@ -5,7 +5,7 @@ from typedef.cfg import LocalConfig, RemoteConfig
 from typedef.net import Status
 if TYPE_CHECKING:
 	from worker_srv import WorkerManager
-	from wpimath.geometry import Pose3d
+	from typedef.geom import Pose3d
 
 
 class InterruptHandler:
@@ -32,6 +32,13 @@ class MoeNet:
 		self.initial_config = config
 		self.log.info('Using config from %s', config_path)
 
+		# Set up DataLog
+		from wpiutil.log import DataLog
+		if self.config.datalog.enabled:
+			self.datalog = DataLog(dir=self.config.datalog.folder)
+		else:
+			self.datalog = None
+
 		# Set up NetworkTables
 		from comms import Comms
 		self.nt = Comms(self, self.config)
@@ -39,8 +46,8 @@ class MoeNet:
 		self.sleeping = False
 		self.camera_workers: Optional['WorkerManager'] = None
 
-		from estimator import PoseEstimator
-		self.pose_estimator = PoseEstimator()
+		from estimator import DataFusion
+		self.estimator = DataFusion(self.config.estimator, log=self.log, datalog=self.datalog)
 
 		# Set up timer
 		if self.config.timer == "system":
@@ -94,9 +101,8 @@ class MoeNet:
 		"Update all the "
 		self.log.info('Pose override %s', pose)
 		if self.camera_workers is not None:
-			from typedef.geom import Pose
 			from typedef.worker import CmdPoseOverride
-			cmd = CmdPoseOverride(pose=Pose.from_wpi(pose))
+			cmd = CmdPoseOverride(pose=pose)
 			for worker in self.camera_workers:
 				worker.send(cmd)
 				worker.flush()
@@ -184,13 +190,30 @@ class MoeNet:
 			self.status = Status.NOT_READY
 		self.nt.close()
 		self.log.info("done cleanup")
+		if self.datalog is not None:
+			self.datalog.flush()
+			self.datalog.stop()
+
 
 if __name__ == '__main__':
 	from typedef.cfg import LocalConfig
 	from pydantic import ValidationError
-	from sys import argv
+	from pathlib import Path
+	from argparse import ArgumentParser
+
+	parser = ArgumentParser(
+		'server',
+		description='MOEnet server'
+	)
+	parser.add_argument(
+		'config',
+		type=Path,
+		nargs='?',
+		default=str(Path(__file__).parent.resolve() / './config/local_nn.json')
+	)
+	args = parser.parse_args()
 	
-	config_path = './config/local_nn.json' if len(argv) < 2 else argv[1]
+	config_path = args.config
 	with open(config_path, 'r') as f:
 		config_data = f.read()
 	try:

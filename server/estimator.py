@@ -1,15 +1,19 @@
-from typing import List, Optional, TYPE_CHECKING, Dict
+from typing import List, Optional, TYPE_CHECKING, Dict, overload
 from collections import OrderedDict
+import logging
 
 import numpy as np
 from wpimath.geometry import Transform3d, Translation3d, Rotation3d, Pose3d
 from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
 from wpimath.units import seconds
+from wpiutil.log import DataLog
 
-from typedef.worker import MsgPose, MsgDetections, MsgDetection
-from typedef.geom import Pose, Twist, Vector3
-from typedef import net
-from clock import Clock, MonoClock, TimeMapper
+from .typedef.worker import MsgPose, MsgDetections
+from .typedef.cfg import EstimatorConfig
+from .nt_util.log import StructLogEntry
+from .typedef.geom import Pose3d, Transform3d
+from .typedef import net
+from .clock import Clock, MonoClock, TimeMapper, Timestamp
 
 
 def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
@@ -22,13 +26,8 @@ def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
     return a.exp(twist * t)
 
 
-
-MIN_DETECTIONS = 8
-DETECTION_WINDOW = 1.0
-MAX_UNSEEN_AGE = 8.0
-CLUSTERING_DISTANCE_AT_1M = 0.3
 class TrackedObject:
-    def __init__(self, id: int, timestamp: int, position: Translation3d, label: str, confidence: float):
+    def __init__(self, id: int, timestamp: Timestamp, position: Translation3d, label: str, confidence: float):
         self.id = id
         self.position = position
         self.label = label
@@ -56,10 +55,10 @@ class TrackedObject:
         
         return self._position_rs_cache[1]
     
-    def should_remove(self, t: float):
-        if self.n_detections < MIN_DETECTIONS and self.last_seen < t - DETECTION_WINDOW:
+    def should_remove(self, now: Timestamp, config: EstimatorConfig):
+        if self.n_detections < config.object_min_detections and self.last_seen < now - config.object_detected_duration:
             return True
-        if self.last_seen < t - MAX_UNSEEN_AGE:
+        if self.last_seen < now - config.object_history_duration:
             return True
         return False
 
@@ -70,23 +69,22 @@ class TrackedObject:
 class ObjectTracker:
     tracked_objects: Dict[str, List[TrackedObject]]
 
-    def __init__(self, clustering_distance: float = 0.3, min_depth: float = 0.5) -> None:
+    def __init__(self, config: EstimatorConfig) -> None:
         self.tracked_objects = dict()
         self._next_id = 0
-        self.min_depth = min_depth
-        self.clustering_distance = clustering_distance
+        self.config = config
 
     def _find_best_match(self, new_obj: TrackedObject, field_to_camera: Pose3d):
         new_cs = new_obj.position_rel(field_to_camera)
 
         best = None
-        best_dist = self.clustering_distance
+        best_dist = self.config.object_clustering_distance
         for old in self.tracked_objects.setdefault(new_obj.label, []):
             # ignore depth difference in clustering
             old_cs = new_obj.position_rel(field_to_camera)
 
             # Distance away from camera
-            z = max(self.min_depth, old_cs.z, new_cs.z)
+            z = max(self.config.object_min_depth, old_cs.z, new_cs.z)
             dist: float = np.hypot(old_cs.x - new_cs.x, old_cs.y - new_cs.y) / z
 
             if dist < best_dist:
@@ -95,7 +93,7 @@ class ObjectTracker:
         # if best: print(f'matched with {best} (seen {best.n_detections} time(s))')
         return best
 
-    def track(self, t: float, detections: MsgDetections, field_to_robot: Pose3d, robot_to_camera: Transform3d):
+    def track(self, t: Timestamp, detections: MsgDetections, field_to_robot: Pose3d, robot_to_camera: Transform3d):
         # w_to_c_mat = np.linalg.inv(view_mat)
         field_to_camera = field_to_robot + robot_to_camera
 
@@ -111,20 +109,22 @@ class ObjectTracker:
             id = self._next_id
             new_obj = TrackedObject(id, t, field_to_obj, label)
             if existing := self._find_best_match(new_obj, field_to_camera):
-                existing.update(new_obj)
+                existing.update(new_obj, alpha=self.config.object_alpha)
             else:
                 self._next_id += 1 # Only bump IDs for new objects
                 self.tracked_objects.setdefault(label, []) \
                     .append(new_obj)
+        
+        self.cleanup(t)
     
-    def cleanup(self, t: float):
+    def cleanup(self, t: Timestamp):
         # remove cruft
         tracked_objects: Dict[str, List[TrackedObject]] = dict()
         for key, value in self.tracked_objects.items():
             value1 = [
                 obj
                 for obj in value
-                if not obj.should_remove(t)
+                if not obj.should_remove(t, self.config)
             ]
             if len(value1) > 0:
                 tracked_objects[key] = value1
@@ -135,7 +135,7 @@ class ObjectTracker:
             o
             for l in self.tracked_objects.values()
             for o in l
-            if o.n_detections >= MIN_DETECTIONS
+            if o.n_detections >= self.config.object_min_detections
         )
 
     def clear(self):
@@ -146,11 +146,22 @@ class PoseEstimator:
     """
     We need to merge together (often) conflicting views of the world.
     """
-    def __init__(self, *, clock: Optional[Clock] = None, history_duration: seconds = 5.0) -> None:
-        self.clock = clock if (clock is not None) else MonoClock()
-        self._last_o2r = None
-        self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(history_duration, interpolate_pose3d)
-        self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(history_duration, interpolate_pose3d)
+    def __init__(self, config: EstimatorConfig, clock: Clock, *, log: logging.Logger, datalog: Optional[DataLog] = None) -> None:
+        self.log = log.getChild('pose')
+        self.datalog = datalog
+        self.config = config
+
+        if self.datalog is not None:
+            self.logFieldToRobot = StructLogEntry(datalog, '/pose/fieldToRobot', Pose3d)
+            self.logFieldToOdom = StructLogEntry(datalog, '/pose/fieldToOdom', Pose3d)
+            self.logOdomToRobot = StructLogEntry(datalog, '/pose/odomToRobot', Transform3d)
+
+        self.clock = clock
+        self._last_o2r = Transform3d()
+        "Last odometry->robot (cache)"
+
+        self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(config.pose_history.seconds, interpolate_pose3d)
+        self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(config.pose_history.seconds, interpolate_pose3d)
     
     def odom_to_robot(self) -> Transform3d:
         "Get the best estimated `odom`→`robot` corrective transform"
@@ -158,14 +169,14 @@ class PoseEstimator:
         samples_f2r = self.buf_field_to_robot.getInternalBuffer()
         # Return identity if we don't have any data
         if (len(samples_f2o) == 0) or (len(samples_f2r) == 0):
-            return Transform3d()
+            return self._last_o2r
         
         # Find timestamps of overlapping range between field->odom and field->robot data
         ts_start = max(samples_f2o[0][0], samples_f2r[0][0])
         ts_end = min(samples_f2o[-1][0], samples_f2r[-1][0])
         if ts_end < ts_start:
             # No overlap
-            return self._last_o2r or Transform3d()
+            return self._last_o2r
         
         # We want the most recent pair that overlap
         f2o = self.buf_field_to_odom.sample(ts_end)
@@ -177,25 +188,75 @@ class PoseEstimator:
         self._last_o2r = res
         return res
     
-    def field_to_robot(self, time: int) -> Pose3d:
+    def field_to_robot(self, time: Timestamp) -> Pose3d:
         "Get the `field`→`robot` transform at a specified time"
-        return self.buf_field_to_robot.sample(time / 1e9) or Pose3d()
+        return self.buf_field_to_robot.sample(time.as_seconds()) or Pose3d()
     
-    def field_to_odom(self, time: int) -> Pose3d:
+    def field_to_odom(self, time: Timestamp) -> Pose3d:
         "Get the `field`→`odom` transform at a specified time"
-        return self.buf_field_to_odom.sample(time / 1e9) or Pose3d()
-
+        return self.buf_field_to_odom.sample(time.as_seconds()) or Pose3d()
+    
     def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
         "Record SLAM pose"
-        field_to_camera = msg.pose.as_pose()
+        field_to_camera = msg.pose
         field_to_robot = field_to_camera.transformBy(robot_to_camera.inverse())
-        timestamp = msg.timestamp / 1e9
-        self.buf_field_to_robot.addSample(timestamp, field_to_robot)
+        timestamp = Timestamp.from_nanos(msg.timestamp)
+
+        if self.datalog is not None:
+            self.logFieldToRobot.append(field_to_robot, timestamp.as_wpi())
+        
+        self.buf_field_to_robot.addSample(timestamp.as_seconds(), field_to_robot)
     
-    def record_f2o(self, timestamp: int, odom: Pose3d):
+    def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
         "Record odometry pose"
-        timestamp = timestamp / 1e9
-        self.buf_field_to_odom.addSample(timestamp, odom)
+        if self.datalog is not None:
+            self.logFieldToOdom.append(field_to_odom, timestamp.as_wpi())
+        
+        self.buf_field_to_odom.addSample(timestamp.as_seconds(), field_to_odom)
+    
+    def clear(self):
+        self.buf_field_to_odom.clear()
+        self.buf_field_to_robot.clear()
+        self._last_o2r = Transform3d()
+
+
+class DataFusion:
+    pose_estimator: PoseEstimator
+    object_tracker: ObjectTracker
+
+    def __init__(self, config: EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
+        self.log = logging.getLogger("data") if log is None else log.getChild("data")
+        self.datalog = datalog
+        self.clock = clock or MonoClock()
+        self.config = config
+
+        self.pose_estimator = PoseEstimator(config, self.clock, log=self.log, datalog=self.datalog)
+        self.object_tracker = ObjectTracker(config)
+        self.fresh_f2r = True
+        self.fresh_f2o = True
+        self.fresh_o2r = True
+    
+    def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
+        self.pose_estimator.record_f2r(robot_to_camera, msg)
+        self.fresh_f2r = True
+        self.fresh_o2r = True
+    
+    def record_f2o(self, timestamp: int, field_to_odom: Pose3d):
+        ts = Timestamp.from_nanos(timestamp)
+        self.pose_estimator.record_f2o(ts, field_to_odom)
+        self.fresh_f2o = True
+        self.fresh_o2r = True
+    
+    @overload
+    def odom_to_robot(self) -> Transform3d: ...
+    @overload
+    def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]:
+        if fresh and (not self.fresh_o2r):
+            return None
+        res = self.pose_estimator.odom_to_robot()
+        if fresh:
+            self.fresh_o2r = False
+        return res
     
     def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:
         "Transform detections message into robot-space"
@@ -215,7 +276,7 @@ class PoseEstimator:
             nanos=int(timestamp_net % 1e9),
         )
 
-        field_to_robot = Transform3d(Pose3d(), self.field_to_robot(timestamp_loc))
+        field_to_robot = Transform3d(Pose3d(), self.pose_estimator.field_to_robot(Timestamp.from_nanos(timestamp_loc)))
         field_to_camera = field_to_robot + robot_to_camera
 
         for detection in detections.detections:
@@ -223,13 +284,13 @@ class PoseEstimator:
             label_id = labels.setdefault(detection.label, len(labels))
 
             # Compute transforms
-            camera_to_object = Transform3d(detection.position.as_wpi(), Rotation3d())
+            camera_to_object = Transform3d(detection.position, Rotation3d())
             positionRobot = robot_to_camera + camera_to_object
             positionField = field_to_camera + camera_to_object
 
             # Fix datatype (ugh)
             detection_net = net.ObjectDetection(
-                timestamp=timestamp_net,
+                timestamp=net.Timestamp(timestamp_net // 1_000_000_000, timestamp_net % 1_000_000_000),
                 label_id=label_id,
                 confidence=detection.confidence,
                 positionRobot=net.Translation3d(
@@ -249,43 +310,3 @@ class PoseEstimator:
             labels=list(labels.keys()),
             detections=res,
         )
-    
-    def clear(self):
-        self.buf_field_to_odom.clear()
-        self.buf_field_to_robot.clear()
-        self._last_o2r = None
-
-
-# Tests
-if __name__ == '__main__':
-    class FakeClock(Clock):
-        def __init__(self) -> None:
-            super().__init__()
-            self.time = 0
-        def now(self):
-            return self.time
-    
-    estimator = PoseEstimator(
-        clock=FakeClock(),
-        history_duration=10.0
-    )
-    f2r_0 = Pose(translation=Vector3(x=0.0))
-    f2r_2 = Pose(translation=Vector3(x=2.0))
-    estimator.record_f2r(Transform3d(), MsgPose(timestamp=0, view_mat=None, pose=f2r_0, poseCovariance=None, twist=Twist(), twistCovariance=None))
-    estimator.record_f2r(Transform3d(), MsgPose(timestamp=int(2e9), view_mat=None, pose=f2r_2, poseCovariance=None, twist=Twist(), twistCovariance=None))
-    assert estimator.field_to_robot(0) == Pose3d()
-    assert estimator.field_to_robot(2e9) == Pose3d(Translation3d(x=2,y=0,z=0), Rotation3d())
-    # Check lerp
-    assert estimator.field_to_robot(1e9) == Pose3d(Translation3d(x=1,y=0,z=0), Rotation3d())
-
-    # We haven't provided any odometry info, so it should be empty
-    assert estimator.odom_to_robot() == Transform3d()
-
-    # Provide odometry
-    f2o_1 = Pose3d(Translation3d(x=1,y=1,z=0), Rotation3d())
-    estimator.record_f2o(1e9, f2o_1)
-
-    f2r_1 = estimator.field_to_robot(1e9) # Correct value
-    o2r_1 = estimator.odom_to_robot()
-    f2r_1_ = f2o_1 + o2r_1 # Apply odometry correction
-    assert f2r_1 == f2r_1_

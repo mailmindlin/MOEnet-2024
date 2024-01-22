@@ -101,9 +101,8 @@ class MoeNet:
 		"Update all the "
 		self.log.info('Pose override %s', pose)
 		if self.camera_workers is not None:
-			from server.typedef.geom_old import Pose
 			from typedef.worker import CmdPoseOverride
-			cmd = CmdPoseOverride(pose=Pose.from_wpi(pose))
+			cmd = CmdPoseOverride(pose=pose)
 			for worker in self.camera_workers:
 				worker.send(cmd)
 				worker.flush()

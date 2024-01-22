@@ -175,7 +175,7 @@ class WorkerManager:
 			if (cached := self.at_cache.get(apriltag, None)) is not None:
 				return cached
 			else:
-				atData = apriltag
+				atData: AprilTagFieldConfig = apriltag
 				cache_key = apriltag
 		
 		if self._tempdir is None:
@@ -186,7 +186,9 @@ class WorkerManager:
 		result = Path(self._tempdir.name) / f'apriltag_{int(time.time_ns())}.json'
 		self.log.info("Create temp file %s for AprilTag data", result)
 		with open(result, 'w') as apriltagFile:
-			apriltagFile.write(atData.model_dump_json())
+			apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
+		with open(Path('.') / f'apriltag_{int(time.time_ns())}.json', 'w') as apriltagFile:
+			apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
 		self.log.debug("AprilTag info: %s", atData.model_dump_json())
 
 		assert result.exists(), "AprilTag file is missing"
@@ -279,6 +281,7 @@ class WorkerHandle:
 		self.log = log.getChild(name) if (log is not None) else logging.getLogger(name)
 		
 		self.config = config
+		print("worker config", config.model_dump_json())
 		self._restarts = 0
 		self.robot_to_camera = config.robot_to_camera
 		self.cmd_queue = ctx.Queue()
@@ -302,11 +305,9 @@ class WorkerHandle:
 			self.log.info("Stopping...")
 			if send_command:
 				self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
-			try:
-				self.proc.join()
-			except:
-				self.log.exception('Worker exception on join')
+			self.proc.join()
 		except:
+			self.log.exception("Error on join")
 			self.proc.kill()
 			try:
 				self.proc.join()

@@ -210,6 +210,10 @@ class PoseEstimator:
         timestamp     = detections.timestamp
         timestamp_loc = timestamp     if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
         timestamp_net = timestamp_loc if (mapper_net is None) else mapper_net.a_to_b(timestamp_loc)
+        timestamp_net = net.Timestamp(
+            seconds=int(timestamp_net / 1e9),
+            nanos=int(timestamp_net % 1e9),
+        )
 
         field_to_robot = Transform3d(Pose3d(), self.field_to_robot(timestamp_loc))
         field_to_camera = field_to_robot + robot_to_camera

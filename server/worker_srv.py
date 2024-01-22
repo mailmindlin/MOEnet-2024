@@ -13,9 +13,9 @@ from typedef.cfg import (
 	AprilTagFieldRef, AprilTagFieldConfig, AprilTagInfo,
 	AprilTagList, Mat44, Vec4
 )
+from typedef.geom import Pose3d
 
 if TYPE_CHECKING:
-	from typedef.wpilib_compat import Pose3dJSON
 	from multiprocessing.context import BaseContext
 
 class CameraId:
@@ -125,27 +125,35 @@ class WorkerManager:
 			if not apriltagPath.exists():
 				self.log.warn("Camera %s requested SLAM with AprilTags at %s, but that file doesn't exist", cid, apriltagPath)
 				return None
+			
 			# Load FRC data
 			try:
-				atRaw = AprilTagFieldJSON.parse_file(apriltagPath)
+				with open(apriltagPath, 'r') as f:
+					at_text = f.read()
+			except:
+				self.log.exception("Error reading AprilTag config at %s (requested by camera %s)", apriltagPath, cid)
+				return None
+			
+			try:
+				atRaw = AprilTagFieldJSON.model_validate_json(at_text)
 			except ValueError:
 				self.log.exception("Camera %s requested SLAM with AprilTags at %s, but that file is in the wrong format", cid, apriltagPath)
 				return None
 			else:
 				cache_key = str(apriltag.path)
 			
-			def pose_to_mat44(pose: 'Pose3dJSON') -> 'Mat44':
-				quat = pose["rotation"]["quaternion"]
-				w = quat["W"]
-				x = quat["X"]
-				y = quat["Y"]
-				z = quat["Z"]
-				trans = pose["translation"]
+			def pose_to_mat44(pose: Pose3d) -> 'Mat44':
+				quat = pose.rotation().getQuaternion()
+				w = quat.W()
+				x = quat.X()
+				y = quat.Y()
+				z = quat.Z()
+				trans = pose.translation()
 
 				return Mat44([
-					Vec4([2*(w*w+x*x) - 1, 2*(x*y-w*z),     2*(x*z-w*y),     trans['x']]),
-					Vec4([2*(x*y+w*z),     2*(w*w-y*y) - 1, 2*(y*z-w*x),     trans['y']]),
-					Vec4([2*(x*z-w*y),     2*(y*z+w*x),     2*(w*w-z*z) - 1, trans['z']]),
+					Vec4([2*(w*w+x*x) - 1, 2*(x*y-w*z),     2*(x*z-w*y),     trans.x]),
+					Vec4([2*(x*y+w*z),     2*(w*w-y*y) - 1, 2*(y*z-w*x),     trans.y]),
+					Vec4([2*(x*z-w*y),     2*(y*z+w*x),     2*(w*w-z*z) - 1, trans.z]),
 					Vec4([0.0, 0.0, 0.0, 1.0]),
 				])
 			

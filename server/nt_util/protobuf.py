@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Generic, Type, TypeVar, Union, Callable, Iterable, Tuple, overload
+from typing import TYPE_CHECKING, Generic, Type, TypeVar, Union, Callable, Iterable, Tuple, overload, Optional
 from ntcore import NetworkTableInstance, NetworkTable, PubSubOptions, RawTopic, RawPublisher, RawSubscriber
 from dataclasses import dataclass
 
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 	from google.protobuf.descriptor import FileDescriptor
 
 T = TypeVar("T")
+R = TypeVar("R")
 
 def _type_str(proto: 'GeneratedProtocolMessageType') -> str:
 	if name := getattr(proto, 'type_string', None):
@@ -37,9 +38,16 @@ class ProtobufPublisher(Generic[T]):
 		self._proto = proto
 		self._publisher = publisher
 	
+	def __enter__(self):
+		return self
+	
+	def __exit__(self, *args):
+		self.close()
+	
 	def close(self):
 		self._publisher.close()
 		del self._publisher
+	
 	# def getTopic(self) -> 'ProtoTopic[P]': ...
 	def set(self, value: T, time: int = 0):
 		b: bytes = value.SerializeToString()
@@ -72,7 +80,7 @@ class ProtobufSubscriber(Generic[T]):
 		self._subscriber.close()
 		del self._subscriber
 	
-	def _get_raw(self, value: bytes, defaultValue: T = undefined) -> T:
+	def _get_raw(self, value: bytes, defaultValue: R = undefined) -> Union[T, R]:
 		if len(value) == 0:
 			if defaultValue is undefined:
 				return self._default_value
@@ -80,12 +88,13 @@ class ProtobufSubscriber(Generic[T]):
 				return defaultValue
 		
 		#TODO: swallow errors
-		return self._proto.ParseFromString(value)
+		return self._proto.FromString(value)
 	
 	@overload
 	def get(self) -> T: ...
 	@overload
-	def get(self, defaultValue: T = undefined) -> T:
+	def get(self, defaultValue: R) -> Union[T, R]: ...
+	def get(self, defaultValue: R = undefined):
 		b = self._subscriber.get()
 		return self._get_raw(b, defaultValue)
 
@@ -109,6 +118,13 @@ class ProtobufTopic(Generic[T]):
 		self._topic = topic
 		self._proto = proto
 	
+	def __enter__(self):
+		self._topic.__enter__()
+		return self
+	
+	def __exit__(self, *args):
+		self._topic.__exit__(*args)
+	
 	def close(self) -> None:
 		self._topic.close()
 	
@@ -116,13 +132,13 @@ class ProtobufTopic(Generic[T]):
 		...
 	def getEntryEx(self, typeString: str, defaultValue: T, options: PubSubOptions = _default_pso) -> GenericEntry[T]: 
 		...
-	def publish(self, options: PubSubOptions = _default_pso) -> GenericPublisher[T]: 
+	def publish(self, options: PubSubOptions = _default_pso):
 		add_schema(self._topic.getInstance(), self._proto)
 		return ProtobufPublisher(
 			self._proto,
 			self._topic.publish(_type_str(self._proto), options)
 		)
-	def subscribe(self, defaultValue: T, options: PubSubOptions = _default_pso) -> GenericSubscriber[T]:
+	def subscribe(self, defaultValue: T, options: PubSubOptions = _default_pso):
 		return ProtobufSubscriber(
 			self._proto,
 			self._topic.subscribe(_type_str(self._proto), bytes(), options),

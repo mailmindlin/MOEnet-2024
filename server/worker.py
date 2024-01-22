@@ -233,5 +233,18 @@ if __name__ == '__main__':
 		print("Error: not enough arguments")
 		sys.exit(-1)
 	
-	config = InitConfig.model_validate_json(sys.argv[1])
-	main(config)
+	with open(sys.argv[1], 'r') as f:
+		config_str = f.read()
+	config = InitConfig.model_validate_json(config_str)
+
+	import time
+	class FakeQueue:
+		def get(self):
+			raise Empty()
+		get_nowait = get
+		def put(self, data):
+			time.sleep(0.01)
+	try:
+		main(config, FakeQueue(), FakeQueue())
+	finally:
+		print("Bye")

@@ -2,36 +2,22 @@
 from typing import List
 from typing_extensions import TypedDict
 from pydantic import BaseModel
+try:
+    from .geom import Pose3d
+except ImportError:
+    from geom import Pose3d
 
-class FieldLayoutJSON(TypedDict):
+class FieldLayout(TypedDict):
     length: float
     "Field length (meters)"
     width: float
     "Field width (meters)"
 
-class Translation3dJSON(TypedDict):
-    x: float
-    y: float
-    z: float
-
-class Quaternion3dJSON(TypedDict):
-    W: float
-    X: float
-    Y: float
-    Z: float
-
-class Rotation3dJSON(TypedDict):
-    quaternion: Quaternion3dJSON
-
-class Pose3dJSON(TypedDict):
-    translation: Translation3dJSON
-    rotation: Rotation3dJSON
-
-class FieldTagJSON(BaseModel):
+class FieldTag(BaseModel):
     ID: int
-    pose: Pose3dJSON
+    pose: Pose3d
 
 class AprilTagFieldJSON(BaseModel):
     "Format of WPIlib AprilTag JSON files"
-    field: FieldLayoutJSON
-    tags: List[FieldTagJSON]
+    field: FieldLayout
+    tags: List[FieldTag]

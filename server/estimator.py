@@ -1,4 +1,4 @@
-from typing import List, Optional, TYPE_CHECKING, Dict
+from typing import List, Optional, TYPE_CHECKING, Dict, overload
 from collections import OrderedDict
 import logging
 
@@ -207,13 +207,12 @@ class PoseEstimator:
         
         self.buf_field_to_robot.addSample(timestamp.as_seconds(), field_to_robot)
     
-    def record_f2o(self, timestamp: int, field_to_odom: Pose3d):
+    def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
         "Record odometry pose"
-        ts = Timestamp.from_nanos(timestamp)
         if self.datalog is not None:
-            self.logFieldToOdom.append(field_to_odom, ts.as_wpi())
+            self.logFieldToOdom.append(field_to_odom, timestamp.as_wpi())
         
-        self.buf_field_to_odom.addSample(ts.as_seconds(), field_to_odom)
+        self.buf_field_to_odom.addSample(timestamp.as_seconds(), field_to_odom)
     
     def clear(self):
         self.buf_field_to_odom.clear()
@@ -233,7 +232,32 @@ class DataFusion:
 
         self.pose_estimator = PoseEstimator(config, self.clock, log=self.log, datalog=self.datalog)
         self.object_tracker = ObjectTracker(config)
-
+        self.fresh_f2r = True
+        self.fresh_f2o = True
+        self.fresh_o2r = True
+    
+    def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
+        self.pose_estimator.record_f2r(robot_to_camera, msg)
+        self.fresh_f2r = True
+        self.fresh_o2r = True
+    
+    def record_f2o(self, timestamp: int, field_to_odom: Pose3d):
+        ts = Timestamp.from_nanos(timestamp)
+        self.pose_estimator.record_f2o(ts, field_to_odom)
+        self.fresh_f2o = True
+        self.fresh_o2r = True
+    
+    @overload
+    def odom_to_robot(self) -> Transform3d: ...
+    @overload
+    def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]:
+        if fresh and (not self.fresh_o2r):
+            return None
+        res = self.pose_estimator.odom_to_robot()
+        if fresh:
+            self.fresh_o2r = False
+        return res
+    
     def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:
         "Transform detections message into robot-space"
         if mapper_loc is not None:

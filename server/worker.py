@@ -223,7 +223,7 @@ def main(config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[Any
 					# msg = format_exception(e)
 					worker.log.exception("Error in loop")
 					worker.state = WorkerState.FAILED
-					break
+					raise
 
 
 if __name__ == '__main__':

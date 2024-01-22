@@ -8,12 +8,12 @@ from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
 from wpimath.units import seconds
 from wpiutil.log import DataLog
 
-from .typedef.worker import MsgPose, MsgDetections
-from .typedef.cfg import EstimatorConfig
-from .nt_util.log import StructLogEntry
-from .typedef.geom import Pose3d, Transform3d
-from .typedef import net
-from .clock import Clock, MonoClock, TimeMapper, Timestamp
+from typedef.worker import MsgPose, MsgDetections
+from typedef.cfg import EstimatorConfig
+from nt_util.log import StructLogEntry
+from typedef.geom import Pose3d, Transform3d
+from typedef import net
+from clock import Clock, MonoClock, TimeMapper, Timestamp
 
 
 def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
@@ -241,21 +241,30 @@ class DataFusion:
         self.fresh_f2r = True
         self.fresh_o2r = True
     
-    def record_f2o(self, timestamp: int, field_to_odom: Pose3d):
-        ts = Timestamp.from_nanos(timestamp)
-        self.pose_estimator.record_f2o(ts, field_to_odom)
+    def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
+        self.pose_estimator.record_f2o(timestamp, field_to_odom)
         self.fresh_f2o = True
         self.fresh_o2r = True
     
     @overload
     def odom_to_robot(self) -> Transform3d: ...
-    @overload
     def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]:
         if fresh and (not self.fresh_o2r):
             return None
         res = self.pose_estimator.odom_to_robot()
         if fresh:
             self.fresh_o2r = False
+        return res
+    
+    @overload
+    def field_to_robot(self) -> Pose3d: ...
+    def field_to_robot(self, fresh: bool = False) -> Optional[Pose3d]:
+        if fresh and (not self.fresh_f2r):
+            return None
+        ts = Timestamp.from_nanos(self.clock.now())
+        res = self.pose_estimator.field_to_robot(ts)
+        if fresh:
+            self.fresh_f2r = False
         return res
     
     def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:

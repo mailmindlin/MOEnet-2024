@@ -9,9 +9,9 @@ try:
 except ImportError:
 	psutil = None
 
+from clock import Timestamp
 from typedef.cfg import LocalConfig
-from .typedef.geom import Pose3d
-from typedef.worker import MsgDetection
+from typedef.geom import Pose3d
 from typedef import net
 from nt_util.dynamic import DynamicPublisher, DynamicSubscriber
 from nt_util.protobuf import ProtobufTopic
@@ -161,10 +161,10 @@ class Comms:
 				self.log.exception("Error publishing telemetry to NT")
 		
 		# Get odometry
-		if (tf_field_odom := self._sub_tf_field_odom.get_fresh(None)) is not None:
+		if (tf_field_odom := self._sub_tf_field_odom.get_fresh_ts()) is not None:
 			# Probably a better way to do this
-			timestamp = self._sub_tf_field_odom._handle.getAtomic().time * 1_000
-			self.moenet.pose_estimator.record_f2o(timestamp, tf_field_odom)
+			timestamp = Timestamp.from_wpi(tf_field_odom[1])
+			self.moenet.estimator.record_f2o(timestamp, tf_field_odom[0])
 		
 		# Check pose override
 		if (pose_override := self._sub_pose_override.get_fresh(None)) is not None:
@@ -173,10 +173,6 @@ class Comms:
 		# Get field-to-robot
 		if (tf_field_robot := self._sub_tf_field_robot.get_fresh(None)) is not None:
 			pass
-
-		# Publish transforms
-		if self._pub_tf_odom_robot.enabled:
-			tf_odom_robot = self.moenet.pose_estimator.odom_to_robot()
 
 	
 	def tx_error(self, message: str):
@@ -195,6 +191,9 @@ class Comms:
 
 	def tx_pose(self, pose: Pose3d):
 		self._pub_tf_field_robot.set(pose)
+	
+	def tx_correction(self, pose: Transform3d):
+		self._pub_tf_odom_robot.set(pose)
 
 	def tx_detections(self, detections: net.ObjectDetections):
 		self.log.debug("Sending %d detections", len(detections.detections))

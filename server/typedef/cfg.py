@@ -67,7 +67,7 @@ class AprilTagFieldRef(BaseModel):
     "Reference to a WPIlib AprilTag JSON file"
     format: Literal["frc"]
     path: Path = Field(description="Path to AprilTag configuration")
-    tagFamily: Literal['16h5', '25h9', '36h11'] = Field(description="AprilTag family")
+    tagFamily: Literal['tag16h5', 'tag25h9', 'tag36h11'] = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
 
 Vec4 = RootModel[Tuple[float, float, float, float]]
@@ -136,7 +136,7 @@ class LocalConfig(BaseModel):
     log: LogConfig = Field(default_factory=DataLogConfig)
     datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
     estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
-    pipelines: List[ObjectDetectionDefinition]
+    pipelines: List[ObjectDetectionDefinition] = Field(default_factory=list)
     camera_selectors: List[CameraSelectorConfig] = Field(default_factory=list)
     cameras: List[CameraConfig]
     slam: Optional[SlamConfig] = Field(None)

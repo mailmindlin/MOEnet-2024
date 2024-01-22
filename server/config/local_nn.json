@@ -27,7 +27,7 @@
 		"apriltag": {
 			"format": "frc",
 			"path": "./apriltag/2023-chargedup.json",
-			"tagFamily": "25h9",
+			"tagFamily": "tag25h9",
 			"tagSize": 0.1524
 		},
 		"backend": "sai"

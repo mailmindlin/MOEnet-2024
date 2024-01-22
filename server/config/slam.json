@@ -7,13 +7,6 @@
 	"nt": {
 		"enabled": false
 	},
-	"pipelines": [
-		{
-			"id": "moenet-2023-v1",
-			"blobPath": "./moenet-2023-v1/nn.blob",
-			"configPath": "./moenet-2023-v1/pipeline.json"
-		}
-	],
 	"slam": {
 		"backend": "sai",
 		"apriltag": {
@@ -44,8 +37,6 @@
 					}
 				}
 			},
-			"object_detection0": "moenet-2023-v1",
-			"object_detection": null,
 			"slam": true
 		}
 	]

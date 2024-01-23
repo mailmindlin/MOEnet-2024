@@ -52,7 +52,7 @@ class MoeNetPipeline:
             # "ffmpegVideoCodec": "libx264 -crf 15 -preset ultrafast",
             # "computeStereoPointCloud": "true",
             # "computeDenseStereoDepthKeyFramesOnly": "true",
-            # "alreadyRectified": "true"
+            "alreadyRectified": "true"
         }
         sai_config.useSlam = self.config.slam
         sai_config.useFeatureTracker = True

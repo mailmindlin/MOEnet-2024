@@ -16,7 +16,7 @@
 			"title": "AprilTagFieldConfig",
 			"type": "object"
 		},
-		"AprilTagFieldRef": {
+		"AprilTagFieldFRCRef": {
 			"description": "Reference to a WPIlib AprilTag JSON file",
 			"properties": {
 				"format": {
@@ -32,9 +32,9 @@
 				"tagFamily": {
 					"description": "AprilTag family",
 					"enum": [
-						"16h5",
-						"25h9",
-						"36h11"
+						"tag16h5",
+						"tag25h9",
+						"tag36h11"
 					],
 					"title": "Tagfamily",
 					"type": "string"
@@ -51,7 +51,28 @@
 				"tagFamily",
 				"tagSize"
 			],
-			"title": "AprilTagFieldRef",
+			"title": "AprilTagFieldFRCRef",
+			"type": "object"
+		},
+		"AprilTagFieldSAIRef": {
+			"description": "Reference to a WPIlib AprilTag JSON file",
+			"properties": {
+				"format": {
+					"const": "sai",
+					"title": "Format"
+				},
+				"path": {
+					"description": "Path to AprilTag configuration",
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				}
+			},
+			"required": [
+				"format",
+				"path"
+			],
+			"title": "AprilTagFieldSAIRef",
 			"type": "object"
 		},
 		"AprilTagInfo": {
@@ -1005,7 +1026,10 @@
 				"apriltag": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/AprilTagFieldRef"
+							"$ref": "#/$defs/AprilTagFieldFRCRef"
+						},
+						{
+							"$ref": "#/$defs/AprilTagFieldSAIRef"
 						},
 						{
 							"$ref": "#/$defs/AprilTagFieldConfig"
@@ -1086,7 +1110,6 @@
 	},
 	"required": [
 		"nt",
-		"pipelines",
 		"cameras"
 	],
 	"title": "LocalConfig",

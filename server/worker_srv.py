@@ -238,7 +238,7 @@ class WorkerManager:
 				syncNN=slam_cfg.syncNN,
 				slam=slam_cfg.slam,
 				vio=slam_cfg.vio,
-				apriltagPath=str(apriltagPath),
+				apriltagPath=str(apriltagPath) if (apriltagPath is not None) else None,
 			)
 		except:
 			self.log.exception("Error resolving SLAM config for camera %s", cid)

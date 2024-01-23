@@ -143,13 +143,13 @@ class CameraWorker:
 		self.log.debug("Poll camera")
 		for packet in self.session.poll():
 			if isinstance(packet, MsgPose):
-				self.log.info(" -> Pose %05.03f %05.03f %05.05f", packet.pose.translation.x, packet.pose.translation.y, packet.pose.translation.z)
+				self.log.info(" -> Pose %05.03f %05.03f %05.05f", packet.pose.translation().x, packet.pose.translation().y, packet.pose.translation().z)
 			elif isinstance(packet, MsgDetections):
 				if len(packet.detections) > 0:
 					self.log.info(" -> Send packet %s", repr(packet))
 			self.data_queue.put(packet)
 	
-	def override_pose(self, pose: 'Pose'):
+	def override_pose(self, pose: 'Pose3d'):
 		#TODO
 		self.session.override_pose(pose)
 	
@@ -174,6 +174,7 @@ class InterruptHandler:
 
 	def __exit__(self, *args):
 		assert signal.signal(signal.SIGINT, self._prev) is self._callback
+
 
 def main(config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]):
 	# Cap at 100Hz
@@ -205,7 +206,7 @@ def main(config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[Any
 								if worker.state in (WorkerState.RUNNING, WorkerState.PAUSED):
 									worker.state = command.target
 								else:
-									worker.log.warn("Unable to swotch to %s (current state is %s)", command.target, worker.state)
+									worker.log.warn("Unable to switch to %s (current state is %s)", command.target, worker.state)
 						elif isinstance(command, CmdPoseOverride):
 							worker.log.info("Got command: OVERRIDE POSE")
 							worker.override_pose(command.pose)

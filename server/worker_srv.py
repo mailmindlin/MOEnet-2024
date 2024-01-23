@@ -10,10 +10,10 @@ from typedef.wpilib_compat import AprilTagFieldJSON
 from typedef.cfg import (
 	SlamConfig, SlamConfigBase, NNConfig, LocalConfig,
 	CameraConfig, OakSelector,
-	AprilTagFieldRef, AprilTagFieldConfig, AprilTagInfo,
+	AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, AprilTagInfo,
 	AprilTagList, Mat44, Vec4
 )
-from typedef.geom import Pose3d
+from typedef.geom import Pose3d, Transform3d
 
 if TYPE_CHECKING:
 	from multiprocessing.context import BaseContext
@@ -111,7 +111,7 @@ class WorkerManager:
 		else:
 			return raw_selector
 	
-	def _resolve_apriltag(self, cid: CameraId, apriltag: Union[AprilTagFieldRef, AprilTagFieldConfig, None]) -> Optional[Path]:
+	def _resolve_apriltag(self, cid: CameraId, apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None]) -> Optional[Path]:
 		if apriltag is None:
 			self.log.info("Camera %s SLAM has no AprilTags", cid)
 			return None
@@ -169,6 +169,20 @@ class WorkerManager:
 					for tag in atRaw.tags
 				])
 			)
+		elif getattr(apriltag, 'format', None) == 'sai':
+			apriltag: AprilTagFieldSAIRef
+			if (cached := self.at_cache.get(apriltag.path, None)) is not None:
+				return cached
+			apriltagPath = self._resolve_path(apriltag.path)
+			if not apriltagPath.exists():
+				self.log.warn("Camera %s requested SLAM with AprilTags at %s, but that file doesn't exist", cid, apriltagPath)
+				return None
+			# Check that it's correct
+			with open(apriltagPath, 'r') as f:
+				at_json = f.read()
+			AprilTagList.model_validate_json(at_json)
+			self.at_cache[apriltag.path] = apriltagPath
+			return apriltagPath
 		else:
 			apriltag: AprilTagFieldConfig
 			# I'm not sure if this is ever cached
@@ -185,11 +199,12 @@ class WorkerManager:
 		# Write SAI-formatted AprilTag data to a temp file
 		result = Path(self._tempdir.name) / f'apriltag_{int(time.time_ns())}.json'
 		self.log.info("Create temp file %s for AprilTag data", result)
+		at_json = atData.tags.model_dump_json(indent=4)
 		with open(result, 'w') as apriltagFile:
-			apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
-		with open(Path('.') / f'apriltag_{int(time.time_ns())}.json', 'w') as apriltagFile:
-			apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
-		self.log.debug("AprilTag info: %s", atData.model_dump_json())
+			apriltagFile.write(at_json)
+		# with open(Path('.') / f'apriltag_{int(time.time_ns())}.json', 'w') as apriltagFile:
+		# 	apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
+		self.log.debug("AprilTag info: %s", at_json)
 
 		assert result.exists(), "AprilTag file is missing"
 

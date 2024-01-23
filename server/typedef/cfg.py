@@ -63,12 +63,17 @@ class NavXConfig(BaseModel):
     port: str = Field(description="NavX serial port path")
     update_rate: int = Field(60, description="NavX poll rate (in hertz)", gt=0, le=255)
 
-class AprilTagFieldRef(BaseModel):
+class AprilTagFieldFRCRef(BaseModel):
     "Reference to a WPIlib AprilTag JSON file"
     format: Literal["frc"]
     path: Path = Field(description="Path to AprilTag configuration")
     tagFamily: Literal['tag16h5', 'tag25h9', 'tag36h11'] = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
+
+class AprilTagFieldSAIRef(BaseModel):
+    "Reference to a WPIlib AprilTag JSON file"
+    format: Literal["sai"]
+    path: Path = Field(description="Path to AprilTag configuration")
 
 Vec4 = RootModel[Tuple[float, float, float, float]]
 Mat44 = RootModel[Tuple[Vec4, Vec4, Vec4, Vec4]]
@@ -90,7 +95,7 @@ class PoseEstimatorConfig(BaseModel):
     pass
 
 class SlamConfig(SlamConfigBase):
-    apriltag: Union[AprilTagFieldRef, AprilTagFieldConfig, None]
+    apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None]
 
 class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")
@@ -148,7 +153,7 @@ class LocalConfig(BaseModel):
             result.slam = update.slam
         if update.cameras is not None:
             for i, camera in enumerate(update.cameras):
-                if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, AprilTagFieldRef):
+                if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, (AprilTagFieldFRCRef, AprilTagFieldSAIRef)):
                     raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
             result.cameras = update.cameras
 

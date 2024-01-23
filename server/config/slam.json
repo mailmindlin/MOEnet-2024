@@ -5,15 +5,20 @@
 		"level": "DEBUG"
 	},
 	"nt": {
-		"enabled": false
+		"enabled": true,
+		"publishConfig": true,
+		"publishPing": true,
+		"tfFieldToOdom": "sub",
+		"tfFieldToRobot": "pub",
+		"tfOodomToRobot": "pub"
 	},
 	"slam": {
 		"backend": "sai",
 		"apriltag": {
 			"format": "frc",
-			"path": "./apriltag/2023-chargedup.json",
-			"tagFamily": "tag25h9",
-			"tagSize": 0.1524
+			"path": "./apriltag/sample.json",
+			"tagFamily": "tag36h11",
+			"tagSize": 0.1651
 		},
 		"slam": true,
 		"vio": true

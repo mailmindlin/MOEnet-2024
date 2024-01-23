@@ -317,17 +317,18 @@ class WorkerHandle:
 		if self.proc is None:
 			return
 		try:
-			self.log.info("Stopping...")
-			if send_command:
-				self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
-			self.proc.join()
-		except:
-			self.log.exception("Error on join")
-			self.proc.kill()
 			try:
-				self.proc.join()
+				self.log.info("Stopping...")
+				if send_command:
+					self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+				self.proc.join(3.0)
 			except:
-				self.log.exception('Worker exception on join')
+				self.log.exception("Error on join")
+				self.proc.kill()
+				try:
+					self.proc.join()
+				except:
+					self.log.exception('Worker exception on join')
 		finally:
 			self.proc.close()
 		self.proc = None

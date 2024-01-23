@@ -8,7 +8,7 @@ from datetime import timedelta
 
 if __name__ == '__main__':
     from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
-    from .geom import Pose3d, Transform3d
+    from geom import Pose3d, Transform3d
 else:
     from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
     from .geom import Pose3d, Transform3d

@@ -23,14 +23,15 @@
 			"configPath": "./moenet-2023-v1/pipeline.json"
 		}
 	],
-	"slam1": {
+	"slam": {
 		"apriltag": {
 			"format": "frc",
 			"path": "./apriltag/2023-chargedup.json",
 			"tagFamily": "tag25h9",
 			"tagSize": 0.1524
 		},
-		"backend": "sai"
+		"backend": "sai",
+		"slam": true
 	},
 	"camera_selectors": [
 		{
@@ -58,7 +59,7 @@
 				}
 			},
 			"object_detection": "moenet-2023-v1",
-			"slam": true
+			"slam": false
 		}
 	]
 }

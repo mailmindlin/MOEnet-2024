@@ -55,6 +55,9 @@ class MoeNetPipeline:
             # "alreadyRectified": "true"
         }
         sai_config.useSlam = self.config.slam
+        sai_config.useFeatureTracker = True
+        sai_config.useVioAutoExposure = True
+        sai_config.inputResolution = '800p'
         # sai_config.useColor = True
         return sai.depthai.Pipeline(self.pipeline, sai_config, self.onMappingOutput)
     
@@ -181,23 +184,12 @@ class MoeNetPipeline:
         nn.out.link(xoutNN.input)
         return xoutNN
 
-    # @cached_property
-    # def node_out_bb(self) -> Optional[dai.node.XLinkOut]:
-    #     nn = self.node_yolo
-    #     if nn is None:
-    #         return None
-        
-    #     xoutBoundingBox = self.pipeline.createXLinkOut()
-    #     xoutBoundingBox.setStreamName('boundingBoxDepthMapping')
-    #     nn.boundingBoxMapping.link(xoutBoundingBox.input)
-    #     return xoutBoundingBox
-
     def build(self):
         "Build all nodes in this pipeline"
         self.vio_pipeline
         self.node_out_nn
-        # self.node_out_bb
         self.node_out_rgb
+
 
 class FakeQueue:
     def has(self):
@@ -285,6 +277,7 @@ class MoeNetSession:
         
         # Ensure we've completed all VIO flushes
         if self._vio_last_tag < self._vio_require_tag:
+            print("Skipped frame")
             return
         # cam = vio_out.getCameraPose(0)
 

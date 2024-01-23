@@ -117,7 +117,7 @@ class WorkerManager:
 			return None
 
 		if getattr(apriltag, 'format', None) == 'frc':
-			apriltag: AprilTagFieldRef
+			apriltag: AprilTagFieldFRCRef
 			# Load path to AprilTag info
 			if (cached := self.at_cache.get(apriltag.path, None)) is not None:
 				return cached
@@ -142,20 +142,26 @@ class WorkerManager:
 			else:
 				cache_key = str(apriltag.path)
 			
+			from scipy.spatial.transform import Rotation as R
+			
 			def pose_to_mat44(pose: Pose3d) -> 'Mat44':
-				quat = pose.rotation().getQuaternion()
-				w = quat.W()
-				x = quat.X()
-				y = quat.Y()
-				z = quat.Z()
-				trans = pose.translation()
+				import numpy as np
+				fieldToTag = Transform3d(pose.translation(), pose.rotation())
+				tagToField = fieldToTag
+				position = tagToField.translation()
+				orientation = tagToField.rotation().getQuaternion()
+				x, y, z = position.x, position.y, position.z
+				i, j, k, w = orientation.X(), orientation.Y(), orientation.Z(), orientation.W()
 
-				return Mat44([
-					Vec4([2*(w*w+x*x) - 1, 2*(x*y-w*z),     2*(x*z-w*y),     trans.x]),
-					Vec4([2*(x*y+w*z),     2*(w*w-y*y) - 1, 2*(y*z-w*x),     trans.y]),
-					Vec4([2*(x*z-w*y),     2*(y*z+w*x),     2*(w*w-z*z) - 1, trans.z]),
-					Vec4([0.0, 0.0, 0.0, 1.0]),
-				])
+				# create rotation matrix
+				r = R.from_quat([i, j, k, w])
+				r_matrix = r.as_matrix()
+
+				# create homogenous matrix
+				matrix = np.eye(4) # 4x4 identity matrix
+				matrix[:3, :3] = r_matrix # first 3 in rows and columns
+				matrix[:3, 3] = [x, y, z] # first 3 in rows, last in columns
+				return matrix
 			
 			atData = AprilTagFieldConfig(
 				field=atRaw.field,

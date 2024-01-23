@@ -143,7 +143,7 @@ class CameraWorker:
 		self.log.debug("Poll camera")
 		for packet in self.session.poll():
 			if isinstance(packet, MsgPose):
-				self.log.info(" -> Pose %05.03f %05.03f %05.05f", packet.pose.translation().x, packet.pose.translation().y, packet.pose.translation().z)
+				self.log.info(" -> Pose %05.03f %05.03f %05.05f %05.05f", packet.pose.translation().x, packet.pose.translation().y, packet.pose.translation().z, packet.poseCovariance[0,0])
 			elif isinstance(packet, MsgDetections):
 				if len(packet.detections) > 0:
 					self.log.info(" -> Send packet %s", repr(packet))

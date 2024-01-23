@@ -16,7 +16,7 @@
 		"backend": "sai",
 		"apriltag": {
 			"format": "frc",
-			"path": "./apriltag/sample.json",
+			"path": "./apriltag/2024-crescendo.json",
 			"tagFamily": "tag36h11",
 			"tagSize": 0.1651
 		},

@@ -215,13 +215,18 @@ if __name__ == '__main__':
 	)
 	parser.add_argument(
 		'config',
-		type=Path,
+		type=str,
 		nargs='?',
-		default=str(Path(__file__).parent.resolve() / './config/local_nn.json')
+		default='local_nn'
 	)
 	args = parser.parse_args()
 	
-	config_path = args.config
+	config_name: str = args.config
+	if config_name.endswith('.json'):
+		config_path = Path(config_name)
+	else:
+		config_path = Path(__file__).parent.resolve() / f'config/{config_name}.json'
+	
 	with open(config_path, 'r') as f:
 		config_data = f.read()
 	try:

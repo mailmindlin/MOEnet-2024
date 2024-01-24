@@ -26,5 +26,5 @@ class NavXClock(OffsetClock):
         self.navx.close()
 
 class NavXTimeMapper(OffsetClockMapper):
-    def __init__(self, config: NavXConfig):
-        super().__init__(NavXClock(MonoClock(), config))
+    def __init__(self, clock: Clock, config: NavXConfig):
+        super().__init__(NavXClock(clock, config))

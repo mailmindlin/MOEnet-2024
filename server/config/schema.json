@@ -149,11 +149,8 @@
 					"default": null,
 					"title": "Max Usb"
 				},
-				"optional": {
-					"default": false,
-					"description": "Is it an error if this camera is not detected?",
-					"title": "Optional",
-					"type": "boolean"
+				"retry": {
+					"$ref": "#/$defs/RetryConfig"
 				},
 				"pose": {
 					"anyOf": [
@@ -310,41 +307,27 @@
 					"title": "Name"
 				},
 				"platform": {
-					"anyOf": [
-						{
-							"enum": [
-								"X_LINK_ANY_PLATFORM",
-								"X_LINK_MYRIAD_2",
-								"X_LINK_MYRIAD_X"
-							],
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
 					"default": null,
+					"enum": [
+						"X_LINK_ANY_PLATFORM",
+						"X_LINK_MYRIAD_2",
+						"X_LINK_MYRIAD_X",
+						null
+					],
 					"title": "Platform"
 				},
 				"protocol": {
-					"anyOf": [
-						{
-							"enum": [
-								"X_LINK_ANY_PROTOCOL",
-								"X_LINK_IPC",
-								"X_LINK_NMB_OF_PROTOCOLS",
-								"X_LINK_PCIE",
-								"X_LINK_TCP_IP",
-								"X_LINK_USB_CDC",
-								"X_LINK_USB_VSC"
-							],
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
 					"default": null,
+					"enum": [
+						"X_LINK_ANY_PROTOCOL",
+						"X_LINK_IPC",
+						"X_LINK_NMB_OF_PROTOCOLS",
+						"X_LINK_PCIE",
+						"X_LINK_TCP_IP",
+						"X_LINK_USB_CDC",
+						"X_LINK_USB_VSC",
+						null
+					],
 					"title": "Protocol"
 				},
 				"id": {
@@ -800,6 +783,24 @@
 					"description": "Allow the Rio to override poses",
 					"title": "Subscribeposeoverride",
 					"type": "boolean"
+				},
+				"publishField2dF2O": {
+					"default": false,
+					"description": "Publish Field2d widget (field->odom)",
+					"title": "Publishfield2Df2O",
+					"type": "boolean"
+				},
+				"publishField2dF2R": {
+					"default": false,
+					"description": "Publish Field2d widget (field->robot)",
+					"title": "Publishfield2Df2R",
+					"type": "boolean"
+				},
+				"publishField2dDets": {
+					"default": false,
+					"description": "Publish Field2d widget (field->notes)",
+					"title": "Publishfield2Ddets",
+					"type": "boolean"
 				}
 			},
 			"title": "NetworkTablesConfig",
@@ -848,41 +849,27 @@
 					"title": "Name"
 				},
 				"platform": {
-					"anyOf": [
-						{
-							"enum": [
-								"X_LINK_ANY_PLATFORM",
-								"X_LINK_MYRIAD_2",
-								"X_LINK_MYRIAD_X"
-							],
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
 					"default": null,
+					"enum": [
+						"X_LINK_ANY_PLATFORM",
+						"X_LINK_MYRIAD_2",
+						"X_LINK_MYRIAD_X",
+						null
+					],
 					"title": "Platform"
 				},
 				"protocol": {
-					"anyOf": [
-						{
-							"enum": [
-								"X_LINK_ANY_PROTOCOL",
-								"X_LINK_IPC",
-								"X_LINK_NMB_OF_PROTOCOLS",
-								"X_LINK_PCIE",
-								"X_LINK_TCP_IP",
-								"X_LINK_USB_CDC",
-								"X_LINK_USB_VSC"
-							],
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
 					"default": null,
+					"enum": [
+						"X_LINK_ANY_PROTOCOL",
+						"X_LINK_IPC",
+						"X_LINK_NMB_OF_PROTOCOLS",
+						"X_LINK_PCIE",
+						"X_LINK_TCP_IP",
+						"X_LINK_USB_CDC",
+						"X_LINK_USB_VSC",
+						null
+					],
 					"title": "Protocol"
 				}
 			},
@@ -934,6 +921,30 @@
 				"blobPath"
 			],
 			"title": "ObjectDetectionDefinition",
+			"type": "object"
+		},
+		"RetryConfig": {
+			"description": "Configure restart/retry logic",
+			"properties": {
+				"optional": {
+					"default": false,
+					"description": "Is it an error if this camera is not detected?",
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"connection_tries": {
+					"default": 3,
+					"title": "Connection Tries",
+					"type": "integer"
+				},
+				"connection_delay": {
+					"default": "PT1S",
+					"format": "duration",
+					"title": "Connection Delay",
+					"type": "string"
+				}
+			},
+			"title": "RetryConfig",
 			"type": "object"
 		},
 		"RootModel_List_AprilTagInfo__": {

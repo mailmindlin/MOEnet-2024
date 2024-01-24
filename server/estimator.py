@@ -29,11 +29,15 @@ def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
 class TrackedObject:
     def __init__(self, id: int, timestamp: Timestamp, position: Translation3d, label: str, confidence: float):
         self.id = id
+        "Tracking ID"
         self.position = position
+        "Estimated object position"
         self.label = label
+        "Detection label"
         self.last_seen = timestamp
         self.n_detections = 1
         self.confidence = confidence
+        "Detection confidence"
         self._position_rs_cache = None
 
     def update(self, other: 'TrackedObject', alpha: float = 0.2):
@@ -45,9 +49,11 @@ class TrackedObject:
     
     @property
     def pose(self):
+        "Get position as Pose3d"
         return Pose3d(self.position, Rotation3d())
     
     def position_rel(self, reference_pose: Pose3d) -> Translation3d:
+        "Get position relative to some reference"
         # Cache position_rs, as we'll probably compute the same transforms a lot
         if (self._position_rs_cache is None) or (self._position_rs_cache[0] != reference_pose):
             position_rs = self.pose.relativeTo(reference_pose).translation()
@@ -94,7 +100,7 @@ class ObjectTracker:
         return best
 
     def track(self, t: Timestamp, detections: MsgDetections, field_to_robot: Pose3d, robot_to_camera: Transform3d):
-        # w_to_c_mat = np.linalg.inv(view_mat)
+        "Track some objects"
         field_to_camera = field_to_robot + robot_to_camera
 
         for detection in detections:
@@ -107,7 +113,7 @@ class ObjectTracker:
             label = detection.label
 
             id = self._next_id
-            new_obj = TrackedObject(id, t, field_to_obj, label)
+            new_obj = TrackedObject(id, t, field_to_obj, label, confidence=detection.confidence)
             if existing := self._find_best_match(new_obj, field_to_camera):
                 existing.update(new_obj, alpha=self.config.object_alpha)
             else:
@@ -249,6 +255,7 @@ class DataFusion:
     @overload
     def odom_to_robot(self) -> Transform3d: ...
     def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]:
+        "Get the best estimated `odom`→`robot` corrective transform"
         if fresh and (not self.fresh_o2r):
             return None
         res = self.pose_estimator.odom_to_robot()

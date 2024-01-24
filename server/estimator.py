@@ -5,7 +5,6 @@ import logging
 import numpy as np
 from wpimath.geometry import Transform3d, Translation3d, Rotation3d, Pose3d
 from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
-from wpimath.units import seconds
 from wpiutil.log import DataLog
 
 from typedef.worker import MsgPose, MsgDetections
@@ -13,7 +12,9 @@ from typedef.cfg import EstimatorConfig
 from nt_util.log import StructLogEntry
 from typedef.geom import Pose3d, Transform3d
 from typedef import net
-from clock import Clock, MonoClock, TimeMapper, Timestamp
+from clock.clock import Clock, WallClock
+from clock.mapper import TimeMapper, IdentityTimeMapper
+from clock.timestamp import Timestamp
 
 
 def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:
@@ -233,7 +234,7 @@ class DataFusion:
     def __init__(self, config: EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
         self.log = logging.getLogger("data") if log is None else log.getChild("data")
         self.datalog = datalog
-        self.clock = clock or MonoClock()
+        self.clock = clock or WallClock()
         self.config = config
 
         self.pose_estimator = PoseEstimator(config, self.clock, log=self.log, datalog=self.datalog)
@@ -241,6 +242,7 @@ class DataFusion:
         self.fresh_f2r = True
         self.fresh_f2o = True
         self.fresh_o2r = True
+        self.fresh_det = True
     
     def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
         self.pose_estimator.record_f2r(robot_to_camera, msg)
@@ -266,9 +268,10 @@ class DataFusion:
     @overload
     def field_to_robot(self) -> Pose3d: ...
     def field_to_robot(self, fresh: bool = False) -> Optional[Pose3d]:
+        "Get the most recent `field`→`robot` transform"
         if fresh and (not self.fresh_f2r):
             return None
-        ts = Timestamp.from_nanos(self.clock.now())
+        ts = self.clock.now()
         res = self.pose_estimator.field_to_robot(ts)
         if fresh:
             self.fresh_f2r = False
@@ -279,7 +282,7 @@ class DataFusion:
         if mapper_loc is not None:
             assert mapper_loc.clock_b == self.clock
         if mapper_net is not None:
-            assert mapper_loc.clock_a == self.clock
+            assert mapper_net.clock_a == self.clock
         
         # I'm not super happy with this method being on PoseEstimator, but whatever
         labels: OrderedDict[str, int] = OrderedDict()
@@ -321,6 +324,71 @@ class DataFusion:
                 ),
             )
             res.append(detection_net)
+        
+        return net.ObjectDetections(
+            labels=list(labels.keys()),
+            detections=res,
+        )
+    
+    def record_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None):
+        "Record some detections for tracking"
+        if mapper_loc is not None:
+            assert mapper_loc.clock_b == self.clock
+        
+        # I'm not super happy with this method being on PoseEstimator, but whatever
+        timestamp     = Timestamp.from_nanos(detections.timestamp)
+        timestamp_loc = timestamp if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
+
+        field_to_robot = self.pose_estimator.field_to_robot(timestamp_loc)
+
+        self.object_tracker.track(timestamp, detections, field_to_robot, robot_to_camera)
+        self.fresh_det = True
+
+    def get_detections(self, mapper_net: Optional[TimeMapper] = None, *, fresh = False) -> Optional[net.ObjectDetections]:
+        "Get any new detections"
+        if fresh and (not self.fresh_det):
+            return None
+        
+        if mapper_net is None:
+            mapper_net = IdentityTimeMapper(self.clock)
+        assert mapper_net.clock_a == self.clock
+
+        labels: OrderedDict[str, int] = OrderedDict()
+        res: List[net.ObjectDetection] = list()
+
+        now = self.clock.now()
+
+        for detection in self.object_tracker.items():
+            # Lookup or get next ID
+            label_id = labels.setdefault(detection.label, len(labels))
+
+            ts_loc = detection.last_seen
+            s, ns = mapper_net.a_to_b(ts_loc).split()
+            ts_net = net.Timestamp(seconds=s, nanos=ns)
+
+            # Compute transforms
+            field_to_robot = self.pose_estimator.field_to_robot(ts_loc)
+            field_to_object = detection.position
+            robot_to_object = detection.position_rel(field_to_robot)
+
+            # Fix datatype (ugh)
+            res.append(net.ObjectDetection(
+                timestamp=ts_net,
+                label_id=label_id,
+                confidence=detection.confidence,
+                positionRobot=net.Translation3d(
+                    x=robot_to_object.x,
+                    y=robot_to_object.y,
+                    z=robot_to_object.z,
+                ),
+                positionField=net.Translation3d(
+                    x=field_to_object.x,
+                    y=field_to_object.y,
+                    z=field_to_object.z,
+                ),
+            ))
+        if fresh:
+            self.fresh_det = False
         
         return net.ObjectDetections(
             labels=list(labels.keys()),

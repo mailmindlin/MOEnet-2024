@@ -101,7 +101,7 @@ class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")
     selector: Union[str, OakSelector] = Field(description="Which camera are we referencing?")
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
-    optional: bool = Field(False, description="Is it an error if this camera is not detected?")
+    retry: RetryConfig = Field(default_factory=RetryConfig)
     pose: Optional[Transform3d] = Field(description="Camera pose (in robot-space)")
     slam: Union[bool, SlamConfig] = Field(False, description="Enable SLAM on this camera")
     object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")

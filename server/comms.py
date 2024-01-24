@@ -70,8 +70,13 @@ class Comms:
 
 		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config").subscribe("", PubSubOptions()))
 		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep").subscribe(False, PubSubOptions()))
-		
-		# self._handler = LogHandler(self)
+
+		# Field2d
+		self._pub_f2d_type = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getStringTopic(".type").publish())
+		self._pub_f2d_f2o = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getDoubleArrayTopic("Robot").publish())
+		self._pub_f2d_f2r = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getDoubleArrayTopic("Odometry").publish())
+		self._pub_f2d_dets = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getDoubleArrayTopic("Notes").publish())
+
 
 		if not self.config.nt.enabled:
 			self.log.warn("NetworkTables is disabled")
@@ -132,6 +137,11 @@ class Comms:
 		self._sub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'sub'
 		self._sub_pose_override.enabled = ntc.subscribePoseOverride
 
+		self._pub_f2d_type.enabled = (ntc.publishField2dF2R or ntc.publishField2dF2O or ntc.publishField2dDets)
+		self._pub_f2d_f2o.enabled = ntc.publishField2dF2O
+		self._pub_f2d_f2r.enabled = ntc.publishField2dF2R
+		self._pub_f2d_dets.enabled = ntc.publishField2dDets
+
 		self._sub_config.enabled = ntc.subscribeConfig
 		self._sub_sleep.enabled  = ntc.subscribeSleep
 
@@ -165,6 +175,8 @@ class Comms:
 			# Probably a better way to do this
 			timestamp = Timestamp.from_wpi(tf_field_odom[1])
 			self.moenet.estimator.record_f2o(timestamp, tf_field_odom[0])
+			if self._pub_f2d_f2o.enabled:
+				self._pub_f2d_f2r.set([tf_field_odom[0].translation().x, tf_field_odom[0].translation().y, tf_field_odom[0].rotation().z])
 		
 		# Check pose override
 		if (pose_override := self._sub_pose_override.get_fresh(None)) is not None:
@@ -173,6 +185,9 @@ class Comms:
 		# Get field-to-robot
 		if (tf_field_robot := self._sub_tf_field_robot.get_fresh(None)) is not None:
 			pass
+
+		if self._pub_f2d_type.enabled:
+			self._pub_f2d_type.set("Field2d")
 
 	
 	def tx_error(self, message: str):
@@ -191,6 +206,8 @@ class Comms:
 
 	def tx_pose(self, pose: Pose3d):
 		self._pub_tf_field_robot.set(pose)
+		if self._pub_f2d_f2r.enabled:
+			self._pub_f2d_f2r.set([pose.translation().x, pose.translation().y, pose.rotation().z])
 	
 	def tx_correction(self, pose: Transform3d):
 		self._pub_tf_odom_robot.set(pose)
@@ -198,6 +215,14 @@ class Comms:
 	def tx_detections(self, detections: net.ObjectDetections):
 		self.log.debug("Sending %d detections", len(detections.detections))
 		self._pub_detections.set(detections)
+		if self._pub_f2d_dets.enabled:
+			data = [
+				e
+				for det in (detections.detections or [])
+				if det.positionField is not None
+				for e in (det.positionField.x, det.positionField.y, det.label_id)
+			]
+			self._pub_f2d_dets.set(data)
 
 	def rx_sleep(self) -> bool:
 		return self._sub_sleep.get(False)
@@ -205,5 +230,4 @@ class Comms:
 	def close(self):
 		del self.moenet
 		self.nt.disconnect()
-		NetworkTableInstance.destroy(self.nt)
 		self.nt = None

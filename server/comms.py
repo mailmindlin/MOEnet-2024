@@ -79,7 +79,7 @@ class Comms:
 
 
 		if not self.config.nt.enabled:
-			self.log.warn("NetworkTables is disabled")
+			self.log.warning("NetworkTables is disabled")
 			self.nt = None
 			self.table = None
 			return
@@ -104,9 +104,6 @@ class Comms:
 
 		self._pub_config.set(config.model_dump_json())
 
-		root_log = logging.getLogger()
-		# root_log.addHandler(self._handler)
-	
 	def update_config(self, config: LocalConfig):
 		self.config = config
 		self._reset()
@@ -193,7 +190,6 @@ class Comms:
 	def tx_error(self, message: str):
 		"Send error message to NetworkTables"
 		self._pub_error.set(message)
-		# self.log.warn("NT Error: %s", message)
 	
 	def tx_log(self, message: str):
 		"Send error message to NetworkTables"
@@ -202,7 +198,7 @@ class Comms:
 	def tx_status(self, status: net.Status):
 		"Send status"
 		self._pub_status.set(int(status))
-		self.log.info("NT send status: %s", status)
+		self.log.info("NT send status: %s", net.Status(status).name)
 
 	def tx_pose(self, pose: Pose3d):
 		self._pub_tf_field_robot.set(pose)

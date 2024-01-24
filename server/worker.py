@@ -1,18 +1,169 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import logging
-from typedef.worker import InitConfig, CmdChangeState, MsgChangeState, WorkerState, MsgPose, MsgDetections, CmdFlush, CmdPoseOverride, MsgFlush, AnyMsg, AnyCmd
-from clock import Watchdog
-from queue import Empty
-import signal
+from functools import cached_property
+from queue import Empty, Full
+from typedef.worker import (
+	WorkerInitConfig, OakSelector,
+	CmdChangeState, MsgChangeState, WorkerState,
+	CmdPoseOverride, MsgPose, MsgDetections,
+	CmdFlush, MsgFlush,
+	MsgLog,
+	AnyMsg, AnyCmd
+)
 
 if TYPE_CHECKING:
 	from multiprocessing import Queue
-	from depthai import Device
+	import depthai as dai
 	from pipeline import MoeNetPipeline
 
+
+class WorkerStop(Exception):
+	pass
+
+class OakNotFoundException(RuntimeError):
+	pass
+
+
+class ForwardHandler(logging.Handler):
+	def __init__(self, queue: Queue[AnyMsg], level: logging._Level = 0) -> None:
+		super().__init__(level)
+		self._queue = queue
+	
+	def emit(self, record: logging.LogRecord):
+		try:
+			msg = self.format(record)
+			try:
+				self._queue.put(MsgLog(level=int(record.levelno), msg=str(msg)), timeout=0.1)
+			except Full:
+				print("[overflow]", msg)
+		except RecursionError:  # See issue 36272
+			raise
+		except Exception:
+			self.handleError(record)
+
+
+class DeviceManager:
+	@staticmethod
+	def selector_to_descriptor(selector: OakSelector) -> Optional['dai.DeviceDesc']:
+		from depthai import DeviceDesc
+		desc = DeviceDesc()
+		use_desc = False
+		if selector.mxid is not None:
+			desc.mxid = selector.mxid
+			use_desc = True
+		if selector.name is not None:
+			desc.name = selector.name
+			use_desc = True
+		if (platform := selector.platform_dai) is not None:
+			desc.platform = platform
+			use_desc = True
+		if (protocol := selector.protocol_dai) is not None:
+			desc.protocol = protocol
+			use_desc = True
+		
+		if use_desc:
+			return dai.DeviceInfo(desc)
+		else:
+			return None
+	
+	def __init__(self, config: WorkerInitConfig, log: logging.Logger) -> None:
+		self.config = config
+		self.log = log
+		self._retries = 0
+		self._last_device_info = None
+	
+	def _info_matches(self, info: 'dai.DeviceInfo'):
+		sel = self.config.selector
+		if (mxid := sel.mxid) is not None:
+			if info.mxid != mxid:
+				return False
+		if (name := sel.name) is not None:
+			if info.name != name:
+				return False
+		if (platform := sel.platform_dai) is not None:
+			if info.platform != platform:
+				return False
+		if (protocol := sel.protocol_dai) is not None:
+			if info.protocol != protocol:
+				return False
+		return True
+	
+	@cached_property
+	def max_usb_dai(self) -> Optional['dai.UsbSpeed']:
+		max_usb = self.config.max_usb
+		from depthai import UsbSpeed
+		if (max_usb is None) or (max_usb == 'UNKNOWN'):
+			return None
+		return UsbSpeed.__members__[max_usb]
+	
+	def attach_oak(self, pipeline: 'dai.Pipeline', dev_info: Optional['dai.DeviceInfo']):
+		from depthai import Device
+		device = None
+		try:
+			try:
+				if dev_info is None:
+					if (max_usb := self.max_usb_dai) is not None:
+						self.log.info('Find device with max_usb=%s', max_usb)
+						device = Device(pipeline, max_usb)
+					else:
+						self.log.info('Find first device')
+						device = Device(pipeline)
+				else:
+					if (max_usb := self.max_usb_dai) is not None:
+						self.log.info('Find device with mxid=%s, name=%s, platform=%s, protocol=%s, max_usb=%s', dev_info.mxid, dev_info.name, dev_info.platform, dev_info.protocol, max_usb)
+						device = Device(pipeline, dev_info, max_usb)
+					else:
+						self.log.info('Find device with mxid=%s, name=%s, platform=%s, protocol=%s', dev_info.mxid, dev_info.name, dev_info.platform, dev_info.protocol)
+						device = Device(pipeline, dev_info)
+			except RuntimeError as e:
+				raise OakNotFoundException(*e.args) from e
+			# Store last info, for sticky connecting
+			self._last_device_info = device.getDeviceInfo()
+		except:
+			# Better cleanup
+			if device is not None:
+				device.close()
+			raise
+		return device
+	
+	def find_oak(self, pipeline: 'dai.Pipeline') -> 'dai.Device':
+		"Find and acquire to OAK camera"
+		from depthai import Device
+		sel = self.config.selector
+		
+		ordinal = sel.ordinal
+
+		prev_excs = list()
+		while True:
+			# Try to connect
+			try:
+				# Pick best constructor
+				if (ordinal is None) or (ordinal == 1):
+					dev_info = DeviceManager.selector_to_descriptor(self.config.selector)
+					return self.attach_oak(pipeline, dev_info)
+				else:
+					matches = 0
+					for dev_info in Device.getAllAvailableDevices():
+						if self._info_matches(dev_info):
+							matches += 1
+							if matches == ordinal:
+								return self.attach_oak(pipeline, dev_info)
+					raise OakNotFoundException()
+			except RuntimeError as e:
+				self._retries += 1
+				# We're out of connection tries
+				if self._retries > self.config.retry.connection_tries:
+					e1 = OakNotFoundException()
+					for prev_exc in prev_excs:
+						e1.add_note(f'Previous exception: {prev_exc}')
+					raise e1 from e
+				
+				prev_excs.append(e)
+
+
 class CameraWorker:
-	def __init__(self, config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]) -> None:
+	def __init__(self, config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]) -> None:
 		self.config = config
 		self.data_queue = data_queue
 		self.command_queue = command_queue
@@ -20,16 +171,14 @@ class CameraWorker:
 		self._state = None
 		self.state = WorkerState.INITIALIZING
 
-		import sys
-		handler = logging.StreamHandler(sys.stdout)
-		handler.setLevel(logging.INFO)
-		# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-		formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
-		handler.setFormatter(formatter)
+		handler = ForwardHandler(data_queue, logging.INFO)
+		handler.setFormatter(logging.Formatter('%(name)s:%(message)s'))
 		logging.getLogger().addHandler(handler)
 		logging.getLogger().setLevel(logging.INFO)
 
 		self.log = logging.getLogger(config.id)
+
+		self.dev_mgr = DeviceManager(config, self.log)
 	
 	@property
 	def state(self):
@@ -40,6 +189,10 @@ class CameraWorker:
 		if next != self._state:
 			self.data_queue.put(MsgChangeState(previous=self._state, current=next))
 			self._state = next
+	
+	@property
+	def is_paused(self):
+		return self.state == WorkerState.PAUSED
 	
 	def make_pipeline(self) -> 'MoeNetPipeline':
 		from pipeline import MoeNetPipeline, PipelineConfig
@@ -67,49 +220,6 @@ class CameraWorker:
 			)
 		)
 	
-	def attach_oak(self) -> 'Device':
-		"Find and acquire to OAK camera"
-		import depthai as dai
-		sel = self.config.selector
-		desc = dai.DeviceDesc()
-		use_desc = False
-		if sel.mxid is not None:
-			desc.mxid = sel.mxid
-			use_desc = True
-		if sel.name is not None:
-			desc.name = sel.name
-			use_desc = True
-		if sel.platform is not None:
-			desc.platform = dai.XLinkPlatform.__members__[sel.platform]
-			use_desc = True
-		if sel.protocol is not None:
-			desc.protocol = dai.XLinkProtocol.__members__[sel.protocol]
-			use_desc = True
-		if use_desc:
-			dev_info = dai.DeviceInfo(desc)
-		else:
-			dev_info = None
-		
-		ordinal = None if (sel.ordinal is None) or (sel.ordinal == 1) else sel.ordinal
-		max_usb = dai.UsbSpeed.__members__[self.config.max_usb] if (self.config.max_usb is not None) else None
-		pipeline = self.pipeline.pipeline
-
-		if ordinal is None:
-			if dev_info is None:
-				if max_usb is None:
-					return dai.Device(pipeline)
-				else:
-					return dai.Device(pipeline, max_usb)
-			else:
-				if max_usb is None:
-					return dai.Device(pipeline, dev_info)
-				else:
-					return dai.Device(pipeline, dev_info, max_usb)
-		else:
-			matches = 0
-			for info in dai.Device.getAllAvailableDevices():
-				raise NotImplementedError("TODO")
-	
 	def __enter__(self):
 		# Build pipeline
 		self.log.info("Creating pipeline...")
@@ -119,9 +229,9 @@ class CameraWorker:
 		try:
 			self.state = WorkerState.CONNECTING
 			self.log.info("Finding OAK")
-			self.device = self.attach_oak()
-		except RuntimeError:
-			if self.config.optional:
+			self.device = self.dev_mgr.find_oak(self.pipeline.pipeline)
+		except OakNotFoundException:
+			if self.config.retry.optional:
 				self.log.exception("Unable to find OAK")
 				self.state = WorkerState.STOPPED
 				exit(0)
@@ -149,11 +259,35 @@ class CameraWorker:
 					self.log.info(" -> Send packet %s", repr(packet))
 			self.data_queue.put(packet)
 	
-	def override_pose(self, pose: 'Pose3d'):
-		#TODO
-		self.session.override_pose(pose)
+	def process_command(self, command: AnyCmd):
+		"Process a command"
+
+		if isinstance(command, CmdChangeState):
+			self.log.info("Got command: CHANGE STATE -> %s", command.target)
+			if self.state == command.target:
+				self.log.warning("Unable to switch to %s (current state is %s)", command.target, self.state)
+			if command.target in (WorkerState.STOPPING, WorkerState.STOPPED):
+				# Exit
+				self.state = WorkerState.STOPPING
+				raise WorkerStop()
+			elif command.target in (WorkerState.RUNNING, WorkerState.PAUSED):
+				if self.state in (WorkerState.RUNNING, WorkerState.PAUSED):
+					self.state = command.target
+				else:
+					self.log.warning("Unable to switch to %s (current state is %s)", command.target, self.state)
+		elif isinstance(command, CmdPoseOverride):
+			self.log.info("Got command: OVERRIDE POSE")
+			self.session.override_pose(command.pose)
+		elif isinstance(command, CmdFlush):
+			self.log.info("Got command: FLUSH")
+			self.flush()
+			# ACK flush
+			self.data_queue.put(MsgFlush(id=command.id))
+		else:
+			self.log.warning("Unknown command: %s", repr(command))
 	
 	def flush(self):
+		"Flush all data from device"
 		self.session.flush()
 	
 	def __exit__(self, *args):
@@ -166,61 +300,39 @@ class CameraWorker:
 		self.state = WorkerState.STOPPED
 
 
-class InterruptHandler:
-	def __init__(self, callback) -> None:
-		self._callback = callback
-	def __enter__(self):
-		self._prev = signal.signal(signal.SIGINT, self._callback)
-
-	def __exit__(self, *args):
-		assert signal.signal(signal.SIGINT, self._prev) is self._callback
-
-
-def main(config: InitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]):
+def main(config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]):
 	# Cap at 100Hz
 	min_loop_duration = 1 / config.maxRefresh
+	from util.interrupt import InterruptHandler
+	from clock.watchdog import Watchdog
+	import signal
+
 	signal.signal(signal.SIGINT, signal.SIG_IGN)
-	with (CameraWorker(config, data_queue, command_queue) as worker, InterruptHandler(lambda *x: print("Child SIGINT"))):
+	def handle_sigint(*args):
+		print("Child SIGINT")
+	
+	with (CameraWorker(config, data_queue, command_queue) as worker, InterruptHandler(handle_sigint)):
 		while True:
-			with Watchdog(period=min_loop_duration) as w:
+			with Watchdog('worker', min=min_loop_duration, max=0.5, log=worker.log) as w:
 				try:
 					try:
-						if worker.state == WorkerState.PAUSED:
+						if worker.is_paused:
 							# We're paused, so we might as well block
 							command = command_queue.get()
+							w.ignore_exceeded = True
 						else:
 							command = command_queue.get_nowait()
 					except Empty:
 						pass
 					else:
-						# Process command
-						worker.log.info("Recv command %s", repr(command))
-						if isinstance(command, CmdChangeState):
-							worker.log.info("Got command: CHANGE STATE -> %s", command.target)
-							if worker.state == command.target:
-								worker.log.warn("Unable to switch to %s (current state is %s)", command.target, worker.state)
-							if command.target in (WorkerState.STOPPING, WorkerState.STOPPED):
-								# Exit
-								break
-							elif command.target in (WorkerState.RUNNING, WorkerState.PAUSED):
-								if worker.state in (WorkerState.RUNNING, WorkerState.PAUSED):
-									worker.state = command.target
-								else:
-									worker.log.warn("Unable to switch to %s (current state is %s)", command.target, worker.state)
-						elif isinstance(command, CmdPoseOverride):
-							worker.log.info("Got command: OVERRIDE POSE")
-							worker.override_pose(command.pose)
-						elif isinstance(command, CmdFlush):
-							worker.log.info("Got command: FLUSH")
-							worker.flush()
-							# ACK flush
-							data_queue.put(MsgFlush(id=command.id))
-						else:
-							worker.log.warn("Unknown command: %s", repr(command))
+						worker.process_command(command)
 					
 					if worker.state == WorkerState.RUNNING:
 						worker.poll()
-				except Exception:
+				except WorkerStop:
+					worker.log.info("Stopping gracefully")
+					break
+				except:
 					# msg = format_exception(e)
 					worker.log.exception("Error in loop")
 					worker.state = WorkerState.FAILED
@@ -236,7 +348,7 @@ if __name__ == '__main__':
 	
 	with open(sys.argv[1], 'r') as f:
 		config_str = f.read()
-	config = InitConfig.model_validate_json(config_str)
+	config = WorkerInitConfig.model_validate_json(config_str)
 
 	import time
 	class FakeQueue:

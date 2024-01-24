@@ -2,30 +2,30 @@
 Type definitions for communicating between the master and worker processes
 """
 
-from typing import Optional, List, Any, Literal, Union, TypeAlias
+from typing import Optional, List, Any, Literal, Union
 from enum import IntEnum
 from pydantic import BaseModel, Field
 
-from .common import NNConfig, SlamConfigBase, OakSelector
+from .common import NNConfig, SlamConfigBase, OakSelector, RetryConfig
 from .geom import Pose3d, Translation3d, Twist3d, Transform3d
 
 class ObjectDetectionConfig(NNConfig):
     "Configure an object detection pipeline"
     blobPath: str
 
-class SlamConfig(SlamConfigBase):
+class WorkerSlamConfig(SlamConfigBase):
     apriltagPath: Optional[str] = None
 
-class InitConfig(BaseModel):
+class WorkerInitConfig(BaseModel):
     "Config for worker.main"
     id: Optional[str]
     selector: OakSelector
-    max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]]
-    optional: bool = Field(False)
+    retry: RetryConfig
+    max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(None)
     outputRGB: bool = Field(False)
-    maxRefresh: float = Field(5)
+    maxRefresh: float = Field(10, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
-    slam: Optional[SlamConfig]
+    slam: Optional[WorkerSlamConfig]
     object_detection: Optional[ObjectDetectionConfig]
 
 class WorkerState(IntEnum):
@@ -38,19 +38,26 @@ class WorkerState(IntEnum):
     STOPPED = 6
 
 class CmdPoseOverride(BaseModel):
+    "Override worker pose"
     pose: Pose3d
+    "Pose (field-to-camera)"
 
 class CmdFlush(BaseModel):
+    "Request a data flush"
     id: int
 
 class CmdChangeState(BaseModel):
     target: WorkerState
+
+AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState]
+
 
 class MsgChangeState(BaseModel):
     previous: Optional[WorkerState]
     current: WorkerState
 
 class MsgFlush(BaseModel):
+    "Notify that a flush was completed"
     id: int
 
 class MsgDetection(BaseModel):
@@ -60,6 +67,7 @@ class MsgDetection(BaseModel):
 
 class MsgDetections(BaseModel):
     timestamp: int
+    "Wall time (ns)"
     detections: List[MsgDetection]
 
     def __iter__(self):
@@ -67,7 +75,7 @@ class MsgDetections(BaseModel):
 
 class MsgPose(BaseModel):
     timestamp: int
-    "Timestamp (nanoseconds, in adjusted-local time)"
+    "Wall time (ns)"
     view_mat: Any
     pose: Pose3d
     "Field-to-camera pose"

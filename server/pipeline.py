@@ -1,13 +1,15 @@
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING, Protocol, Union
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from functools import cached_property
+from datetime import timedelta
 
 import numpy as np
-
-from clock import FixedOffsetMapper, MonoClock, WallClock
-from typedef.worker import ObjectDetectionConfig
 import depthai as dai
+
+from clock.timestamp import Timestamp
+from typedef.worker import ObjectDetectionConfig
 
 if TYPE_CHECKING:
     # import spectacularAI.depthai.Pipeline as SaiPipeline
@@ -22,11 +24,13 @@ class PipelineConfig:
     slam: bool
     apriltag_path: Optional[Path]
     nn: Optional[ObjectDetectionConfig]
+    telemetry: bool = False
 
 
 class MoeNetPipeline:
-    config: PipelineConfig
+    "Pipeline builder"
 
+    config: PipelineConfig
     pipeline: dai.Pipeline
 
     def __init__(self, config: PipelineConfig):
@@ -155,9 +159,19 @@ class MoeNetPipeline:
         stereo.depth.link(spatialDetectionNetwork.inputDepth)
         
         return spatialDetectionNetwork
+
+    @cached_property
+    def node_sysinfo(self) -> Optional[dai.node.SystemLogger]:
+        "System logger (for telemetry)"
+        if not self.config.telemetry:
+            return None
+        syslog = self.pipeline.createSystemLogger()
+        syslog.setRate(1)
+        return syslog
     
-    @property
+    @cached_property
     def node_out_rgb(self) -> Optional[dai.node.XLinkOut]:
+        "Get XLinkOut for rgb camera"
         if not self.config.outputRGB:
             return None
         
@@ -183,12 +197,25 @@ class MoeNetPipeline:
         xoutNN.setStreamName('nn')
         nn.out.link(xoutNN.input)
         return xoutNN
+    
+    @cached_property
+    def node_out_sysinfo(self) -> Optional[dai.node.XLinkOut]:
+        sysinfo = self.node_sysinfo
+        if sysinfo is None:
+            return None
+        
+        xout_sysinfo = self.pipeline.createXLinkOut()
+        xout_sysinfo.setStreamName('sysinfo')
+        xout_sysinfo.setFpsLimit(2)
+        sysinfo.out.link(xout_sysinfo)
+        return xout_sysinfo
 
     def build(self):
         "Build all nodes in this pipeline"
         self.vio_pipeline
         self.node_out_nn
         self.node_out_rgb
+        self.node_out_sysinfo
 
 
 class FakeQueue:
@@ -198,6 +225,7 @@ class FakeQueue:
         raise RuntimeError()
     def tryGet(self):
         return None
+
 class FakeVioSession:
     def hasOutput(self):
         return False
@@ -208,30 +236,42 @@ class FakeVioSession:
     def close(self):
         pass
 
+class StampedPacket(Protocol):
+    def getTimestamp(self) -> 'timedelta': ...
+    def getTimestampDevice(self) -> 'timedelta': ...
+
+
 class MoeNetSession:
-    def __init__(self, device: dai.Device, pipeline: MoeNetPipeline) -> None:
+    _device_require_ts: 'timedelta'
+
+    def __init__(self, device: dai.Device, pipeline: MoeNetPipeline, log: Optional['logging.Logger'] = None) -> None:
         self.device = device
         self.pipeline = pipeline
-        node_out_nn = pipeline.node_out_nn
+        self.log = (log.getChild if log is not None else logging.getLogger)('sesson')
+        from clock.clock import WallClock
+        self.clock = WallClock()
+
         self.labels = pipeline.labels
-        print("Streams: ", device.getOutputQueueNames())
-        if node_out_nn is not None:
-            queue_dets = device.getOutputQueue(node_out_nn.getStreamName(), maxSize=4, blocking=False)
-        else:
-            queue_dets = FakeQueue()
-        self.queue_dets = queue_dets
+        self.log.info("Streams: %s", device.getOutputQueueNames())
+
+        def make_queue(node: Optional[dai.node.XLinkOut], *, maxSize: int = 4) -> Union[FakeQueue, dai.DataOutputQueue]:
+            if node is None:
+                return FakeQueue()
+            return device.getOutputQueue(node.getStreamName(), maxSize=maxSize, blocking=False)
+        self.queue_dets = make_queue(pipeline.node_out_nn)
+        self.queue_rgb = make_queue(pipeline.node_out_rgb)
+        self.queue_sysinfo = make_queue(pipeline.node_out_sysinfo, maxSize=1)
         
-        vio_pipeline = pipeline.vio_pipeline
-        if vio_pipeline is not None:
+        # Start sai
+        if (vio_pipeline := pipeline.vio_pipeline) is not None:
             self.vio_session: 'VioSession' = vio_pipeline.startSession(device)
         else:
             self.vio_session: 'VioSession' = FakeVioSession()
-        
-        self.clock = FixedOffsetMapper(MonoClock(), WallClock())
 
         self._vio_require_tag = 0
         self._vio_last_tag = 0
-        self._device_require_ts = 0
+        self._device_require_ts = dai.Clock.now()
+        self._offset_dev_to_dai = None # dev_ts - dai_ts (for SAI conversion)
     
     def onMappingOutput(self, mapping: 'MapperOutput'):
         #TODO: is this useful?
@@ -240,31 +280,71 @@ class MoeNetSession:
     def close(self):
         self.vio_session.close()
     
+    def local_timestamp(self, packet: StampedPacket) -> 'Timestamp':
+        "Convert device time to wall time"
+        ts_dai = packet.getTimestamp()
+        ts_dev = packet.getTimestampDevice()
+        now_dai: 'timedelta' = dai.Clock.now()
+        now_wall = self.clock.now()
+        latency = now_dai - ts_dai
+
+        # Update system -> device time
+        self._offset_dev_to_dai = ts_dev - ts_dai
+
+        return now_wall - latency
+
+    def _poll_rgb(self):
+        raw_rgb: Optional[dai.SpatialImgDetections] = self.queue_rgb.tryGet()
+        if raw_rgb is None:
+            return None
+        ts = self.local_timestamp(raw_rgb)
+    
     def _poll_dets(self):
         "Poll object detection queue"
         from typedef.worker import MsgDetections, MsgDetection
         from typedef.geom import Translation3d
 
-        dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
-        if dets is None:
+        raw_dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
+        if raw_dets is None:
             return None
-        ts = self.clock.a_to_b(self.clock.clock_a + dets.getTimestamp())
+        
+        if raw_dets.getTimestamp() < self._device_require_ts:
+            self.log.info('Skip detection frame (before FLUSH threshold)')
+            return None
+        
+        ts = self.local_timestamp(raw_dets)
+
+        # Convert detections
         SCALE = 1000 # DepthAI output is in millimeters
+        detections = list()
+        for raw_det in raw_dets.detections:
+            try:
+                label = self.pipeline.labels[raw_det.label]
+            except KeyError:
+                self.log.warning('Unknown label %s', raw_det.label)
+                label = f'unknown_{raw_det.label}'
+            
+            detections.append(MsgDetection(
+                label=label,
+                confidence=raw_det.confidence,
+                position=Translation3d(
+                    x=raw_det.spatialCoordinates.x / SCALE,
+                    y=raw_det.spatialCoordinates.y / SCALE,
+                    z=raw_det.spatialCoordinates.z / SCALE,
+                ),
+            ))
         return MsgDetections(
-            timestamp=ts,
-            detections=[
-                MsgDetection(
-                    label=self.pipeline.labels[detection.label],
-                    confidence=detection.confidence,
-                    position=Translation3d(
-                        x=detection.spatialCoordinates.x / SCALE,
-                        y=detection.spatialCoordinates.y / SCALE,
-                        z=detection.spatialCoordinates.z / SCALE,
-                    ),
-                )
-                for detection in dets.detections
-            ]
+            timestamp=ts.nanos,
+            detections=detections,
         )
+    
+    def _poll_sysinfo(self):
+        sysinfo: Optional[dai.SystemInformation] = self.queue_sysinfo.tryGet()
+        if sysinfo is None:
+            return None
+        # We don't flush sysinfo packets
+        #TODO
+        return None
 
     def _poll_vio(self):
         "Poll VIO queue"
@@ -284,7 +364,9 @@ class MoeNetSession:
         pc = np.asarray(vio_out.positionCovariance)
         vc = np.asarray(vio_out.velocityCovariance)
 
-        timestamp = self.clock.a_to_b(self.clock.clock_a.now() + int(vio_out.pose.time * 1e9))
+        # SAI uses device-time, so we have to do some conversion
+        latency = dai.Clock.now() - timedelta(seconds=vio_out.pose.time)
+        timestamp = Timestamp. int(vio_out.pose.time * 1e9)
 
         from typedef.geom import Pose3d, Translation3d, Rotation3d, Quaternion, Twist3d
         from typedef.worker import MsgPose
@@ -341,10 +423,12 @@ class MoeNetSession:
 
     def flush(self):
         "Flush all previously-enqueued data from the device"
-        dev_ts = dai.Clock.now()
-        self._device_require_ts = max(self._device_require_ts, dev_ts) # Ignore any object detection packets from before now
-        self._vio_require_tag += 1
-        self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
+        dai_ts: 'timedelta' = dai.Clock.now()
+        self._device_require_ts = max(self._device_require_ts, dai_ts) # Ignore any object detection packets from before now
+        if self._offset_dev_to_dai is not None:
+            self._vio_require_tag += 1
+            dev_ts = dai_ts.total_seconds() - self._offset_dev_to_dai
+            self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
     
     def override_pose(self, pose: 'Pose3d'):
         if isinstance(self.vio_session, FakeVioSession):
@@ -358,17 +442,19 @@ class MoeNetSession:
             did_work = False
 
             msg_dets = self._poll_dets()
+            msg_rgb = self._poll_rgb()
             msg_vio = self._poll_vio()
+            msg_sys = self._poll_sysinfo()
             if msg_dets is not None:
                 did_work = True
                 yield msg_dets
+            if msg_rgb is not None:
+                did_work = True
+                yield msg_rgb
             if msg_vio is not None:
                 did_work = True
                 yield msg_vio
-            # cmx = self.device.getCmxMemoryUsage()
-            # ddr = self.device.getDdrMemoryUsage()
-            # print("Device CMX %f DDR %f LEON CSS %f MSS %f" % (
-            #               100.0 * cmx.used / cmx.total,
-            #               100.0 * ddr.used / ddr.total,
-            #               100.0 * self.device.getLeonCssCpuUsage().average,
-            #               100.0 * self.device.getLeonMssCpuUsage().average))
+            if msg_sys is not None:
+                did_work = True
+                yield msg_sys
+            

@@ -43,6 +43,9 @@ class NetworkTablesConfig(BaseModel):
     tfFieldToOdom: Literal["sub", "pub", False] = Field("pub", description="field -> odom transform (odometry estimate)")
     tfOodomToRobot: Literal["sub", "pub", False] = Field("pub", description="odom->robot transform (odometry correction)")
     subscribePoseOverride: bool = Field(True, description="Allow the Rio to override poses")
+    publishField2dF2O: bool = Field(False, description="Publish Field2d widget (field->odom)")
+    publishField2dF2R: bool = Field(False, description="Publish Field2d widget (field->robot)")
+    publishField2dDets: bool = Field(False, description="Publish Field2d widget (field->notes)")
 
 class ObjectDetectionDefinition(BaseModel):
     "Configure an object detection pipeline"

@@ -84,5 +84,8 @@ class MsgPose(BaseModel):
     "Field-to-camera twist"
     twistCovariance: Any
 
-AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState]
-AnyMsg = Union[MsgChangeState, MsgFlush, MsgDetections, MsgPose]
+class MsgLog(BaseModel):
+    level: int
+    msg: str
+
+AnyMsg = Union[MsgChangeState, MsgFlush, MsgDetections, MsgPose, MsgLog]

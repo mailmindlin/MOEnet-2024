@@ -1,16 +1,16 @@
 "Type definitions for parsing the configuration"
 
-from typing import List, Optional, Literal, Union, Tuple
+from typing import TYPE_CHECKING, List, Optional, Literal, Union, Tuple
 from pathlib import Path
 from pydantic import BaseModel, Field, RootModel, model_validator
 from ntcore import NetworkTableInstance
 from datetime import timedelta
 
-if __name__ == '__main__':
-    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
+if __name__ == '__main__' and (not TYPE_CHECKING):
+    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout, RetryConfig
     from geom import Pose3d, Transform3d
 else:
-    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout
+    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout, RetryConfig
     from .geom import Pose3d, Transform3d
 
 

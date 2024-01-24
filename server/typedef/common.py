@@ -38,8 +38,9 @@ class SlamConfigBase(BaseModel):
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"
 	optional: bool = Field(False, description="Is it an error if this camera is not detected?")
-	connection_tries: int = 3
+	connection_tries: int = 1
 	connection_delay: timedelta = timedelta(seconds=1)
+	restart_tries: int = 2
 
 
 class OakSelector(BaseModel):

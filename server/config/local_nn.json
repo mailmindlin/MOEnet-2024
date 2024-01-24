@@ -4,6 +4,10 @@
 	"log": {
 		"level": "DEBUG"
 	},
+	"datalog": {
+		"enabled": true,
+		"folder": "../../log"
+	},
 	"nt": {
 		"team": 365,
 		"host": "localhost",

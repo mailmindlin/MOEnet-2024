@@ -14,17 +14,32 @@ class MoeNet:
 			level = config.log.level.upper()
 			root = logging.getLogger()
 			root.setLevel(level)
+			import sys
+			sh = logging.StreamHandler(sys.stdout)
+			sh.setFormatter(logging.Formatter('[%(levelname)s]%(name)s:%(message)s'))
+			root.addHandler(sh)
 
 		self.log = logging.getLogger("MoeNet")
+		self.datalog = None
 		self.config_path = config_path
 		self.config = config
 		self.initial_config = config
 		self.log.info('Using config from %s', config_path)
 
 		# Set up DataLog
-		from wpiutil.log import DataLog
 		if self.config.datalog.enabled:
-			self.datalog = DataLog(dir=self.config.datalog.folder)
+			from pathlib import Path
+			from wpiutil.log import DataLog, IntegerLogEntry, StringLogEntry
+			from nt_util.log import PyToNtHandler
+			folder = Path(config_path).parent.resolve() / self.config.datalog.folder
+			self.log.info("DataLog write to folder %s", folder)
+			self.datalog = DataLog(dir=str(folder))
+			self.logStatus = IntegerLogEntry(self.datalog, 'meta/status')
+			self.logConfig = StringLogEntry(self.datalog, 'meta/config')
+			self.logConfig.append(self.config.model_dump_json())
+			
+			# Write logs to datalog
+			root.addHandler(PyToNtHandler(self.datalog, 'log'))
 		else:
 			self.datalog = None
 
@@ -54,6 +69,7 @@ class MoeNet:
 				self.status = Status.FATAL
 				raise
 
+		# Set up PoseEstimator
 		from estimator import DataFusion
 		self.estimator = DataFusion(
 			self.config.estimator,
@@ -72,6 +88,9 @@ class MoeNet:
 	def status(self, status: 'Status'):
 		if status != getattr(self, '_status', None):
 			self.nt.tx_status(status)
+			if self.datalog is not None:
+				self.logStatus.append(int(status))
+		
 		self._status = status
 	
 	def update_config(self, config: str):
@@ -91,6 +110,9 @@ class MoeNet:
 		update_cameras = (next_config.cameras != self.config.cameras) or (next_config.slam != self.config.slam)
 
 		self.config = next_config
+		if self.datalog is not None:
+			self.logConfig.append(self.config.model_dump_json())
+		
 		if update_cameras:
 			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
@@ -117,7 +139,7 @@ class MoeNet:
 		
 		from worker_srv import WorkerManager
 		try:
-			self.camera_workers = WorkerManager(self.log, self.config, self.config_path)
+			self.camera_workers = WorkerManager(self.log, self.config, self.config_path, datalog=self.datalog)
 			self.camera_workers.start()
 			self.status = Status.READY
 		except:

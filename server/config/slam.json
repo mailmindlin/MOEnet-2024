@@ -1,16 +1,26 @@
 {
 	"$schema": "./schema.json",
+	"description": "Run SLAM on a single camera, using the 2024 field",
 	"timer": "system",
 	"log": {
 		"level": "DEBUG"
 	},
+	"datalog": {
+		"enabled": true,
+		"folder": "./log"
+	},
 	"nt": {
 		"enabled": true,
-		"publishConfig": true,
+		"team": 365,
+		"host": "localhost",
+		"publishConfig": false,
+		"publishDetections": false,
+		"publishSystemInfo": false,
 		"publishPing": true,
 		"tfFieldToOdom": "sub",
 		"tfFieldToRobot": "pub",
-		"tfOodomToRobot": "pub"
+		"tfOodomToRobot": "pub",
+		"publishField2dF2R": true
 	},
 	"slam": {
 		"backend": "sai",

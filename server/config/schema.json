@@ -1,7 +1,12 @@
 {
 	"$defs": {
 		"AprilTagFieldConfig": {
+			"description": "Inline AprilTag config",
 			"properties": {
+				"format": {
+					"const": "inline",
+					"title": "Format"
+				},
 				"field": {
 					"$ref": "#/$defs/FieldLayout"
 				},
@@ -10,6 +15,7 @@
 				}
 			},
 			"required": [
+				"format",
 				"field",
 				"tags"
 			],
@@ -933,7 +939,7 @@
 					"type": "boolean"
 				},
 				"connection_tries": {
-					"default": 3,
+					"default": 1,
 					"title": "Connection Tries",
 					"type": "integer"
 				},
@@ -942,6 +948,11 @@
 					"format": "duration",
 					"title": "Connection Delay",
 					"type": "string"
+				},
+				"restart_tries": {
+					"default": 2,
+					"title": "Restart Tries",
+					"type": "integer"
 				}
 			},
 			"title": "RetryConfig",
@@ -1037,24 +1048,35 @@
 				"apriltag": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/AprilTagFieldFRCRef"
-						},
-						{
-							"$ref": "#/$defs/AprilTagFieldSAIRef"
-						},
-						{
-							"$ref": "#/$defs/AprilTagFieldConfig"
+							"discriminator": {
+								"mapping": {
+									"frc": "#/$defs/AprilTagFieldFRCRef",
+									"inline": "#/$defs/AprilTagFieldConfig",
+									"sai": "#/$defs/AprilTagFieldSAIRef"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/AprilTagFieldFRCRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldSAIRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldConfig"
+								}
+							]
 						},
 						{
 							"type": "null"
 						}
 					],
+					"default": null,
+					"description": "AprilTag configuration data",
 					"title": "Apriltag"
 				}
 			},
-			"required": [
-				"apriltag"
-			],
 			"title": "SlamConfig",
 			"type": "object"
 		}

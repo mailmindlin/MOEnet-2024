@@ -14,6 +14,7 @@ from typedef.cfg import (
 	AprilTagList, Mat44, Vec4
 )
 from typedef.geom import Pose3d, Transform3d
+from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
 
 if TYPE_CHECKING:
 	from multiprocessing.context import BaseContext
@@ -31,7 +32,7 @@ class CameraId:
 			return f'#{self.idx} (name {self.name})'
 
 class WorkerManager:
-	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None) -> None:
+	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None) -> None:
 		self.log = log.getChild('workers')
 		self.config = config
 		self.config_path = config_path
@@ -39,6 +40,7 @@ class WorkerManager:
 		self.nn_cache: Dict[str, worker.ObjectDetectionConfig] = dict()
 		self._tempdir = None
 		self._workers: List['WorkerHandle'] = list()
+		self.datalog = datalog
 	
 	def _resolve_path(self, relpart: Union[str, Path]) -> Path:
 		"Resolve a path relative to the config directory"
@@ -266,7 +268,7 @@ class WorkerManager:
 		for i, camera in enumerate(self.config.cameras):
 			init_cfg = self.process_one(camera, i)
 			name = init_cfg.id if init_cfg.id is not None else f'cam_{i}'
-			wh = WorkerHandle(name, init_cfg, log=self.log)
+			wh = WorkerHandle(name, init_cfg, log=self.log, datalog=self.datalog)
 			self._workers.append(wh)
 			wh.start()
 	
@@ -277,7 +279,7 @@ class WorkerManager:
 			child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
 		self.log.info("Stopping workers")
 		for child in self._workers:
-			child.stop(False)
+			child.close()
 		self.log.info("Workers stopped")
 		self._workers.clear()
 		if self._tempdir is not None:
@@ -292,7 +294,7 @@ class WorkerHandle:
 	"Manage a single camera worker"
 	
 	proc: Process
-	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None):
+	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None, datalog: Optional['DataLog'] = None):
 		if ctx is None:
 			ctx = get_context('spawn')
 		self._ctx = ctx
@@ -300,9 +302,18 @@ class WorkerHandle:
 		self.name = name
 		self.child_state = None
 		self.log = log.getChild(name) if (log is not None) else logging.getLogger(name)
+		self.datalog = datalog
+		if datalog is not None:
+			logConfig = StringLogEntry(self.datalog, f'worker/{name}/config')
+			logConfig.append(config.model_dump_json())
+			logConfig.finish()
+			del logConfig
+
+			self.logStatus = IntegerLogEntry(self.datalog, f'worker/{name}/status')
+			self.logLog = StringLogEntry(self.datalog, f'worker/{name}/log')
 		
 		self.config = config
-		self.log.info("Start with config %s", config.model_dump_json())
+		# self.log.info("Start with config %s", config.model_dump_json())
 		self.proc = None
 		self._restarts = 0
 		self.robot_to_camera = config.robot_to_camera
@@ -361,7 +372,7 @@ class WorkerHandle:
 	def _handle_dead(self):
 		optional = self.config.retry.optional
 		self._restarts += 1
-		can_retry = self._restarts < self.config.retry.connection_tries
+		can_retry = self._restarts < self.config.retry.restart_tries
 
 		if optional:
 			self.log.warning('Unexpectedly exited')
@@ -372,7 +383,7 @@ class WorkerHandle:
 		self.stop(False)
 		if can_retry:
 			self.child_state = worker.WorkerState.STOPPED
-			self.log.info("Restarting (%d of %d)", self._restarts, self.config.retry.connection_tries)
+			self.log.info("Restarting (%d of %d)", self._restarts, self.config.retry.restart_tries - 1)
 			# TODO: honor connection_delay?
 			self.start()
 		elif optional:
@@ -398,14 +409,18 @@ class WorkerHandle:
 			else:
 				if isinstance(packet, worker.MsgChangeState):
 					self.child_state = packet.current
+					if self.datalog is not None:
+						self.logStatus.append(int(self.child_state))
 				elif isinstance(packet, worker.MsgFlush):
 					self.log.debug('Finished flush %d', packet.id)
 					self._last_flush_id = max(self._last_flush_id, packet.id)
 					continue # We don't need to forward this
 				elif isinstance(packet, worker.MsgLog):
 					self.log.log(packet.level, packet.msg)
+					if self.datalog is not None:
+						self.logLog.append(f'[{logging.getLevelName(packet.level)}]{packet.msg}')
 					continue
-				
+
 				if self._last_flush_id < self._require_flush_id:
 					# Packets are invalidated by a flush
 					self.log.info("Skipping packet (flushed)")
@@ -415,3 +430,13 @@ class WorkerHandle:
 		
 		if not is_alive:
 			self._handle_dead()
+	
+	def close(self):
+		self.stop(False)
+		if self.datalog is not None:
+			self.logLog.finish()
+			del self.logLog
+			self.logStatus.finish()
+			del self.logStatus
+			self.data_queue.close()
+			self.cmd_queue.close()

@@ -3,14 +3,13 @@ from collections import OrderedDict
 import logging
 
 import numpy as np
-from wpimath.geometry import Transform3d, Translation3d, Rotation3d, Pose3d
 from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
 from wpiutil.log import DataLog
 
 from typedef.worker import MsgPose, MsgDetections
 from typedef.cfg import EstimatorConfig
-from nt_util.log import StructLogEntry
-from typedef.geom import Pose3d, Transform3d
+from nt_util.log import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
+from typedef.geom import Transform3d, Translation3d, Rotation3d, Pose3d
 from typedef import net
 from clock.clock import Clock, WallClock
 from clock.mapper import TimeMapper, IdentityTimeMapper
@@ -159,9 +158,8 @@ class PoseEstimator:
 		self.config = config
 
 		if self.datalog is not None:
-			self.logFieldToRobot = StructLogEntry(datalog, '/pose/fieldToRobot', Pose3d)
-			self.logFieldToOdom = StructLogEntry(datalog, '/pose/fieldToOdom', Pose3d)
-			self.logOdomToRobot = StructLogEntry(datalog, '/pose/odomToRobot', Transform3d)
+			self.logFieldToRobot = StructLogEntry(datalog, 'raw/fieldToRobot', Pose3d)
+			self.logFieldToOdom = StructLogEntry(datalog, 'raw/fieldToOdom', Pose3d)
 
 		self.clock = clock
 		self._last_o2r = Transform3d()
@@ -239,6 +237,16 @@ class DataFusion:
 
 		self.pose_estimator = PoseEstimator(config, self.clock, log=self.log, datalog=self.datalog)
 		self.object_tracker = ObjectTracker(config)
+
+		# Datalogs
+		if self.datalog is not None:
+			self.log_f2r = StructLogEntry(self.datalog, 'filt/fieldToRobot', Pose3d)
+			self.log_f2o = StructLogEntry(self.datalog, 'filt/fieldToOdom', Pose3d)
+			self.log_o2r = StructLogEntry(self.datalog, 'filt/odomToRobot', Transform3d)
+			self.log_objdet = StructArrayLogEntry(self.datalog, 'filt/fieldToDetections', Pose3d)
+			self.log_objdet_full = ProtoLogEntry(self.datalog, 'filt/detections', net.ObjectDetections)
+
+		# Track fresh data
 		self.fresh_f2r = True
 		self.fresh_f2o = True
 		self.fresh_o2r = True
@@ -246,6 +254,9 @@ class DataFusion:
 	
 	def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
 		self.pose_estimator.record_f2r(robot_to_camera, msg)
+		if self.datalog is not None:
+			simple_f2o = msg.pose.transformBy(robot_to_camera.inverse())
+			self.log_f2o.append(simple_f2o)
 		self.fresh_f2r = True
 		self.fresh_o2r = True
 	
@@ -263,6 +274,8 @@ class DataFusion:
 		res = self.pose_estimator.odom_to_robot()
 		if fresh:
 			self.fresh_o2r = False
+			if self.datalog is not None:
+				self.log_o2r.append(res)
 		return res
 	
 	@overload
@@ -275,6 +288,8 @@ class DataFusion:
 		res = self.pose_estimator.field_to_robot(ts)
 		if fresh:
 			self.fresh_f2r = False
+			if self.datalog is not None:
+				self.log_f2r.append(res)
 		return res
 	
 	def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:
@@ -356,8 +371,6 @@ class DataFusion:
 		labels: OrderedDict[str, int] = OrderedDict()
 		res: List[net.ObjectDetection] = list()
 
-		now = self.clock.now()
-
 		for detection in self.object_tracker.items():
 			# Lookup or get next ID
 			label_id = labels.setdefault(detection.label, len(labels))
@@ -390,7 +403,12 @@ class DataFusion:
 		if fresh:
 			self.fresh_det = False
 		
-		return net.ObjectDetections(
+		res = net.ObjectDetections(
 			labels=list(labels.keys()),
 			detections=res,
 		)
+		if self.datalog is not None:
+			self.log_objdet_full.append(res)
+			poses = [det.pose for det in self.object_tracker.items()]
+			self.log_objdet.append(poses)
+		return res

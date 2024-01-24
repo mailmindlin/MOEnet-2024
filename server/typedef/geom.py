@@ -1,14 +1,13 @@
 """
 Add compatibility with wpimath.geometry types
 """
-from typing import TYPE_CHECKING, Type, TypeVar, Tuple, Any, List, Union, Dict, Optional, Generic, Callable
+from typing import TYPE_CHECKING, Type, TypeVar, Any, List, Union, Dict, Optional, Generic, Callable
 from struct import Struct
 from dataclasses import dataclass
 from pydantic_core import core_schema
 from pydantic import (
 	GetCoreSchemaHandler,
 	GetJsonSchemaHandler,
-	ValidationError,
 )
 from pydantic.json_schema import JsonSchemaValue
 
@@ -123,6 +122,7 @@ def fix_struct(t: Type[T], fields: List[FieldInfo]):
 
 			fmts.append(fmt)
 			schema.append(f"{stype} {field.name}")
+			
 	
 	s = Struct(f"<{''.join(fmts)}")
 	sd = _build_sd(t, s, "; ".join(schema), fields)

@@ -90,15 +90,15 @@ class AprilTagInfo(BaseModel):
 AprilTagList = RootModel[List[AprilTagInfo]]
 
 class AprilTagFieldConfig(BaseModel):
+    "Inline AprilTag config"
+    format: Literal["inline"]
     field: FieldLayout
+    "Field size"
     tags: AprilTagList
-
-class PoseEstimatorConfig(BaseModel):
-    "Configuration for "
-    pass
+    "AprilTags (SAI format)"
 
 class SlamConfig(SlamConfigBase):
-    apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None]
+    apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None] = Field(None, description="AprilTag configuration data", discriminator="format")
 
 class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")

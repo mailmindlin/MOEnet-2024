@@ -137,6 +137,7 @@ class DeviceManager:
 		prev_excs = list()
 		while True:
 			# Try to connect
+			self.log.info("Trying to attach to OAK (try %d of %d)", self._retries + 1, self.config.retry.connection_tries)
 			try:
 				# Pick best constructor
 				if (ordinal is None) or (ordinal == 1):
@@ -150,15 +151,14 @@ class DeviceManager:
 							if matches == ordinal:
 								return self.attach_oak(pipeline, dev_info)
 					raise OakNotFoundException()
-			except RuntimeError as e:
+			except OakNotFoundException as e:
 				self._retries += 1
 				# We're out of connection tries
-				if self._retries > self.config.retry.connection_tries:
+				if self._retries >= self.config.retry.connection_tries:
 					e1 = OakNotFoundException()
 					for prev_exc in prev_excs:
 						e1.add_note(f'Previous exception: {prev_exc}')
 					raise e1 from e
-				
 				prev_excs.append(e)
 
 

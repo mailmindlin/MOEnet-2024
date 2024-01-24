@@ -8,17 +8,6 @@ if TYPE_CHECKING:
 	from typedef.geom import Pose3d
 
 
-class InterruptHandler:
-	"Context manager to capture SIGINT"
-	def __init__(self, callback) -> None:
-		self._callback = callback
-	def __enter__(self):
-		self._prev = signal.signal(signal.SIGINT, self._callback)
-
-	def __exit__(self, *args):
-		assert signal.signal(signal.SIGINT, self._prev) is self._callback
-
-
 class MoeNet:
 	def __init__(self, config_path: str, config: LocalConfig):
 		if config.log is not None:
@@ -46,23 +35,32 @@ class MoeNet:
 		self.sleeping = False
 		self.camera_workers: Optional['WorkerManager'] = None
 
-		from estimator import DataFusion
-		self.estimator = DataFusion(self.config.estimator, log=self.log, datalog=self.datalog)
+		from clock.clock import WallClock
+		self.clock = WallClock()
 
 		# Set up timer
 		if self.config.timer == "system":
-			from clock import IdentityTimeMapper, MonoClock
-			self.clock = IdentityTimeMapper(MonoClock())
 			self.log.info("Selected system timer")
+			from clock.mapper import IdentityTimeMapper
+			self.loc_to_net = IdentityTimeMapper(self.clock)
+			"Map local time to Rio time"
 		else:
 			try:
 				self.log.info("Connecting to NavX timer")
 				from clock.navx import NavXTimeMapper
-				self.clock = NavXTimeMapper(self.config.timer)
+				self.loc_to_net = NavXTimeMapper(self.clock, self.config.timer)
 			except:
 				self.log.exception("Unable to construct NavX clock")
 				self.status = Status.FATAL
 				raise
+
+		from estimator import DataFusion
+		self.estimator = DataFusion(
+			self.config.estimator,
+			log=self.log,
+			datalog=self.datalog,
+			clock=self.clock,
+		)
 		
 		self.build_cameras()
 	
@@ -138,50 +136,56 @@ class MoeNet:
 	def poll(self):
 		# self.log.debug("Tick start")
 		self.nt.update()
-		from typedef.worker import MsgPose, MsgDetections
+		from typedef.worker import MsgPose, MsgDetections, CmdChangeState, WorkerState
 
 		if self.sleeping:
-			if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY):
+			# Transition to sleeping
+			if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY, Status.ERROR):
+				for worker in self.camera_workers:
+					worker.send(CmdChangeState(target=WorkerState.PAUSED))
 				self.status = Status.SLEEPING
 		else:
 			if self.status in (Status.SLEEPING, Status.INITIALIZING, Status.NOT_READY):
 				self.status = Status.READY
 
+		# Process packets from cameras
 		active = True
 		while active:
 			active = False
-			for i, worker in enumerate(self.camera_workers):
-				# self.log.info("Poll worker %d", i)
+			for worker in self.camera_workers:
 				for packet in worker.poll():
-					# self.log.info("Recv packet %s", repr(packet))
 					if isinstance(packet, MsgPose):
 						self.estimator.record_f2r(worker.robot_to_camera, packet)
 					elif isinstance(packet, MsgDetections):
-						detections_net = self.estimator.transform_detections(worker.robot_to_camera, packet)
-						self.nt.tx_detections(detections_net)
-						
+						self.estimator.record_detections(worker.robot_to_camera, packet)
 					active = True
 		
+		# Write transforms to NT
 		if f2r := self.estimator.field_to_robot(fresh=True):
 			self.log.debug("Update pose")
 			self.nt.tx_pose(f2r)
 		if o2r := self.estimator.odom_to_robot(fresh=True):
 			self.log.debug("Update correction")
 			self.nt.tx_correction(o2r)
+		
+		# Write detections to NT
+		if dets := self.estimator.get_detections(self.loc_to_net, fresh=True):
+			self.nt.tx_detections(dets)
 	
 	def run(self):
-		from clock import Watchdog
+		from clock.watchdog import Watchdog
+		from util.interrupt import InterruptHandler
 		self.reset(True)
 
 		interrupt = False
 		def handle_interrupt(*args):
-			self.log.warn("Exiting (SIGINT)... %s", args)
+			self.log.warning("Exiting (SIGINT)... %s", args)
 			nonlocal interrupt
 			interrupt = True
 
 		with InterruptHandler(handle_interrupt):
 			while not interrupt:
-				with Watchdog(1/100) as w: # Cap at 100Hz
+				with Watchdog('main', min=1/100, max=1/10, log=self.log) as w: # Cap at 100Hz
 					if self.poll():
 						w.skip()
 						continue

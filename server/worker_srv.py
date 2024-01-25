@@ -166,6 +166,7 @@ class WorkerManager:
 				return matrix
 			
 			atData = AprilTagFieldConfig(
+				format='inline',
 				field=atRaw.field,
 				tags=AprilTagList([
 					AprilTagInfo(

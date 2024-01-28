@@ -1,0 +1,44 @@
+{
+	"$schema": "./schema.json",
+	"timer": "system",
+	"log": {
+		"level": "DEBUG"
+	},
+	"datalog": {
+		"enabled": true,
+		"folder": "../../log"
+	},
+	"nt": {
+		"team": 365,
+		"host": "192.168.12.170",
+		"port": 5810,
+		"publishErrors": true,
+		"publishPing": true,
+		"subscribeSleep": false,
+		"subscribeConfig": false,
+		"publishDetections": true,
+		"transforms": {
+			"fieldToOdom": "sub",
+			"fieldToRobot": "pub",
+			"odomToRobot": "pub"
+		},
+		"publishField2dF2O": false,
+		"publishField2dF2R": false,
+		"publishField2dDets": true
+	},
+	"pipelines": [
+		{
+			"id": "moenet-2023-v1",
+			"blobPath": "./moenet-2023-v1/nn.blob",
+			"configPath": "./moenet-2023-v1/pipeline.json"
+		}
+	],
+	"camera_selectors": [
+		{
+			"id": "main",
+			"ordinal": 1
+		}
+	],
+	"cameras": [
+	]
+}

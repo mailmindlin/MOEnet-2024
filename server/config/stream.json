@@ -1,0 +1,42 @@
+{
+	"$schema": "./schema.json",
+	"description": "Stream video to a file",
+	"timer": "system",
+	"log": {
+		"level": "DEBUG"
+	},
+    "web": {
+        "enabled": true,
+        "port": 8080
+    },
+	"cameras": [
+		{
+			"id": "main",
+			"selector": { "ordinal": 1 },
+			"pose": {
+				"rotation": {
+					"quaternion": {
+						"W": 1,
+						"X": 0,
+						"Y": 0,
+						"Z": 0
+					}
+				},
+				"translation": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				}
+			},
+			"pipeline": {
+				"slam": false,
+				"vio": false,
+				"debugRgb": true,
+				"debugLeft": true,
+				"debugRight": true,
+				"debugImageRate": 30,
+				"apriltag_explicit": false
+			}
+		}
+	]
+}

@@ -176,9 +176,14 @@ class PoseEstimator:
 		if (len(samples_f2o) == 0) or (len(samples_f2r) == 0):
 			return self._last_o2r
 		
-		# Find timestamps of overlapping range between field->odom and field->robot data
-		ts_start = max(samples_f2o[0][0], samples_f2r[0][0])
-		ts_end = min(samples_f2o[-1][0], samples_f2r[-1][0])
+		# Find timestamps of overlapping range between field→odom and field→robot data
+		first_f2o = samples_f2o[0][0]
+		first_f2r = samples_f2r[0][0]
+		ts_start = max(first_f2o, first_f2r)
+
+		last_f2o = samples_f2o[-1][0]
+		last_f2r = samples_f2r[-1][0]
+		ts_end = min(last_f2o, last_f2r)
 		if ts_end < ts_start:
 			# No overlap
 			return self._last_o2r

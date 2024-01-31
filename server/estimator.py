@@ -200,11 +200,17 @@ class PoseEstimator:
 	
 	def field_to_robot(self, time: Timestamp) -> Pose3d:
 		"Get the `field`→`robot` transform at a specified time"
-		return self.buf_field_to_robot.sample(time.as_seconds()) or Pose3d()
+		if res := self.buf_field_to_robot.sample(time.as_seconds()):
+			return res
+		# Return zero if we don't have any info
+		return Pose3d()
 	
 	def field_to_odom(self, time: Timestamp) -> Pose3d:
 		"Get the `field`→`odom` transform at a specified time"
-		return self.buf_field_to_odom.sample(time.as_seconds()) or Pose3d()
+		if res := self.buf_field_to_odom.sample(time.as_seconds()):
+			return res
+		# Return zero if we don't have any info
+		return Pose3d()
 	
 	def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
 		"Record SLAM pose"

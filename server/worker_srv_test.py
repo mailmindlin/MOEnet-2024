@@ -1,8 +1,6 @@
 from unittest import TestCase
-from .worker_srv import WorkerManager, CameraId
 from logging import getLogger
-from pathlib import Path
-from .typedef.cfg import LocalConfig, AprilTagFieldConfig
+from worker_srv import WorkerManager, CameraId
 
 class TestManager(TestCase):
 	def test_apriltags(self):

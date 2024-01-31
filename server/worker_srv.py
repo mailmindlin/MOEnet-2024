@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union, Any
+from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union
 import logging, os.path, time
 from multiprocessing import Process, get_context
 from queue import Empty
@@ -8,16 +8,19 @@ from logging import Logger
 from typedef import worker
 from typedef.wpilib_compat import AprilTagFieldJSON
 from typedef.cfg import (
-	SlamConfig, SlamConfigBase, NNConfig, LocalConfig,
+	PipelineDefinition, PipelineConfig, PipelineConfigBase,
+	NNConfig, LocalConfig,
 	CameraConfig, OakSelector,
 	AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, AprilTagInfo,
-	AprilTagList, Mat44, Vec4
+	AprilTagList, Mat44
 )
 from typedef.geom import Pose3d, Transform3d
 from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
 
 if TYPE_CHECKING:
 	from multiprocessing.context import BaseContext
+	from queue import Queue
+
 
 class CameraId:
 	"Helper to print out camera IDs"
@@ -31,22 +34,23 @@ class CameraId:
 		else:
 			return f'#{self.idx} (name {self.name})'
 
-class WorkerManager:
-	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None) -> None:
-		self.log = log.getChild('workers')
+
+class WorkerConfigResolver:
+	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None):
+		self.log = log.getChild('config')
 		self.config = config
 		self.config_path = config_path
 		self.at_cache: Dict[Union[str, AprilTagFieldJSON], Path] = dict()
+		"Cache for AprilTag config resolutions"
 		self.nn_cache: Dict[str, worker.ObjectDetectionConfig] = dict()
+		"Cache object detection resolutions"
 		self._tempdir = None
-		self._workers: List['WorkerHandle'] = list()
-		self.datalog = datalog
 	
 	def _resolve_path(self, relpart: Union[str, Path]) -> Path:
 		"Resolve a path relative to the config directory"
 		return (Path(self.config_path).parent / os.path.expanduser(relpart)).resolve()
-
-	def _resolve_pipeline(self, cid: CameraId, pipeline_id: Optional[str]) -> Optional[worker.ObjectDetectionConfig]:
+	
+	def _resolve_nn(self, cid: CameraId, pipeline_id: Optional[str]) -> Optional[worker.ObjectDetectionConfig]:
 		"Resolve a pipeline ID into a config"
 		if pipeline_id is None:
 			return None
@@ -58,7 +62,7 @@ class WorkerManager:
 		
 		# Find definition (linear search is probably fine here)
 		try:
-			pipeline_def = next(p for p in self.config.pipelines if p.id == pipeline_id)
+			pipeline_def = next(p for p in self.config.detection_pipelines if p.id == pipeline_id)
 		except StopIteration:
 			# Fail safe, just disable the camera
 			self.log.error("Camera %s requested pipeline %s, but it wasn't defined", cid, pipeline_id)
@@ -106,13 +110,14 @@ class WorkerManager:
 		return object_detection
 	
 	def _resolve_selector(self, cid: CameraId, raw_selector: Union[str, OakSelector]) -> OakSelector:
+		"Resolve an OakSelector, possibly by name"
 		if isinstance(raw_selector, str):
 			for selector in self.config.camera_selectors:
 				if selector.id == raw_selector:
 					return selector
 		else:
 			return raw_selector
-	
+
 	def _resolve_apriltag(self, cid: CameraId, apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None]) -> Optional[Path]:
 		if apriltag is None:
 			self.log.info("Camera %s SLAM has no AprilTags", cid)
@@ -220,56 +225,93 @@ class WorkerManager:
 		self.at_cache[cache_key] = result
 		return result
 	
-	def _resolve_slam(self, cid: CameraId, raw_slam: Union[bool, SlamConfig]) -> Optional[SlamConfig]:
+	def _resolve_slam(self, cid: CameraId, raw_slam: Union[str, PipelineConfig, None]) -> Optional[PipelineConfig]:
 		"Resolve SLAM configuration. We use global SLAM config for when `raw_slam=True`"
-		if raw_slam == False:
+		if raw_slam is None:
 			return None
-		elif raw_slam == True:
-			slam_cfg: SlamConfig = self.config.slam
-			if slam_cfg is None:
-				self.log.warning("Camera %s requested global SLAM, but no config exists", cid)
+		elif isinstance(raw_slam, str):
+			# Lookup global
+			for preset in self.config.presets:
+				if preset.id == raw_slam:
+					slam_cfg = preset
+					break
+			else:
+				self.log.warning("Camera %s requested preset %s, but no config exists", cid, raw_slam)
 				return None
 		else:
 			slam_cfg = raw_slam
-		slam_cfg: SlamConfig
+		slam_cfg: PipelineConfig
+
+		object_detection = self._resolve_nn(cid, slam_cfg.object_detection)
 		
 		try:
 			apriltagPath = self._resolve_apriltag(cid, slam_cfg.apriltag)
-			slam_cfg: SlamConfigBase
-			return worker.WorkerSlamConfig(
+			slam_cfg: PipelineConfigBase
+			return worker.WorkerPipelineConfig(
 				backend=slam_cfg.backend,
 				syncNN=slam_cfg.syncNN,
 				slam=slam_cfg.slam,
 				vio=slam_cfg.vio,
+				debugRgb=slam_cfg.debugRgb,
+				debugDepth=slam_cfg.debugDepth,
+				debugLeft=slam_cfg.debugLeft,
+				debugRight=slam_cfg.debugRight,
+				debugImageRate=slam_cfg.debugImageRate,
+				telemetry=slam_cfg.telemetry,
+				apriltag_explicit=slam_cfg.apriltag_explicit,
 				apriltagPath=str(apriltagPath) if (apriltagPath is not None) else None,
+				object_detection=object_detection,
 			)
 		except:
 			self.log.exception("Error resolving SLAM config for camera %s", cid)
 			return None
-
+	
 	def process_one(self, camera: CameraConfig, idx: int = 0) -> worker.WorkerInitConfig:
 		"Resolve the config for a single camera"
 		cid = CameraId(idx, camera.id)
 		selector = self._resolve_selector(cid, camera.selector)
-		slam_cfg = self._resolve_slam(cid, camera.slam)
-		object_detection = self._resolve_pipeline(cid, camera.object_detection)
+		pipeline = self._resolve_slam(cid, camera.pipeline)
+
+		if pipeline is None:
+			pipeline = worker.WorkerPipelineConfig(
+				slam=False,
+				vio=False,
+			)
 
 		return worker.WorkerInitConfig(
-			id=camera.id,
+			id=camera.id or str(cid),
 			selector=selector,
 			max_usb=camera.max_usb,
 			retry=camera.retry,
 			robot_to_camera=camera.pose,
-			slam=slam_cfg,
-			object_detection=object_detection,
+			pipeline=pipeline,
 		)
+
+	def cleanup(self):
+		if self._tempdir is not None:
+			self._tempdir.cleanup()
+	
+	def __iter__(self):
+		for i, camera in enumerate(self.config.cameras):
+			init_cfg = self.process_one(camera, i)
+			yield init_cfg
+
+
+
+class WorkerManager:
+	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None) -> None:
+		self.log = log.getChild('worker')
+		self.config = WorkerConfigResolver(self.log, config, config_path)
+		self._workers: List['WorkerHandle'] = list()
+		self.datalog = datalog
+		self.ctx = get_context('spawn')
+		self.video_queue = vidq
 
 	def start(self):
 		"Start all camera processes"
-		for i, camera in enumerate(self.config.cameras):
-			init_cfg = self.process_one(camera, i)
-			name = init_cfg.id if init_cfg.id is not None else f'cam_{i}'
-			wh = WorkerHandle(name, init_cfg, log=self.log, datalog=self.datalog)
+		for i, cfg in enumerate(self.config):
+			name = cfg.id if cfg.id is not None else f'cam_{i}'
+			wh = WorkerHandle(name, cfg, log=self.log, datalog=self.datalog, ctx=self.ctx, vidq=self.video_queue)
 			self._workers.append(wh)
 			wh.start()
 	
@@ -278,13 +320,21 @@ class WorkerManager:
 		self.log.info("Sending stop command to workers")
 		for child in self._workers:
 			child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+		
 		self.log.info("Stopping workers")
 		for child in self._workers:
 			child.close()
 		self.log.info("Workers stopped")
 		self._workers.clear()
-		if self._tempdir is not None:
-			self._tempdir.cleanup()
+
+		self.config.cleanup()
+	
+	def enable_stream(self, worker_name: str, stream: str, enable: bool):
+		for worker in self._workers:
+			if worker.config.id == worker_name:
+				worker.enable_stream(stream, enable)
+				return True
+		return False
 	
 	def __iter__(self):
 		"Iterate through camera handles"
@@ -295,7 +345,7 @@ class WorkerHandle:
 	"Manage a single camera worker"
 	
 	proc: Process
-	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None, datalog: Optional['DataLog'] = None):
+	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None):
 		if ctx is None:
 			ctx = get_context('spawn')
 		self._ctx = ctx
@@ -320,6 +370,7 @@ class WorkerHandle:
 		self.robot_to_camera = config.robot_to_camera
 		self.cmd_queue = ctx.Queue()
 		self.data_queue = ctx.Queue()
+		self.video_queue = vidq
 		self._require_flush_id = 0
 		self._last_flush_id = 0
 	
@@ -331,7 +382,7 @@ class WorkerHandle:
 		from worker import main as worker_main
 		self.proc = self._ctx.Process(
 			target=worker_main,
-			args=[self.config, self.data_queue, self.cmd_queue],
+			args=[self.config, self.data_queue, self.cmd_queue, self.video_queue],
 			daemon=True,
 			name=f'moenet_{self.name}'
 		)
@@ -363,7 +414,10 @@ class WorkerHandle:
 		self.proc = None
 		self.log.info("Stopped")
 	
-	def send(self, command: Union[worker.CmdChangeState, worker.CmdPoseOverride, worker.CmdFlush]):
+	def enable_stream(self, stream: str, enable: bool):
+		self.send(worker.CmdEnableStream(stream=stream, enable=enable))
+	
+	def send(self, command: Union[worker.CmdChangeState, worker.CmdPoseOverride, worker.CmdFlush, worker.CmdEnableStream]):
 		self.cmd_queue.put(command, block=True, timeout=1.0)
 	
 	def flush(self):
@@ -433,11 +487,14 @@ class WorkerHandle:
 			self._handle_dead()
 	
 	def close(self):
-		self.stop(False)
-		if self.datalog is not None:
-			self.logLog.finish()
-			del self.logLog
-			self.logStatus.finish()
-			del self.logStatus
-			self.data_queue.close()
-			self.cmd_queue.close()
+		try:
+			self.stop(False)
+		finally:
+			# Cleanup datalog
+			if self.datalog is not None:
+				self.logLog.finish()
+				del self.logLog
+				self.logStatus.finish()
+				del self.logStatus
+				self.data_queue.close()
+				self.cmd_queue.close()

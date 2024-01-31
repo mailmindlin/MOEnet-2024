@@ -1,7 +1,6 @@
-from typing import Optional, Any, TYPE_CHECKING, Protocol, Union
-import logging
+from typing import Optional, Any, TYPE_CHECKING, Protocol, Union, Generic, TypeVar, Iterable
+import logging, time
 from pathlib import Path
-from dataclasses import dataclass
 from functools import cached_property
 from datetime import timedelta
 
@@ -18,15 +17,10 @@ if TYPE_CHECKING:
     from typedef.sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
     from server.typedef.geom import Pose3d
 
-@dataclass
-class PipelineConfig:
-    syncNN: bool
-    outputRGB: bool
-    vio: bool
-    slam: bool
-    apriltag_path: Optional[Path]
-    nn: Optional[ObjectDetectionConfig]
-    telemetry: bool = False
+T = TypeVar('T')
+class XLinkOut(dai.node.XLinkOut, Generic[T]):
+    "Typed version of XLinkOut (not a real class)"
+    ...
 
 
 class MoeNetPipeline:
@@ -52,8 +46,8 @@ class MoeNetPipeline:
 
         import spectacularAI as sai
         sai_config = sai.depthai.Configuration()
-        if (self.config.apriltag_path is not None) and self.config.slam:
-            sai_config.aprilTagPath = self.config.apriltag_path
+        if (self.config.apriltagPath is not None) and self.config.slam:
+            sai_config.aprilTagPath = self.config.apriltagPath
         sai_config.internalParameters = {
             # "ffmpegVideoCodec": "libx264 -crf 15 -preset ultrafast",
             # "computeStereoPointCloud": "true",
@@ -122,18 +116,18 @@ class MoeNetPipeline:
 
         camRgb = self.pipeline.createColorCamera()
         camRgb.setPreviewSize(416, 416)
-        camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
+        camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_4_K)
         camRgb.setInterleaved(False)
         camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         return camRgb
     
     @cached_property
     def node_yolo(self) -> Optional[dai.node.YoloSpatialDetectionNetwork]:
-        if self.config.nn is None:
+        if self.config.object_detection is None:
             return None
         
         spatialDetectionNetwork = self.pipeline.createYoloSpatialDetectionNetwork()
-        nnConfig = self.config.nn
+        nnConfig = self.config.object_detection
         nnBlobPath = Path(nnConfig.blobPath).resolve().absolute()
         if not nnBlobPath.exists():
             raise RuntimeError(f"nnBlobPath not found: {nnBlobPath}")
@@ -172,25 +166,71 @@ class MoeNetPipeline:
         return syslog
     
     @cached_property
-    def node_out_rgb(self) -> Optional[dai.node.XLinkOut]:
+    def node_out_rgb(self) -> Optional[XLinkOut[dai.ImgFrame]]:
         "Get XLinkOut for rgb camera"
-        if not self.config.outputRGB:
+        if not self.config.debugRgb:
             return None
         
         xoutRgb = self.pipeline.createXLinkOut()
         xoutRgb.setStreamName('rgb')
+        xoutRgb.setFpsLimit(self.config.debugImageRate or 30)
 
         if self.config.syncNN and (self.node_yolo is not None):
             nn = self.node_yolo
             nn.passthrough.link(xoutRgb.input)
         else:
             color = self.node_rgb
-            color.preview.link(xoutRgb.input)
+            color.video.link(xoutRgb.input)
         
         return xoutRgb
+
+    @cached_property
+    def node_out_left(self) -> Optional[XLinkOut[dai.ImgFrame]]:
+        "Get XLinkOut for left camera"
+        if not self.config.debugLeft:
+            return None
+        
+        xoutLeft = self.pipeline.createXLinkOut()
+        xoutLeft.setStreamName('left')
+        xoutLeft.setFpsLimit(self.config.debugImageRate or 30)
+
+        monoLeft = self.node_mono_left
+        monoLeft.out.link(xoutLeft.input)
+        
+        return xoutLeft
     
     @cached_property
-    def node_out_nn(self) -> Optional[dai.node.XLinkOut]:
+    def node_out_right(self) -> Optional[XLinkOut[dai.ImgFrame]]:
+        "Get XLinkOut for right camera"
+        if not self.config.debugRight:
+            return None
+        
+        xoutRight = self.pipeline.createXLinkOut()
+        xoutRight.setStreamName('right')
+        xoutRight.setFpsLimit(self.config.debugImageRate or 30)
+
+        monoRight = self.node_mono_right
+        monoRight.out.link(xoutRight.input)
+        
+        return xoutRight
+    
+    @cached_property
+    def node_out_depth(self) -> Optional[XLinkOut[dai.ImgFrame]]:
+        "Get XLinkOut for depth"
+        if not self.config.debugDepth:
+            return None
+        
+        xoutDepth = self.pipeline.createXLinkOut()
+        xoutDepth.setStreamName('depth')
+        xoutDepth.setFpsLimit(self.config.debugImageRate or 30)
+
+        depth = self.node_depth
+        depth.preview.link(xoutDepth.input)
+        
+        return xoutDepth
+    
+    @cached_property
+    def node_out_nn(self) -> Optional[XLinkOut[dai.SpatialImgDetections]]:
         nn = self.node_yolo
         if nn is None:
             return None
@@ -201,7 +241,7 @@ class MoeNetPipeline:
         return xoutNN
     
     @cached_property
-    def node_out_sysinfo(self) -> Optional[dai.node.XLinkOut]:
+    def node_out_sysinfo(self) -> Optional[XLinkOut[dai.SystemInformation]]:
         sysinfo = self.node_sysinfo
         if sysinfo is None:
             return None
@@ -216,17 +256,24 @@ class MoeNetPipeline:
         "Build all nodes in this pipeline"
         self.vio_pipeline
         self.node_out_nn
-        self.node_out_rgb
+
         self.node_out_sysinfo
+        self.node_out_depth
+
+        self.node_out_rgb
+        self.node_out_left
+        self.node_out_right
 
 
-class FakeQueue:
+class QueueLike(Generic[T]):
     def has(self):
         return False
-    def get(self):
+    def get(self) -> T:
         raise RuntimeError()
-    def tryGet(self):
+    def tryGet(self) -> Optional[T]:
         return None
+    def tryGetAll(self) -> list[T]:
+        return list()
 
 class FakeVioSession:
     def hasOutput(self):
@@ -250,19 +297,23 @@ class MoeNetSession:
         self.device = device
         self.pipeline = pipeline
         self.log = (log.getChild if log is not None else logging.getLogger)('sesson')
-        from clock.clock import WallClock
         self.clock = WallClock()
 
         self.labels = pipeline.labels
         self.log.info("Streams: %s", device.getOutputQueueNames())
 
-        def make_queue(node: Optional[dai.node.XLinkOut], *, maxSize: int = 4) -> Union[FakeQueue, dai.DataOutputQueue]:
+        def make_queue(node: Optional[XLinkOut[T]], *, maxSize: int = 4) -> QueueLike[T]:
             if node is None:
-                return FakeQueue()
+                return QueueLike()
             return device.getOutputQueue(node.getStreamName(), maxSize=maxSize, blocking=False)
         self.queue_dets = make_queue(pipeline.node_out_nn)
-        self.queue_rgb = make_queue(pipeline.node_out_rgb)
+        self.queue_rgb = make_queue(pipeline.node_out_rgb, maxSize=1)
+        self.queue_left = make_queue(pipeline.node_out_left, maxSize=1)
+        self.queue_right = make_queue(pipeline.node_out_right, maxSize=8)
+        self.queue_depth = make_queue(pipeline.node_out_depth, maxSize=1)
         self.queue_sysinfo = make_queue(pipeline.node_out_sysinfo, maxSize=1)
+
+        self.streams = set()
         
         # Start sai
         if (vio_pipeline := pipeline.vio_pipeline) is not None:
@@ -296,17 +347,54 @@ class MoeNetSession:
         return now_wall - latency
 
     def _poll_rgb(self):
-        raw_rgb: Optional[dai.SpatialImgDetections] = self.queue_rgb.tryGet()
-        if raw_rgb is None:
+        raw_rgb = self.queue_rgb.tryGet()
+        if raw_rgb is None or ('rgb' not in self.streams):
             return None
+        raw_frame = raw_rgb.getCvFrame()
         ts = self.local_timestamp(raw_rgb)
+        return MsgFrame(
+            worker='',
+            stream='rgb',
+            timestamp=ts.nanos,
+            timestamp_recv=time.time_ns(),
+            sequence=raw_rgb.getSequenceNum(),
+            data=raw_frame,
+        )
+
+    def _poll_left(self):
+        raw_frame = self.queue_left.tryGet()
+        if raw_frame is None or ('left' not in self.streams):
+            return None
+        ts = self.local_timestamp(raw_frame)
+        return MsgFrame(
+            worker='',
+            stream='left',
+            timestamp=ts.nanos,
+            timestamp_recv=time.time_ns(),
+            timestamp_insert=0,
+            sequence=raw_frame.getSequenceNum(),
+            data=raw_frame.getCvFrame()
+        )
+    
+    def _poll_right(self):
+        raw_frame = self.queue_right.tryGet()
+        recv = self.clock.now_ns()
+        if raw_frame is None or ('right' not in self.streams):
+            return None
+        ts = self.local_timestamp(raw_frame)
+        return MsgFrame(
+            worker='',
+            stream='right',
+            timestamp=ts.nanos,
+            timestamp_recv=recv,
+            timestamp_insert=0,
+            sequence=raw_frame.getSequenceNum(),
+            data=raw_frame.getCvFrame()
+        )
     
     def _poll_dets(self):
         "Poll object detection queue"
-        from typedef.worker import MsgDetections, MsgDetection
-        from typedef.geom import Translation3d
-
-        raw_dets: Optional[dai.SpatialImgDetections] = self.queue_dets.tryGet()
+        raw_dets = self.queue_dets.tryGet()
         if raw_dets is None:
             return None
         
@@ -341,7 +429,7 @@ class MoeNetSession:
         )
     
     def _poll_sysinfo(self):
-        sysinfo: Optional[dai.SystemInformation] = self.queue_sysinfo.tryGet()
+        sysinfo = self.queue_sysinfo.tryGet()
         if sysinfo is None:
             return None
         # We don't flush sysinfo packets
@@ -368,10 +456,7 @@ class MoeNetSession:
 
         # SAI uses device-time, so we have to do some conversion
         latency = dai.Clock.now() - timedelta(seconds=vio_out.pose.time)
-        timestamp = Timestamp. int(vio_out.pose.time * 1e9)
-
-        from typedef.geom import Pose3d, Translation3d, Rotation3d, Quaternion, Twist3d
-        from typedef.worker import MsgPose
+        timestamp = int(vio_out.pose.time * 1e9)
 
         # Why is orientation covariance 1e-4?
         # Because I said so
@@ -438,25 +523,13 @@ class MoeNetSession:
         #TODO
         # self.vio_session.addAbsolutePose()
 
-    def poll(self):
+    def poll(self) -> Iterable[Union[MsgFrame, MsgPose, MsgDetections]]:
         did_work = True
         while did_work:
             did_work = False
 
-            msg_dets = self._poll_dets()
-            msg_rgb = self._poll_rgb()
-            msg_vio = self._poll_vio()
-            msg_sys = self._poll_sysinfo()
-            if msg_dets is not None:
-                did_work = True
-                yield msg_dets
-            if msg_rgb is not None:
-                did_work = True
-                yield msg_rgb
-            if msg_vio is not None:
-                did_work = True
-                yield msg_vio
-            if msg_sys is not None:
-                did_work = True
-                yield msg_sys
-            
+            for supplier in [self._poll_dets, self._poll_vio, self._poll_rgb, self._poll_left, self._poll_right, self._poll_sysinfo]:
+                msg = supplier()
+                if msg is not None:
+                    did_work = True
+                    yield msg

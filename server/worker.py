@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
-import logging
+import logging, time
 from functools import cached_property
 from queue import Empty, Full
 from typedef.worker import (
@@ -8,6 +8,7 @@ from typedef.worker import (
 	CmdChangeState, MsgChangeState, WorkerState,
 	CmdPoseOverride, MsgPose, MsgDetections,
 	CmdFlush, MsgFlush,
+	CmdEnableStream, MsgFrame,
 	MsgLog,
 	AnyMsg, AnyCmd
 )
@@ -163,10 +164,11 @@ class DeviceManager:
 
 
 class CameraWorker:
-	def __init__(self, config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]) -> None:
+	def __init__(self, config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]) -> None:
 		self.config = config
 		self.data_queue = data_queue
 		self.command_queue = command_queue
+		self.video_queue = video_queue
 
 		self._state = None
 		self.state = WorkerState.INITIALIZING
@@ -195,30 +197,8 @@ class CameraWorker:
 		return self.state == WorkerState.PAUSED
 	
 	def make_pipeline(self) -> 'MoeNetPipeline':
-		from pipeline import MoeNetPipeline, PipelineConfig
-		syncNN = False
-		outputRGB = False
-		vio = False
-		slam = False
-		apriltagPath = None
-		if self.config.slam is not None:
-			slam_cfg = self.config.slam
-			syncNN = slam_cfg.syncNN
-			outputRGB = slam_cfg.debugImage
-			vio = slam_cfg.vio
-			slam = slam_cfg.slam
-			apriltagPath = slam_cfg.apriltagPath
-		
-		return MoeNetPipeline(
-			PipelineConfig(
-				syncNN=syncNN,
-				outputRGB=outputRGB,
-				vio=vio,
-				slam=slam,
-				apriltag_path=apriltagPath,
-				nn=self.config.object_detection,
-			)
-		)
+		from pipeline import MoeNetPipeline
+		return MoeNetPipeline(self.config.pipeline)
 	
 	def __enter__(self):
 		# Build pipeline
@@ -257,6 +237,15 @@ class CameraWorker:
 			elif isinstance(packet, MsgDetections):
 				if len(packet.detections) > 0:
 					self.log.info(" -> Send packet %s", repr(packet))
+			elif isinstance(packet, MsgFrame):
+				packet.worker = self.config.id
+				packet.timestamp_insert = time.time_ns()
+				try:
+					self.video_queue.put(packet, timeout=0.1)
+				except Full:
+					self.log.info('Drop frame')
+					pass
+				continue
 			self.data_queue.put(packet)
 	
 	def process_command(self, command: AnyCmd):
@@ -283,6 +272,12 @@ class CameraWorker:
 			self.flush()
 			# ACK flush
 			self.data_queue.put(MsgFlush(id=command.id))
+		elif isinstance(command, CmdEnableStream):
+			self.log.info(f'Got command: {"ENABLE" if command.enable else "DISABLE"} %s', command.stream)
+			if command.enable:
+				self.session.streams.add(command.stream)
+			else:
+				self.session.streams.discard(command.stream)
 		else:
 			self.log.warning("Unknown command: %s", repr(command))
 	
@@ -300,18 +295,18 @@ class CameraWorker:
 		self.state = WorkerState.STOPPED
 
 
-def main(config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd]):
+def main(config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]):
 	# Cap at 100Hz
 	min_loop_duration = 1 / config.maxRefresh
 	from util.interrupt import InterruptHandler
-	from clock.watchdog import Watchdog
+	from util.watchdog import Watchdog
 	import signal
 
 	signal.signal(signal.SIGINT, signal.SIG_IGN)
 	def handle_sigint(*args):
 		print("Child SIGINT")
 	
-	with (CameraWorker(config, data_queue, command_queue) as worker, InterruptHandler(handle_sigint)):
+	with (CameraWorker(config, data_queue, command_queue, video_queue) as worker, InterruptHandler(handle_sigint)):
 		while True:
 			with Watchdog('worker', min=min_loop_duration, max=0.5, log=worker.log) as w:
 				try:

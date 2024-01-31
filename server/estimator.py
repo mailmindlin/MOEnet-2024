@@ -163,17 +163,28 @@ class PoseEstimator:
 
 		self.clock = clock
 		self._last_o2r = Transform3d()
-		"Last odometry->robot (cache)"
+		"Last `odom`→`robot` (for caching `odom_to_robot()`)"
 
-		self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(config.pose_history.seconds, interpolate_pose3d)
-		self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(config.pose_history.seconds, interpolate_pose3d)
+		pose_history = config.pose_history.total_seconds()
+		if pose_history < 0:
+			self.log.error("Negative pose history (%s). Default to zero.", config.pose_history)
+			pose_history = 0
+		elif pose_history == 0:
+			self.log.warning("No pose history (syncing f2r and f2o may not work right)")
+
+		self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(config.pose_history.total_seconds(), interpolate_pose3d)
+		"Buffer for `field`→`robot` transforms (for sync with odometry)"
+		self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(config.pose_history.total_seconds(), interpolate_pose3d)
+		"Buffer for `field`→`odom` transforms (for sync with absolute pose)"
 	
 	def odom_to_robot(self) -> Transform3d:
 		"Get the best estimated `odom`→`robot` corrective transform"
 		samples_f2o = self.buf_field_to_odom.getInternalBuffer()
 		samples_f2r = self.buf_field_to_robot.getInternalBuffer()
+
 		# Return identity if we don't have any data
 		if (len(samples_f2o) == 0) or (len(samples_f2r) == 0):
+			self.log.debug("No data to compute odom→robot correction")
 			return self._last_o2r
 		
 		# Find timestamps of overlapping range between field→odom and field→robot data
@@ -186,6 +197,7 @@ class PoseEstimator:
 		ts_end = min(last_f2o, last_f2r)
 		if ts_end < ts_start:
 			# No overlap
+			self.log.debug("No overlap between field→odom and field→robot data")
 			return self._last_o2r
 		
 		# We want the most recent pair that overlap

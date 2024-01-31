@@ -23,7 +23,7 @@
 			"type": "object"
 		},
 		"AprilTagFieldFRCRef": {
-			"description": "Reference to a WPIlib AprilTag JSON file",
+			"description": "Reference to an AprilTag JSON file (in WPIlib format)",
 			"properties": {
 				"format": {
 					"const": "frc",
@@ -61,7 +61,7 @@
 			"type": "object"
 		},
 		"AprilTagFieldSAIRef": {
-			"description": "Reference to a WPIlib AprilTag JSON file",
+			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
 			"properties": {
 				"format": {
 					"const": "sai",
@@ -236,21 +236,11 @@
 					"description": "Camera pose (in robot-space)",
 					"title": "Pose"
 				},
-				"slam": {
+				"pipeline": {
 					"anyOf": [
 						{
-							"type": "boolean"
+							"$ref": "#/$defs/PipelineConfig"
 						},
-						{
-							"$ref": "#/$defs/SlamConfig"
-						}
-					],
-					"default": false,
-					"description": "Enable SLAM on this camera",
-					"title": "Slam"
-				},
-				"object_detection": {
-					"anyOf": [
 						{
 							"type": "string"
 						},
@@ -259,8 +249,8 @@
 						}
 					],
 					"default": null,
-					"description": "Which object detection pipeline should we use?",
-					"title": "Object Detection"
+					"description": "Configure pipeline",
+					"title": "Pipeline"
 				}
 			},
 			"required": [
@@ -929,6 +919,239 @@
 			"title": "ObjectDetectionDefinition",
 			"type": "object"
 		},
+		"PipelineConfig": {
+			"properties": {
+				"backend": {
+					"const": "sai",
+					"default": "sai",
+					"title": "Backend"
+				},
+				"syncNN": {
+					"default": false,
+					"title": "Syncnn",
+					"type": "boolean"
+				},
+				"slam": {
+					"default": true,
+					"title": "Slam",
+					"type": "boolean"
+				},
+				"vio": {
+					"default": false,
+					"description": "Enable VIO",
+					"title": "Vio",
+					"type": "boolean"
+				},
+				"debugRgb": {
+					"default": false,
+					"title": "Debugrgb",
+					"type": "boolean"
+				},
+				"debugLeft": {
+					"default": false,
+					"title": "Debugleft",
+					"type": "boolean"
+				},
+				"debugRight": {
+					"default": false,
+					"title": "Debugright",
+					"type": "boolean"
+				},
+				"debugDepth": {
+					"default": false,
+					"title": "Debugdepth",
+					"type": "boolean"
+				},
+				"debugImageRate": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Debugimagerate"
+				},
+				"apriltag_explicit": {
+					"default": false,
+					"title": "Apriltag Explicit",
+					"type": "boolean"
+				},
+				"telemetry": {
+					"default": false,
+					"title": "Telemetry",
+					"type": "boolean"
+				},
+				"apriltag": {
+					"anyOf": [
+						{
+							"discriminator": {
+								"mapping": {
+									"frc": "#/$defs/AprilTagFieldFRCRef",
+									"inline": "#/$defs/AprilTagFieldConfig",
+									"sai": "#/$defs/AprilTagFieldSAIRef"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/AprilTagFieldFRCRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldSAIRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldConfig"
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "AprilTag configuration data",
+					"title": "Apriltag"
+				},
+				"object_detection": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Which object detection pipeline should we use?",
+					"title": "Object Detection"
+				}
+			},
+			"title": "PipelineConfig",
+			"type": "object"
+		},
+		"PipelineDefinition": {
+			"properties": {
+				"backend": {
+					"const": "sai",
+					"default": "sai",
+					"title": "Backend"
+				},
+				"syncNN": {
+					"default": false,
+					"title": "Syncnn",
+					"type": "boolean"
+				},
+				"slam": {
+					"default": true,
+					"title": "Slam",
+					"type": "boolean"
+				},
+				"vio": {
+					"default": false,
+					"description": "Enable VIO",
+					"title": "Vio",
+					"type": "boolean"
+				},
+				"debugRgb": {
+					"default": false,
+					"title": "Debugrgb",
+					"type": "boolean"
+				},
+				"debugLeft": {
+					"default": false,
+					"title": "Debugleft",
+					"type": "boolean"
+				},
+				"debugRight": {
+					"default": false,
+					"title": "Debugright",
+					"type": "boolean"
+				},
+				"debugDepth": {
+					"default": false,
+					"title": "Debugdepth",
+					"type": "boolean"
+				},
+				"debugImageRate": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Debugimagerate"
+				},
+				"apriltag_explicit": {
+					"default": false,
+					"title": "Apriltag Explicit",
+					"type": "boolean"
+				},
+				"telemetry": {
+					"default": false,
+					"title": "Telemetry",
+					"type": "boolean"
+				},
+				"apriltag": {
+					"anyOf": [
+						{
+							"discriminator": {
+								"mapping": {
+									"frc": "#/$defs/AprilTagFieldFRCRef",
+									"inline": "#/$defs/AprilTagFieldConfig",
+									"sai": "#/$defs/AprilTagFieldSAIRef"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/AprilTagFieldFRCRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldSAIRef"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldConfig"
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "AprilTag configuration data",
+					"title": "Apriltag"
+				},
+				"object_detection": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Which object detection pipeline should we use?",
+					"title": "Object Detection"
+				},
+				"id": {
+					"title": "Id",
+					"type": "string"
+				}
+			},
+			"required": [
+				"id"
+			],
+			"title": "PipelineDefinition",
+			"type": "object"
+		},
 		"RetryConfig": {
 			"description": "Configure restart/retry logic",
 			"properties": {
@@ -1005,86 +1228,103 @@
 			"title": "RootModel[Tuple[float, float, float, float]]",
 			"type": "array"
 		},
-		"SlamConfig": {
+		"WebConfig": {
+			"description": "Configure webserver",
 			"properties": {
-				"backend": {
-					"const": "sai",
-					"default": "sai",
-					"title": "Backend"
-				},
-				"syncNN": {
-					"default": false,
-					"title": "Syncnn",
-					"type": "boolean"
-				},
-				"slam": {
+				"enabled": {
 					"default": true,
-					"title": "Slam",
+					"title": "Enabled",
 					"type": "boolean"
 				},
-				"vio": {
-					"default": false,
-					"description": "Enable VIO",
-					"title": "Vio",
-					"type": "boolean"
-				},
-				"debugImage": {
-					"default": false,
-					"title": "Debugimage",
-					"type": "boolean"
-				},
-				"debugImageRate": {
+				"host": {
 					"anyOf": [
 						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Host for HTTP server",
+					"title": "Host"
+				},
+				"port": {
+					"anyOf": [
+						{
+							"exclusiveMinimum": 0,
 							"type": "integer"
 						},
 						{
 							"type": "null"
 						}
 					],
-					"default": null,
-					"title": "Debugimagerate"
+					"default": 8080,
+					"description": "Port for HTTP server",
+					"title": "Port"
 				},
-				"apriltag": {
+				"video_codec": {
 					"anyOf": [
 						{
-							"discriminator": {
-								"mapping": {
-									"frc": "#/$defs/AprilTagFieldFRCRef",
-									"inline": "#/$defs/AprilTagFieldConfig",
-									"sai": "#/$defs/AprilTagFieldSAIRef"
-								},
-								"propertyName": "format"
-							},
-							"oneOf": [
-								{
-									"$ref": "#/$defs/AprilTagFieldFRCRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldSAIRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldConfig"
-								}
-							]
+							"type": "string"
 						},
 						{
 							"type": "null"
 						}
 					],
 					"default": null,
-					"description": "AprilTag configuration data",
-					"title": "Apriltag"
+					"description": "Force a specific video codec (e.g. video/H264)",
+					"title": "Video Codec"
+				},
+				"cert_file": {
+					"anyOf": [
+						{
+							"format": "path",
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "SSL certificate file (for HTTPS)",
+					"title": "Cert File"
+				},
+				"key_file": {
+					"anyOf": [
+						{
+							"format": "path",
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "SSL key file (for HTTPS)",
+					"title": "Key File"
 				}
 			},
-			"title": "SlamConfig",
+			"title": "WebConfig",
 			"type": "object"
 		}
 	},
 	"description": "Local config data",
 	"properties": {
+		"allow_overwrite": {
+			"default": false,
+			"description": "Allow remote changes to overwrite this config?",
+			"title": "Allow Overwrite",
+			"type": "boolean"
+		},
 		"nt": {
-			"$ref": "#/$defs/NetworkTablesConfig"
+			"allOf": [
+				{
+					"$ref": "#/$defs/NetworkTablesConfig"
+				}
+			],
+			"description": "NetworkTables data",
+			"title": "NetworkTables"
 		},
 		"timer": {
 			"anyOf": [
@@ -1123,28 +1363,26 @@
 			"type": "array"
 		},
 		"cameras": {
+			"default": null,
+			"description": "Configuration for individual cameras",
 			"items": {
 				"$ref": "#/$defs/CameraConfig"
 			},
 			"title": "Cameras",
 			"type": "array"
 		},
-		"slam": {
-			"anyOf": [
-				{
-					"$ref": "#/$defs/SlamConfig"
-				},
-				{
-					"type": "null"
-				}
-			],
-			"default": null
+		"presets": {
+			"description": "Global SLAM config (used on cameras where slam=True)",
+			"items": {
+				"$ref": "#/$defs/PipelineDefinition"
+			},
+			"title": "Presets",
+			"type": "array"
+		},
+		"web": {
+			"$ref": "#/$defs/WebConfig"
 		}
 	},
-	"required": [
-		"nt",
-		"cameras"
-	],
 	"title": "LocalConfig",
 	"type": "object"
 }

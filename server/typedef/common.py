@@ -25,14 +25,19 @@ class AprilTagFieldConfig(BaseModel):
     field: FieldLayout
     tags: List[FieldTag]
 
-class SlamConfigBase(BaseModel):
-	"Configure SLAM settings"
+class PipelineConfigBase(BaseModel):
+	"Configure video pipeline"
 	backend: Literal["sai"] = Field("sai")
 	syncNN: bool = False
 	slam: bool = True
 	vio: bool = Field(False, description="Enable VIO")
-	debugImage: bool = False
-	debugImageRate: Optional[int] = None
+	debugRgb: bool = False
+	debugLeft: bool = False
+	debugRight: bool = False
+	debugDepth: bool = False
+	debugImageRate: Optional[int] = Field(None)
+	apriltag_explicit: bool = Field(False)
+	telemetry: bool = Field(False)
 
 
 class RetryConfig(BaseModel):

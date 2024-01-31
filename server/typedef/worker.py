@@ -5,28 +5,30 @@ Type definitions for communicating between the master and worker processes
 from typing import Optional, List, Any, Literal, Union
 from enum import IntEnum
 from pydantic import BaseModel, Field
+from dataclasses import dataclass
 
-from .common import NNConfig, SlamConfigBase, OakSelector, RetryConfig
+from .common import NNConfig, PipelineConfigBase, OakSelector, RetryConfig
 from .geom import Pose3d, Translation3d, Twist3d, Transform3d
 
 class ObjectDetectionConfig(NNConfig):
     "Configure an object detection pipeline"
     blobPath: str
 
-class WorkerSlamConfig(SlamConfigBase):
+class WorkerPipelineConfig(PipelineConfigBase):
     apriltagPath: Optional[str] = None
+    object_detection: Optional[ObjectDetectionConfig] = Field(None)
 
 class WorkerInitConfig(BaseModel):
     "Config for worker.main"
-    id: Optional[str]
+    id: str
     selector: OakSelector
     retry: RetryConfig
     max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(None)
     outputRGB: bool = Field(False)
     maxRefresh: float = Field(10, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
-    slam: Optional[WorkerSlamConfig]
-    object_detection: Optional[ObjectDetectionConfig]
+    pipeline: WorkerPipelineConfig = Field(None)
+
 
 class WorkerState(IntEnum):
     INITIALIZING = 0
@@ -49,7 +51,11 @@ class CmdFlush(BaseModel):
 class CmdChangeState(BaseModel):
     target: WorkerState
 
-AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState]
+class CmdEnableStream(BaseModel):
+    stream: str
+    enable: bool
+
+AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState, CmdEnableStream]
 
 
 class MsgChangeState(BaseModel):
@@ -87,5 +93,16 @@ class MsgPose(BaseModel):
 class MsgLog(BaseModel):
     level: int
     msg: str
+
+@dataclass
+class MsgFrame:
+    worker: str
+    stream: str
+    timestamp: int
+    timestamp_recv: int
+    sequence: int
+    data: Any
+    timestamp_insert: int = 0
+    timestamp_extract: int = 0
 
 AnyMsg = Union[MsgChangeState, MsgFlush, MsgDetections, MsgPose, MsgLog]

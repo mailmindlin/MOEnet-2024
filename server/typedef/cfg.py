@@ -7,11 +7,21 @@ from ntcore import NetworkTableInstance
 from datetime import timedelta
 
 if __name__ == '__main__' and (not TYPE_CHECKING):
-    from common import NNConfig, SlamConfigBase, OakSelector, FieldLayout, RetryConfig
+    from common import NNConfig, PipelineConfigBase, OakSelector, FieldLayout, RetryConfig
     from geom import Pose3d, Transform3d
 else:
-    from .common import NNConfig, SlamConfigBase, OakSelector, FieldLayout, RetryConfig
+    from .common import NNConfig, PipelineConfigBase, OakSelector, FieldLayout, RetryConfig
     from .geom import Pose3d, Transform3d
+
+
+class WebConfig(BaseModel):
+    "Configure webserver"
+    enabled: bool = Field(True)
+    host: Optional[str] = Field(None, description="Host for HTTP server")
+    port: Optional[int] = Field(8080, gt=0, description="Port for HTTP server")
+    video_codec: Optional[str] = Field(None, description="Force a specific video codec (e.g. video/H264)")
+    cert_file: Optional[Path] = Field(None, description="SSL certificate file (for HTTPS)")
+    key_file: Optional[Path] = Field(None, description="SSL key file (for HTTPS)")
 
 
 class NetworkTablesConfig(BaseModel):
@@ -67,14 +77,14 @@ class NavXConfig(BaseModel):
     update_rate: int = Field(60, description="NavX poll rate (in hertz)", gt=0, le=255)
 
 class AprilTagFieldFRCRef(BaseModel):
-    "Reference to a WPIlib AprilTag JSON file"
+    "Reference to an AprilTag JSON file (in WPIlib format)"
     format: Literal["frc"]
     path: Path = Field(description="Path to AprilTag configuration")
     tagFamily: Literal['tag16h5', 'tag25h9', 'tag36h11'] = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
 
 class AprilTagFieldSAIRef(BaseModel):
-    "Reference to a WPIlib AprilTag JSON file"
+    "Reference to an AprilTag JSON file (in SpectacularAI format)"
     format: Literal["sai"]
     path: Path = Field(description="Path to AprilTag configuration")
 
@@ -97,8 +107,13 @@ class AprilTagFieldConfig(BaseModel):
     tags: AprilTagList
     "AprilTags (SAI format)"
 
-class SlamConfig(SlamConfigBase):
+class PipelineConfig(PipelineConfigBase):
     apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None] = Field(None, description="AprilTag configuration data", discriminator="format")
+    object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
+
+class PipelineDefinition(PipelineConfig):
+    id: str
+
 
 class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")
@@ -106,8 +121,7 @@ class CameraConfig(BaseModel):
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
     retry: RetryConfig = Field(default_factory=RetryConfig)
     pose: Optional[Transform3d] = Field(description="Camera pose (in robot-space)")
-    slam: Union[bool, SlamConfig] = Field(False, description="Enable SLAM on this camera")
-    object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
+    pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
 class LogConfig(BaseModel):
     """
@@ -139,29 +153,30 @@ class CameraSelectorConfig(OakSelector):
 
 class LocalConfig(BaseModel):
     "Local config data"
-    nt: NetworkTablesConfig
+    allow_overwrite: bool = Field(False, description="Allow remote changes to overwrite this config?")
+    nt: NetworkTablesConfig = Field(default_factory=lambda: NetworkTablesConfig(enabled=False), title="NetworkTables", description="NetworkTables data")
     timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
     log: LogConfig = Field(default_factory=DataLogConfig)
     datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
     estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
     pipelines: List[ObjectDetectionDefinition] = Field(default_factory=list)
     camera_selectors: List[CameraSelectorConfig] = Field(default_factory=list)
-    cameras: List[CameraConfig]
-    slam: Optional[SlamConfig] = Field(None)
+    cameras: List[CameraConfig] = Field(None, description="Configuration for individual cameras")
+    presets: List[PipelineDefinition] = Field(default_factory=list, description="Global SLAM config (used on cameras where slam=True)")
+    web: WebConfig = Field(default_factory=lambda: WebConfig(enabled=False))
 
     def merge(self, update: 'RemoteConfig') -> 'LocalConfig':
         "Merge in a remote configuration"
         result = self.model_copy()
         if update.slam is not None:
             result.slam = update.slam
-        if update.cameras is not None:
-            for i, camera in enumerate(update.cameras):
-                if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, (AprilTagFieldFRCRef, AprilTagFieldSAIRef)):
-                    raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
-            result.cameras = update.cameras
+        # if update.cameras is not None:
+        #     for i, camera in enumerate(update.cameras):
+        #         if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, (AprilTagFieldFRCRef, AprilTagFieldSAIRef)):
+        #             raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
+        #     result.cameras = update.cameras
 
 class RemoteConfig(BaseModel):
-    slam: Optional[SlamConfig] = None
     cameras: List[CameraConfig]
 
 if __name__ == '__main__':

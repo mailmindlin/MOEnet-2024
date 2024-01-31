@@ -10,3 +10,6 @@ typing_extensions==4.7.1
 spectacularAI
 matplotlib
 robotpy
+opencv-python
+aiohttp
+aiortc

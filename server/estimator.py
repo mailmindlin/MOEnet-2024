@@ -11,9 +11,9 @@ from typedef.cfg import EstimatorConfig
 from nt_util.log import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
 from typedef.geom import Transform3d, Translation3d, Rotation3d, Pose3d
 from typedef import net
-from clock.clock import Clock, WallClock
-from clock.mapper import TimeMapper, IdentityTimeMapper
-from clock.timestamp import Timestamp
+from util.clock import Clock, WallClock
+from util.timemap import TimeMapper, IdentityTimeMapper
+from util.timestamp import Timestamp
 
 
 def interpolate_pose3d(a: Pose3d, b: Pose3d, t: float) -> Pose3d:

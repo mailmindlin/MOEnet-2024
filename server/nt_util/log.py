@@ -128,6 +128,7 @@ class ProtoLogEntry(Generic[T]):
 
 
 class PyToNtHandler(logging.Handler):
+    "Forward Python logs to DataLog"
     def __init__(self, log: DataLog, path: str = 'log', level: 'logging._Level' = 0) -> None:
         super().__init__(level)
         self.entry = StringLogEntry(log, path)

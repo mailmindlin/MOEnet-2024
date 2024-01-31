@@ -9,7 +9,7 @@ try:
 except ImportError:
 	psutil = None
 
-from clock import Timestamp
+from util.timestamp import Timestamp
 from typedef.cfg import LocalConfig
 from typedef.geom import Pose3d
 from typedef import net
@@ -22,8 +22,6 @@ if TYPE_CHECKING:
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
 T = TypeVar("T")
-
-logging.basicConfig(level=logging.DEBUG)
 
 class LogHandler(logging.Handler):
 	def __init__(self, comms: 'Comms') -> None:
@@ -225,5 +223,6 @@ class Comms:
 
 	def close(self):
 		del self.moenet
-		self.nt.disconnect()
-		self.nt = None
+		if self.nt is not None:
+			self.nt.disconnect()
+			self.nt = None

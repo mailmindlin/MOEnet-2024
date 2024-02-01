@@ -40,10 +40,10 @@ class SingletonMeta(type):
 		return cls._instances[cls]
 
 class Singleton:
-	def __new__(cls, *args, **kwargs):
+	def __new__(cls):
 		# pseudo-singleton
 		if getattr(cls, '_instance', None) is None:
-			cls._instance = super().__new__(cls, *args, **kwargs)
+			cls._instance = super().__new__(cls)
 		return cls._instance
 
 	def __repr__(self):

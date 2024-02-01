@@ -1,18 +1,18 @@
-import asyncio
-import json
-import logging
-import os, time
+"""
+Web server
+
+This is designed to run in a subprocess. You probably want to use web_srv.RemoteWebServer to 
+"""
+import os, time, logging, asyncio, json, ssl
 from pathlib import Path
-import platform
-import ssl
-from typing import Any, Coroutine, Optional, Union, Awaitable, Any, TYPE_CHECKING
+from typing import Any, Coroutine, Optional, Union, Awaitable, Any, TYPE_CHECKING, TypeVar
 from concurrent.futures import ThreadPoolExecutor
 from threading import Thread, Lock
 from aiohttp.web_request import Request
 from aiohttp.web_response import StreamResponse
 
 from yarl import URL
-from . import typedef as ty
+from . import msg as ty
 from queue import Queue, Empty, Full
 
 from aiohttp import web
@@ -28,11 +28,13 @@ if TYPE_CHECKING:
 
 ROOT = os.path.dirname(__file__)
 
+T = TypeVar('T')
 
 class IPCTrack(VideoStreamTrack):
-	def __init__(self) -> None:
+	"Video track from IPC queue"
+	def __init__(self):
 		super().__init__()
-		self._queue: asyncio.Queue[ty.MsgFrame] = asyncio.Queue(40)
+		self._queue: asyncio.Queue[ty.MsgFrame] = asyncio.Queue(10)
 	
 	def provide_frame(self, frame: ty.MsgFrame):
 		try:
@@ -122,38 +124,60 @@ async def web_get_schema(req: web.Request):
 		text=json.dumps(schema),
 	)
 
+class ResponseDispatcher:
+	def __init__(self, queue: Queue[ty.WCmdAny]):
+		self._queue = queue
+		self.rsp_dispatch: dict[int, asyncio.Future] = dict()
+		"Dispatch CmdResponse's"
+		self._dispatch_lock = Lock()
+		self._executor = ThreadPoolExecutor(max_workers=1)
+
+		self._cmd_thread = Thread(
+			name='read_cmd',
+			target=self.run,
+			daemon=True,
+		)
+	
+	def insert(self, request_id: int, timeout: float, future: Optional[asyncio.Future]):
+		if not self._dispatch_lock.acquire(True, timeout=timeout):
+			raise TimeoutError()
+		try:
+			if future is None:
+				self.rsp_dispatch.pop(request_id, None)
+			else:
+				self.rsp_dispatch[request_id] = future
+		finally:
+			self._dispatch_lock.release()
+	
+	async def insert_async(self, request_id: int, timeout: float, future: Optional[asyncio.Future]):
+		loop = asyncio.get_event_loop()
+		return await loop.run_in_executor(self._executor, self.insert, request_id, timeout, future)
+	
+	def run(self):
+		while True:
+			cmd = self._queue.get()
+			if isinstance(cmd, ty.WCmdResponse):
+				if handler := self.rsp_dispatch.pop(cmd.request_id, None):
+					handler.set_result(cmd.payload)
+
 class WebServer:
 	def __init__(self, config: ty.WebConfig, msgq: Queue, cmdq: Queue, vidq: Queue[ty.MsgFrame]) -> None:
 		self.config = config
 		self.msgq = msgq
 		self.cmdq = cmdq
-		self.rsp_dispatch: dict[int, asyncio.Future] = dict()
-		"Dispatch CmdResponse's"
 		self.vidq = vidq
 		self.stream_info: dict[tuple[str, str], StreamInfo] = dict()
-		"Dispatch video frames"
-		self._dispatch_lock = Lock()
-		self._last_id = 0
-		self._executor = ThreadPoolExecutor(max_workers=1)
+		"Dispatch for video frames"
+		
 		self._loop = asyncio.get_event_loop()
-		self._cmd_thread = Thread(
-			name='read_cmd',
-			target=self.read_cmd,
-			daemon=True,
-		)
+		self.dispatch = ResponseDispatcher()
+
 		self._vid_thread = Thread(
 			name='read_vid',
 			target=self.read_frame,
 			daemon=True,
 		)
 		self.pcs: set[RTCPeerConnection] = set()
-	
-	def read_cmd(self):
-		while True:
-			cmd = self.cmdq.get()
-			if isinstance(cmd, ty.CmdResponse):
-				if handler := self.rsp_dispatch.pop(cmd.id, None):
-					handler.set_result(cmd.payload)
 	
 	def read_frame(self):
 		while True:
@@ -166,56 +190,44 @@ class WebServer:
 		loop = asyncio.get_event_loop()
 		return await loop.run_in_executor(self._executor, self.msgq.put, msg)
 	
-	async def await_response(self, msg, id: int, timeout: float = 1):
+	async def request(self, msg: ty.WMsgRequest[T], timeout: float = 1) -> T:
+		"Request data from parent"
 		loop = asyncio.get_event_loop()
-		future = asyncio.Future(loop=asyncio.get_event_loop())
-		if not await loop.run_in_executor(self._executor, lambda: self._dispatch_lock.acquire(timeout=timeout)):
-			raise TimeoutError()
-		try:
-			self.rsp_dispatch[id] = future
-		finally:
-			self._dispatch_lock.release()
+		future = asyncio.Future(loop=loop)
 
+		await self.dispatch.insert_async(msg.request_id, timeout, future)
 		try:
-			async with asyncio.timeout(1):
+			async with asyncio.timeout(timeout):
 				await self.send_msg(msg)
 				return await future
 		finally:
-			if await loop.run_in_executor(self._executor, lambda: self._dispatch_lock.acquire(timeout=timeout)):
-				try:
-					self.rsp_dispatch.pop(id, None)
-				finally:
-					self._dispatch_lock.release()
+			# Pop
+			await self.dispatch.insert_async(msg.request_id, timeout, None)
 	
-	def request(self, type: str, timeout: float = 1):
-		"Request data from parent"
-		id = self._last_id
-		self._last_id += 1
-		msg = ty.MsgRequest(
-			id=id,
-			target=type
-		)
-		return self.await_response(msg, id, timeout=timeout)
-
+	def get_config(self):
+		return self.request(ty.WMsgRequestConfig())
+	
 	async def web_get_config(self, request: web.Request):
 		try:
-			rsp: 'LocalConfig' = await self.request('config')
+			rsp = await self.get_config()
 		except asyncio.TimeoutError:
 			return web.Response(
 				status=500,
 				text='{"error": "timeout"}'
 			)
-		text = rsp.model_dump_json()
 		
 		return web.Response(
 			content_type='application/json',
 			text=rsp.model_dump_json(),
 		)
 
+	def get_streams(self):
+		"Get streams info"
+		return self.request(ty.WMsgRequestStreams())
+
 	async def web_list_streams(self, request: web.Request):
 		try:
-			rsp = await self.request('streams')
-			rsp = ty.Streams(rsp)
+			rsp = await self.get_streams()
 		except asyncio.TimeoutError:
 			return web.Response(
 				status=500,
@@ -236,7 +248,7 @@ class WebServer:
 			track=IPCTrack(),
 		)
 		self.stream_info[(worker, name)] = info
-		await self.send_msg(ty.MsgRequestStream(
+		await self.send_msg(ty.WMsgStreamCtl(
 			worker=worker,
 			name=name,
 			enable=True
@@ -252,8 +264,7 @@ class WebServer:
 
 		@pc.on("connectionstatechange")
 		async def on_connectionstatechange():
-			for _ in range(10):
-				print("Connection state is %s" % pc.connectionState)
+			print("Connection state is %s" % pc.connectionState)
 			if pc.connectionState == "failed":
 				await pc.close()
 				self.pcs.discard(pc)
@@ -271,9 +282,10 @@ class WebServer:
 
 		return web.Response(
 			content_type="application/json",
-			text=json.dumps(
-				{"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
-			),
+			text=json.dumps({
+				"sdp": pc.localDescription.sdp,
+				"type": pc.localDescription.type
+			}),
 		)
 	
 	async def on_shutdown(self, app):

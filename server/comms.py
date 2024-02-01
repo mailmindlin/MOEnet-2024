@@ -12,8 +12,7 @@ from util.log import child_logger
 from typedef.cfg import LocalConfig
 from typedef.geom import Pose3d, Transform3d
 from typedef import net
-from nt_util.dynamic import DynamicPublisher, DynamicSubscriber
-from nt_util.protobuf import ProtobufTopic
+from wpi_compat.nt import DynamicPublisher, DynamicSubscriber, ProtobufTopic
 
 if TYPE_CHECKING:
 	from .__main__ import MoeNet
@@ -52,6 +51,7 @@ class Comms:
 		self._pub_log    = DynamicPublisher(lambda: self.table.getStringTopic("client_log").publish(PubSubOptions(sendAll=True)))
 		self._pub_status = DynamicPublisher(lambda: self.table.getIntegerTopic("client_status").publish(PubSubOptions(sendAll=True)))
 		self._pub_config = DynamicPublisher(lambda: self.table.getStringTopic("client_config").publish(PubSubOptions(sendAll=True, periodic=1)))
+		"Publish config"
 		self._pub_telem_cpu  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("cpu").publish(PubSubOptions(periodic=0.5)))
 		self._pub_telem_ram  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("ram").publish(PubSubOptions(periodic=0.5)))
 		self._pub_tf_field_odom: DynamicPublisher[Pose3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d).publish(PubSubOptions(periodic=0.01)))
@@ -88,11 +88,9 @@ class Comms:
 		
 		if config.nt.host is not None:
 			self.log.info("Starting client with host %s (port=%d)", config.nt.host, config.nt.port)
-			# self.nt.startClient((config.nt.host, config.nt.port))
 			self.nt.setServer(config.nt.host, config.nt.port)
 		else:
 			self.log.info("Starting client for team %s (port=%d)", config.nt.team, config.nt.port)
-			# self.nt.startClientTeam(config.nt.team, config.nt.port)
 			self.nt.setServerTeam(config.nt.team, config.nt.port)
 		
 		self.nt.startClient4(nt_id)

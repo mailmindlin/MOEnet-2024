@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, overload, Optional, Literal
+from typing import TYPE_CHECKING, overload, Optional, Literal, Union
 from functools import total_ordering
 from datetime import timedelta
 import warnings
@@ -23,8 +23,8 @@ class Timestamp:
 	 - Has useful methods for WPIlib conversion
 	 - Handles multiple clocks
 	 - Stores time in integer nanoseconds (compatibility with Java)
-	
-	We"""
+	"""
+
 	@classmethod
 	def from_seconds(cls, seconds: float, clock: Optional['Clock'] = None) -> 'Timestamp':
 		return cls.from_nanos(int(seconds * 1_000_000_000 + 0.5), clock)
@@ -41,7 +41,16 @@ class Timestamp:
 	@staticmethod
 	def from_nanos(nanos: int, clock: Optional['Clock'] = None) -> 'Timestamp':
 		return Timestamp(nanos, clock)
+	
+	@classmethod
+	def wrap_wpi(cls, micros: Union['Timestamp', int], clock: Optional['Clock'] = None):
+		"Wrap a (possibly integer) argument"
+		if isinstance(micros, cls):
+			micros.assert_src(clock)
+			return micros
+		return cls.from_wpi(micros, clock=clock)
 
+	__slots__ = ('nanos', 'clock')
 	__match_args__ = ('nanos', 'clock')
 	
 	nanos: int
@@ -60,19 +69,24 @@ class Timestamp:
 		return self.nanos // 1_000
 
 	def __add__(self, other: timedelta) -> 'Timestamp':
+		"Apply offset"
 		if isinstance(other, timedelta):
 			return self.offset(other)
 		return NotImplemented
 
 	def split(self):
+		"Split into seconds and partial-nanoseconds"
 		return divmod(self.nanos, 1_000_000_000)
 	
 	@overload
-	def __sub__(self, other: timedelta) -> 'Timestamp': ...
+	def __sub__(self, /, other: timedelta) -> 'Timestamp':
+		"Apply negative offset"
+		...
+	
 	@overload
-	def __sub__(self, other: 'Timestamp') -> timedelta:
-		"Compute the difference between "
-	def __sub__(self, other):
+	def __sub__(self, /, other: 'Timestamp') -> timedelta:
+		"Compute the difference between two timestamps"
+	def __sub__(self, /, other):
 		if isinstance(other, timedelta):
 			return self.offset(-other)
 		if isinstance(other, Timestamp):
@@ -82,6 +96,7 @@ class Timestamp:
 		return NotImplemented
 
 	def assert_src(self, clock: Optional['Clock']):
+		"Assert source clock"
 		pass
 	
 	def offset(self, offset: timedelta) -> 'Timestamp':

@@ -54,7 +54,7 @@ class OffsetClock(Clock, abc.ABC):
 		pass
 
 	def now_ns(self) -> int:
-		return self.base.now_ns() + self.get_offset()
+		return self.base.now_ns() + self.get_offset_ns()
 
 class FixedOffsetClock(OffsetClock):
 	def __init__(self, base: Clock, offset: Union[int, timedelta]) -> None:
@@ -65,7 +65,7 @@ class FixedOffsetClock(OffsetClock):
 	def constant_offset(self):
 		return True
 	
-	def get_offset(self) -> int:
+	def get_offset_ns(self) -> int:
 		return self.offset
 
 	def __hash__(self) -> int:

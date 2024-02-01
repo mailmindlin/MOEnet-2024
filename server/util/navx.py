@@ -17,7 +17,7 @@ class NavXClock(OffsetClock):
 		self.navx.register_callback(update_offset)
 		# TODO: NavX in subprocess?
 	
-	def get_offset(self) -> int:
+	def get_offset_ns(self) -> int:
 		with self._offset_lock:
 			offset_ms = self._offset
 		# Offset is in ms

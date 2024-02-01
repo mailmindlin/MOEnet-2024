@@ -359,7 +359,7 @@ class OffsetClockMapper(TimeMapper):
 		return self.clock_b.constant_offset
 	
 	def get_offset(self) -> int:
-		return self.clock_b.get_offset()
+		return self.clock_b.get_offset_ns()
 	
 	def __hash__(self):
 		return hash(self.clock_b)

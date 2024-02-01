@@ -1,9 +1,7 @@
 from typing import TYPE_CHECKING, TypeVar, Optional
 import logging
-from logging import LogRecord
 
 from ntcore import NetworkTableInstance, PubSubOptions
-from wpimath.geometry import Pose3d, Transform3d
 try:
 	import psutil
 except ImportError:
@@ -11,7 +9,7 @@ except ImportError:
 
 from util.timestamp import Timestamp
 from typedef.cfg import LocalConfig
-from typedef.geom import Pose3d
+from typedef.geom import Pose3d, Transform3d
 from typedef import net
 from nt_util.dynamic import DynamicPublisher, DynamicSubscriber
 from nt_util.protobuf import ProtobufTopic
@@ -28,7 +26,7 @@ class LogHandler(logging.Handler):
 		super().__init__()
 		self.comms = comms
 	
-	def emit(self, record: LogRecord) -> None:
+	def emit(self, record: logging.LogRecord) -> None:
 		try:
 			msg = self.format(record)
 			if record.levelno >= logging.ERROR:

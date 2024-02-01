@@ -8,7 +8,7 @@ from wpiutil.log import DataLog
 
 from typedef.worker import MsgPose, MsgDetections
 from typedef.cfg import EstimatorConfig
-from server.wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
+from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
 from typedef.geom import Transform3d, Translation3d, Rotation3d, Pose3d
 from typedef import net
 from util.log import child_logger

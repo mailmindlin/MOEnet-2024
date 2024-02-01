@@ -15,7 +15,6 @@ from typedef.worker import MsgPose, MsgFrame, MsgDetections, MsgDetection, Worke
 if TYPE_CHECKING:
     # import spectacularAI.depthai.Pipeline as SaiPipeline
     from typedef.sai_types import VioSession, MapperOutput, Pipeline as SaiPipeline
-    from server.typedef.geom import Pose3d
 
 T = TypeVar('T')
 class XLinkOut(dai.node.XLinkOut, Generic[T]):

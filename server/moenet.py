@@ -40,7 +40,7 @@ class MoeNet:
 		# Set up DataLog
 		if self.config.datalog.enabled:
 			from wpiutil.log import DataLog, IntegerLogEntry, StringLogEntry
-			from nt_util.log import PyToNtHandler
+			from wpi_compat.datalog import PyToNtHandler
 			folder = Path(config_path).parent.resolve() / self.config.datalog.folder
 			self.log.info("DataLog write to folder %s", folder)
 			self.datalog = DataLog(dir=str(folder))

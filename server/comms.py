@@ -1,4 +1,4 @@
-from typing import TypeVar, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, Optional
 import logging
 from logging import LogRecord
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 	from .__main__ import MoeNet
 
 
-P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
+P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 T = TypeVar("T")
 
 class LogHandler(logging.Handler):

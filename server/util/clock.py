@@ -1,8 +1,12 @@
-from typing import Union
+from typing import Union, TYPE_CHECKING
 import time, abc
 from datetime import timedelta
 from .timestamp import Timestamp
 from .decorators import Singleton
+
+if TYPE_CHECKING:
+	from .timemap import TimeMapper
+
 
 class Clock(abc.ABC):
 	@abc.abstractmethod
@@ -16,10 +20,14 @@ class Clock(abc.ABC):
 
 	__call__ = now
 	
-	def __add__(self, offset: timedelta) -> 'Timestamp':
+	def __add__(self, /, offset: timedelta) -> 'Clock':
+		"Apply offset to clock"
 		if isinstance(offset, timedelta):
-			return self.from_offset(offset)
+			return self.with_offset(offset)
 		return NotImplemented
+
+	def with_offset(self, offset: timedelta) -> 'Clock':
+		return FixedOffsetClock(self, offset)
 
 	def from_offset(self, offset: timedelta) -> 'Timestamp':
 		# Round correctly
@@ -29,13 +37,13 @@ class Clock(abc.ABC):
 		pass
 
 class MonoClock(Clock, Singleton):
-	"Monotonic clock"
+	"Monotonic clock, wraps `time.monotonic_ns()`"
 	def now_ns(self) -> int:
 		return time.monotonic_ns()
 
 
 class WallClock(Clock, Singleton):
-	"Wall clock"
+	"Wall clock, wraps `time.time_ns()`"
 	def now_ns(self) -> int:
 		return time.time_ns()
 
@@ -47,16 +55,23 @@ class OffsetClock(Clock, abc.ABC):
 
 	@property
 	def constant_offset(self):
+		"Is the offset relative to base constant? Used for optimizations."
 		return False
 	
 	@abc.abstractmethod
-	def get_offset(self) -> int:
+	def get_offset_ns(self) -> int:
+		"Get offset, in nanoseconds relative to `base`"
 		pass
+
+	def get_offset(self) -> timedelta:
+		"Get offset relative to `base`"
+		return timedelta(microseconds=self.get_offset_ns()/1000)
 
 	def now_ns(self) -> int:
 		return self.base.now_ns() + self.get_offset_ns()
 
 class FixedOffsetClock(OffsetClock):
+	"A clock with a fixed offset"
 	def __init__(self, base: Clock, offset: Union[int, timedelta]) -> None:
 		super().__init__(base)
 		self.offset = int(offset.total_seconds() * 1e9) if isinstance(offset, timedelta) else offset
@@ -76,13 +91,3 @@ class FixedOffsetClock(OffsetClock):
 	
 	def __repr__(self):
 		return f'{type(self).__name__}({self.base}, {self.offset})'
-
-
-class WpiClock(Clock, Singleton):
-	def __init__(self):
-		super().__init__()
-		from ntcore import _now
-		self._now = _now
-	def now(self) -> int:
-		# wpilib::Now() returns microseconds
-		return self._now() * 1000

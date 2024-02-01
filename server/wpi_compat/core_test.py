@@ -8,7 +8,6 @@ class NtTestCase(TestCase):
         self.client = None
 
     def setUp(self) -> None:
-
         if self.server is None:
             self.server = NetworkTableInstance.create()
             self.server.startLocal()

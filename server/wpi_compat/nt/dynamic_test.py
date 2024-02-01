@@ -1,4 +1,4 @@
-from .core_test import NtTestCase
+from ..core_test import NtTestCase
 from .dynamic import DynamicSubscriber, DynamicPublisher
 
 class DpubTest(NtTestCase):

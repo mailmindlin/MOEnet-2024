@@ -1,5 +1,5 @@
 from typing import Generic, TypeVar, Callable, Optional, Union, Tuple, List, overload
-from .generic import GenericPublisher, GenericSubscriber, GenericTsValue
+from .typedef import GenericPublisher, GenericSubscriber, GenericTsValue
 
 
 P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])

@@ -1,8 +1,8 @@
 import time
-from .core_test import NtTestCase
+from ..core_test import NtTestCase
 from .protobuf import ProtobufPublisher, ProtobufSubscriber, ProtobufTopic
 try:
-	from ..typedef.net import Timestamp
+	from ...typedef.net import Timestamp
 except ImportError:
 	import sys, os
 	sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'typedef'))

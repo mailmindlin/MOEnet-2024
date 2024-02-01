@@ -2,34 +2,11 @@ from typing import TYPE_CHECKING, Generic, Type, TypeVar, Union, Callable, Itera
 from ntcore import NetworkTableInstance, NetworkTable, PubSubOptions, RawTopic, RawPublisher, RawSubscriber
 from dataclasses import dataclass
 
-from .generic import GenericPublisher, GenericSubscriber, GenericEntry, GenericTsValue
-
-if TYPE_CHECKING:
-	from google.protobuf.pyext.cpp_message import GeneratedProtocolMessageType
-	from google.protobuf.descriptor import FileDescriptor
+from .typedef import GenericSubscriber, GenericEntry, GenericTsValue
+from .. import protobuf
 
 T = TypeVar("T")
 R = TypeVar("R")
-
-def _type_str(proto: 'GeneratedProtocolMessageType') -> str:
-	if name := getattr(proto, 'type_string', None):
-		return name
-	return 'proto:' + proto.DESCRIPTOR.name
-
-def _iter_descriptor(file: 'FileDescriptor', exists: Callable[[str], bool]) -> Iterable[Tuple[str, bytes]]:
-	"Iterate (recursively) through FileDescriptor schemas"
-	name = "proto:" + file.name #TODO: is this file.package + file.name?
-	if exists(name):
-		return
-	for dep in file.dependencies:
-		yield from _iter_descriptor(dep, exists)
-	yield (name, file.serialized_pb)
-	
-def add_schema(nt: NetworkTableInstance, proto: 'GeneratedProtocolMessageType'):
-	"Register a protobuf's schema with NetworkTables"
-	
-	for (typeString, schema) in _iter_descriptor(proto.DESCRIPTOR.file, nt.hasSchema):
-		nt.addSchema(typeString, "proto:FileDescriptorProto", schema)
 
 
 class ProtobufPublisher(Generic[T]):
@@ -133,15 +110,15 @@ class ProtobufTopic(Generic[T]):
 	def getEntryEx(self, typeString: str, defaultValue: T, options: PubSubOptions = _default_pso) -> GenericEntry[T]: 
 		...
 	def publish(self, options: PubSubOptions = _default_pso):
-		add_schema(self._topic.getInstance(), self._proto)
+		protobuf.add_schema(self._topic.getInstance(), self._proto)
 		return ProtobufPublisher(
 			self._proto,
-			self._topic.publish(_type_str(self._proto), options)
+			self._topic.publish(protobuf.type_string(self._proto), options)
 		)
 	def subscribe(self, defaultValue: T, options: PubSubOptions = _default_pso):
 		return ProtobufSubscriber(
 			self._proto,
-			self._topic.subscribe(_type_str(self._proto), bytes(), options),
+			self._topic.subscribe(protobuf.type_string(self._proto), bytes(), options),
 			defaultValue,
 		)
 	def subscribeEx(self, typeString: str, defaultValue: T, options: PubSubOptions = _default_pso) -> GenericSubscriber[T]: 

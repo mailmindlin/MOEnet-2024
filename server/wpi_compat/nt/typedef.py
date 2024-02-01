@@ -1,3 +1,6 @@
+"""
+Useful protocols for dealing with NetworkTables types in a generic way
+"""
 from typing import Protocol, TypeVar, List, Any, overload
 from ntcore import PubSubOptions
 

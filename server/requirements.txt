@@ -1,17 +1,16 @@
 depthai
+# spectacularAI
 numpy
-pydantic_core==2.14.6
-pydantic==2.5.3
-pynetworktables==2021.0.0
-pynetworktables2js==2021.0.1
-pyntcore
-pyserial
-typing_extensions==4.7.1
-spectacularAI
+opencv-python
+pydantic>=2.5.3
+pydantic_core>=2.14.6
+typing_extensions>=4.7.1
 matplotlib
+
+# Robot comms
 robotpy
+robotpy-navx
 protobuf
 # For video streaming
-opencv-python
 aiohttp
 aiortc

@@ -8,6 +8,7 @@ except ImportError:
 	psutil = None
 
 from util.timestamp import Timestamp
+from util.log import child_logger
 from typedef.cfg import LocalConfig
 from typedef.geom import Pose3d, Transform3d
 from typedef import net
@@ -40,10 +41,10 @@ class LogHandler(logging.Handler):
 
 
 class Comms:
-	def __init__(self, moenet: 'MoeNet', config: LocalConfig):
+	def __init__(self, moenet: 'MoeNet', config: LocalConfig, log: Optional[logging.Logger] = None):
 		self.moenet = moenet
 		self.config = config
-		self.log = logging.getLogger('comms')
+		self.log = child_logger('comms', log)
 		self.ping_id = 0
 
 		self._pub_ping   = DynamicPublisher(lambda: self.table.getIntegerTopic("client_ping").publish(PubSubOptions()))

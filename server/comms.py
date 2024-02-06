@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, TypeVar, Optional
 import logging
+from dataclasses import dataclass
 
 from ntcore import NetworkTableInstance, PubSubOptions
 try:
@@ -13,6 +14,7 @@ from typedef.cfg import LocalConfig
 from typedef.geom import Pose3d, Transform3d
 from typedef import net
 from wpi_compat.nt import DynamicPublisher, DynamicSubscriber, ProtobufTopic
+from wpiutil import wpistruct
 
 if TYPE_CHECKING:
 	from .__main__ import MoeNet
@@ -20,6 +22,15 @@ if TYPE_CHECKING:
 
 P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 T = TypeVar("T")
+
+
+@wpistruct.make_wpistruct(name="ObjectDetection")
+@dataclass
+class SimpleObjectDetection:
+	classsification: wpistruct.dataclass.int32
+	confidence: wpistruct.dataclass.double
+	objectPose: Pose3d
+
 
 class LogHandler(logging.Handler):
 	def __init__(self, comms: 'Comms') -> None:
@@ -46,6 +57,8 @@ class Comms:
 		self.log = child_logger('comms', log)
 		self.ping_id = 0
 
+		self.labels = list()
+
 		self._pub_ping   = DynamicPublisher(lambda: self.table.getIntegerTopic("client_ping").publish(PubSubOptions()))
 		self._pub_error  = DynamicPublisher(lambda: self.table.getStringTopic("client_error").publish(PubSubOptions(sendAll=True)))
 		self._pub_log    = DynamicPublisher(lambda: self.table.getStringTopic("client_log").publish(PubSubOptions(sendAll=True)))
@@ -58,7 +71,8 @@ class Comms:
 		self._pub_tf_field_robot: DynamicPublisher[Pose3d] = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d).publish(PubSubOptions(periodic=0.01)))
 		self._pub_tf_odom_robot: DynamicPublisher[Transform3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d).publish(PubSubOptions(periodic=0.1)))
 
-		self._pub_detections = DynamicPublisher(lambda: ProtobufTopic.wrap(self.table, "client_detections", net.ObjectDetections).publish(PubSubOptions(periodic=0.05)))
+		self._pub_detections_full = DynamicPublisher(lambda: ProtobufTopic.wrap(self.table, "client_detections_full", net.ObjectDetections).publish(PubSubOptions(periodic=0.05)))
+		self._pub_detections = DynamicPublisher(lambda: self.nt.getStructArrayTopic("client_detections", SimpleObjectDetection).publish(PubSubOptions(periodic=0.05)))
 
 		self._sub_tf_field_odom: DynamicSubscriber[Pose3d]  = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
 		self._sub_tf_field_robot: DynamicSubscriber[Pose3d] = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
@@ -123,6 +137,7 @@ class Comms:
 		self._pub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'pub'
 		self._pub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'pub'
 		self._pub_detections.enabled = ntc.publishDetections
+		self._pub_detections_full.enabled = ntc.publishDetections
 
 		self._sub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'sub'
 		self._sub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'sub'

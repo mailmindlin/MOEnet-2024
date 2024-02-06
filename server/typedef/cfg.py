@@ -1,6 +1,6 @@
 "Type definitions for parsing the configuration"
 
-from typing import TYPE_CHECKING, List, Optional, Literal, Union, Tuple
+from typing import TYPE_CHECKING, Optional, Literal, Union, Annotated
 from pathlib import Path
 from pydantic import BaseModel, Field, RootModel, model_validator
 from ntcore import NetworkTableInstance

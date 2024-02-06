@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List, Sequence, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Sequence, Optional, TypeVar, Union
 from abc import ABC, abstractmethod
 from functools import cached_property
 import operator, contextvars
@@ -226,7 +226,7 @@ class InverseTimeMapper(TimeMapper):
 class ChainedTimeMapper(TimeMapper):
 	"Chain a sequence of [TimeMapper]s"
 
-	def __init__(self, steps: List[TimeMapper]):
+	def __init__(self, steps: list[TimeMapper]):
 		if len(steps) == 0:
 			raise ValueError('No intermediate steps')
 		super().__init__(steps[0].clock_a, steps[-1].clock_b)

@@ -10,7 +10,7 @@
 # In addition, the navX enable stream command has been extended with a new
 # Stream type, in order to enable AHRS Updates.
 
-from typing import List, Optional, Union
+from typing import Optional
 from enum import IntEnum
 from dataclasses import dataclass
 from imu_protocol import (
@@ -510,7 +510,7 @@ class BoardID:
     fw_ver_major: int
     fw_ver_minor: int
     fw_revision: int
-    unique_id: List[int]
+    unique_id: list[int]
 
     def encode(self, protocol_buffer: bytearray) -> int:
         # Header

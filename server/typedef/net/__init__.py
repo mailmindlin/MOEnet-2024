@@ -84,7 +84,7 @@ class PositionEstimate:
 
 # Add type hints for ProtoBuf autogens
 if TYPE_CHECKING:
-	from typing import Optional, List
+	from typing import Optional
 	from dataclasses import dataclass
 	@dataclass
 	class Timestamp:
@@ -107,7 +107,7 @@ if TYPE_CHECKING:
 
 	@dataclass
 	class ObjectDetections:
-		labels: Optional[List[str]] = None
-		detections: Optional[List[ObjectDetection]] = None
+		labels: Optional[list[str]] = None
+		detections: Optional[list[ObjectDetection]] = None
 else:
 	from .moenet_pb2 import Timestamp, Translation3d, ObjectDetection, ObjectDetections

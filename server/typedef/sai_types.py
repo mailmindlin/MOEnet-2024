@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, List, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     import numpy as np
     from depthai.node import MonoCamera, StereoDepth, ColorCamera
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     class VioOutput:
         angularVelocity: Vector3d
         pose: Pose
-        poseTrail: List[Pose]
+        poseTrail: list[Pose]
         positionCovariance: np.ndarray
         tag: int
         velocity: Vector3d
@@ -50,9 +50,9 @@ if TYPE_CHECKING:
             pass
         def getOutput(self) -> VioOutput:
             pass
-        def addAbsolutePose(self, /, arg0: Pose, arg1: List[List[float[3]][3]], arg2: float) -> None:
+        def addAbsolutePose(self, /, arg0: Pose, arg1: list[list[float[3]][3]], arg2: float) -> None:
             "Add external pose information.VIO will correct its estimates to match the pose."
-        def addGnss(self, /, arg0: float, arg1: WgsCoordinates, arg2: List[List[float[3]][3]]) -> None:
+        def addGnss(self, /, arg0: float, arg1: WgsCoordinates, arg2: list[list[float[3]][3]]) -> None:
             "Add GNSS input (for GNSS-VIO fusion)"
 
         def addTrigger(self, /, arg0: float, arg1: int) -> None:
@@ -90,12 +90,12 @@ if TYPE_CHECKING:
         pointCloud: Any
     
     class Map:
-        keyFrames: Dict[int, KeyFrame]
+        keyFrames: dict[int, KeyFrame]
     
     class MapperOutput:
         finalMap: bool
         map: Map
-        updatedKeyFrames: List[int]
+        updatedKeyFrames: list[int]
     
     class Pipeline:
         monoLeft: MonoCamera

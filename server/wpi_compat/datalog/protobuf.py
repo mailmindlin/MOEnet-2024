@@ -1,4 +1,4 @@
-from typing import TypeVar, Type, TYPE_CHECKING, List
+from typing import TypeVar, Type, TYPE_CHECKING
 from wpiutil.log import DataLog
 from .. import protobuf
 from .wrappers import WrappedLogEntry

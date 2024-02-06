@@ -1,10 +1,10 @@
 """
 Useful protocols for dealing with NetworkTables types in a generic way
 """
-from typing import Protocol, TypeVar, List, Any, overload
+from typing import Protocol, TypeVar, Any, overload
 from ntcore import PubSubOptions
 
-P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
+P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 
 class GenericPublisher(Protocol[P]):
 	"Interface for NetworkTables' XXXPublisher"
@@ -47,7 +47,7 @@ class GenericSubscriber(Protocol[P]):
 	@overload
 	def getAtomic(self, defaultValue: P) -> GenericTsValue[P]: ...
 	# def getTopic(self) -> 'ProtoTopic[P]': ...
-	def readQueue(self) -> List[Any]: ...
+	def readQueue(self) -> list[Any]: ...
 
 class GenericEntry(GenericSubscriber[P], GenericPublisher[P], Protocol[P]):
 	# def __enter__(self) -> 'ProtoEntry[P]': ...

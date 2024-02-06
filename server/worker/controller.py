@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Union, Union, cast
-import logging, os.path, time
+from typing import TYPE_CHECKING, Optional, Union, Union
+import logging, os.path
 from multiprocessing import Process, get_context
 from queue import Empty
 from pathlib import Path
@@ -50,9 +50,9 @@ class WorkerConfigResolver:
 		self.config = config
 		self.config_path = config_path
 		self.pipelines: dict[str, PipelineDefinition] = dict()
-		self.at_cache: Dict[str, ResolvedApriltag] = dict()
+		self.at_cache: dict[str, ResolvedApriltag] = dict()
 		"Cache for AprilTag config resolutions"
-		self.nn_cache: Dict[str, worker.ObjectDetectionConfig] = dict()
+		self.nn_cache: dict[str, worker.ObjectDetectionConfig] = dict()
 		"Cache object detection resolutions"
 		self._tempdir = None
 

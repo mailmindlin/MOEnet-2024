@@ -1,7 +1,6 @@
-from typing import TypeVar, Generic, Type, TYPE_CHECKING, List
+from typing import TypeVar, Generic
 from wpiutil.log import DataLog, RawLogEntry
 from abc import ABC, abstractmethod
-from .. import struct
 
 T = TypeVar('T')
 

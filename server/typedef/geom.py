@@ -1,9 +1,10 @@
 """
 Add compatibility with wpimath.geometry types
 """
-from typing import TYPE_CHECKING, Type, TypeVar, Any, List, Union, Dict, Optional, Generic, Callable
+from typing import TYPE_CHECKING, Type, TypeVar, Any, Union, Optional, Generic, Callable
 from struct import Struct
 from dataclasses import dataclass
+
 from pydantic_core import core_schema
 from pydantic import (
 	GetCoreSchemaHandler,
@@ -73,7 +74,7 @@ class FieldInfo(Generic[T, F]):
 		return res
 
 
-def _lookup_fields(fields: List[FieldInfo[T, Any]], value: T):
+def _lookup_fields(fields: list[FieldInfo[T, Any]], value: T):
 	"Get named fields as a list"
 	for field in fields:
 		yield field.get(value)
@@ -81,7 +82,7 @@ def _lookup_fields(fields: List[FieldInfo[T, Any]], value: T):
 
 
 # ===== Structs =====
-def _build_sd(t: Type[T], s: Struct, schema: str, fields: List[FieldInfo[T, Any]]):
+def _build_sd(t: Type[T], s: Struct, schema: str, fields: list[FieldInfo[T, Any]]):
 	"Build StructDescriptor. Called by fix_struct (saves memory by preserving a smaller scope)"
 	name = f'struct:{t.__name__}'
 	
@@ -111,7 +112,7 @@ def _build_sd(t: Type[T], s: Struct, schema: str, fields: List[FieldInfo[T, Any]
 		None
 	)
 
-def fix_struct(t: Type[T], fields: List[FieldInfo]):
+def fix_struct(t: Type[T], fields: list[FieldInfo]):
 	"Fixes types missing WPIStruct"
 	fmts = []
 	schema = []
@@ -156,7 +157,7 @@ def _build_pickle_struct(t: Type[T], sd: StructDescriptor):
 		ser = sd.pack(self)
 		return (_pickle_unpack_struct, (idx, ser))
 	t.__reduce__ = _reduce
-FIELDORDER_LUT: List[Type] = []
+FIELDORDER_LUT: list[Type] = []
 def _dict_unpack_struct(idx: int, *args):
 	type = FIELDORDER_LUT[idx]
 	return type(*args)
@@ -173,9 +174,9 @@ class CustomSchemaInfo:
 	schema: Any
 	serialize_json: Callable[[Any], Any]
 	parse_json: Callable[[Any], Any]
-CUSTOM_SCHEMA: Dict[str, CustomSchemaInfo] = dict()
+CUSTOM_SCHEMA: dict[str, CustomSchemaInfo] = dict()
 
-def make_pydantic_validator(t: Type[T], fields: List[FieldInfo]):
+def make_pydantic_validator(t: Type[T], fields: list[FieldInfo]):
 	tdfs = dict()
 	for field in fields:
 		base = SCHEMA_LUT.get(field.type, None) or CUSTOM_SCHEMA[field.type].schema
@@ -241,7 +242,7 @@ def make_pydantic_validator(t: Type[T], fields: List[FieldInfo]):
 	t.__get_pydantic_core_schema__ = __get_pydantic_core_schema__
 	t.__get_pydantic_json_schema__ = __get_pydantic_json_schema__
 
-def fix_ser(t: Type[T], fields: Dict[str, Union[FieldDesc, Type]], *, struct: bool = False, pickle: bool = True, json: bool = True):
+def fix_ser(t: Type[T], fields: dict[str, Union[FieldDesc, Type]], *, struct: bool = False, pickle: bool = True, json: bool = True):
 	fields = [
 		FieldInfo.wrap(fname, t, fval)
 		for fname, fval in fields.items()

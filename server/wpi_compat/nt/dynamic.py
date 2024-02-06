@@ -1,8 +1,8 @@
-from typing import Generic, TypeVar, Callable, Optional, Union, Tuple, List, overload
 from .typedef import GenericPublisher, GenericSubscriber, GenericTsValue
+from typing import overload, Generic, TypeVar, Callable, Optional, Union, Tuple, Type
 
 
-P = TypeVar("P", bool, int, float, str, List[bool], List[int], List[float], List[str])
+P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 T = TypeVar("T")
 
 

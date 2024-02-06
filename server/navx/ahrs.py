@@ -1,4 +1,4 @@
-from typing import Callable, List
+from typing import Callable
 from enum import IntEnum
 from dataclasses import dataclass
 from trackers import OffsetTracker, InertialDataIntegrator, ContinuousAngleTracker
@@ -319,7 +319,7 @@ class AHRS:
 		self._last_sensor_timestamp = 0
 		self._last_update_time = 0
 
-		self._callbacks: List[NavXCallback] = list()
+		self._callbacks: list[NavXCallback] = list()
 
 		processed_data = (data_type == SerialDataType.PROCESSED_DATA)
 		self._io: IIOProvider = SerialIO(serial_port_id, update_rate_hz, processed_data, self._ahrs_internal, self._ahrs_internal)

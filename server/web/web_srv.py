@@ -17,7 +17,11 @@ T = TypeVar('T')
 class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny]):
     "Cross-process comms to WebServer"
 
-    target = app_main
+    @staticmethod
+    def target(config, msgq, cmdq, vidq):
+        # Lazy import
+        from .app import app_main
+        app_main(config, msgq, cmdq, vidq)
 
     def __init__(self, moenet: 'MoeNet') -> None:
         self.moenet = moenet
@@ -79,10 +83,14 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny]):
         streams = []
         if workers := self.moenet.camera_workers:
             for worker in workers:
-                if pipeline := worker.config.pipeline:
-                    if pipeline.debugLeft: streams.append(ty.StreamInfo(worker=worker.name, name='left'))
-                    if pipeline.debugRight: streams.append(ty.StreamInfo(worker=worker.name, name='right'))
-                    if pipeline.debugRgb: streams.append(ty.StreamInfo(worker=worker.name, name='rgb'))
+                pipeline = worker.config.pipeline
+                if not pipeline: continue
+
+                for stage in pipeline:
+                    if stage.stage != 'web': continue
+                    if not stage.enabled: continue
+
+                    streams.append(ty.StreamInfo(worker=worker.name, name=stage.target))
         # Append 'fake' stream
         streams.append(ty.StreamInfo(worker='fake', name='fake'))
 

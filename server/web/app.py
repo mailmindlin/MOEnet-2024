@@ -153,6 +153,9 @@ class ResponseDispatcher:
 		loop = asyncio.get_event_loop()
 		return await loop.run_in_executor(self._executor, self.insert, request_id, timeout, future)
 	
+	def start(self):
+		self._cmd_thread.start()
+	
 	def run(self):
 		while True:
 			cmd = self._queue.get()
@@ -170,7 +173,7 @@ class WebServer:
 		"Dispatch for video frames"
 		
 		self._loop = asyncio.get_event_loop()
-		self.dispatch = ResponseDispatcher()
+		self.dispatch = ResponseDispatcher(self.cmdq)
 
 		self._vid_thread = Thread(
 			name='read_vid',
@@ -186,12 +189,32 @@ class WebServer:
 			if handler := self.stream_info[(frame.worker, frame.stream)]:
 				self._loop.run_until_complete(handler.provide_frame(frame))
 	
+	async def web_enumerate_cameras(self, req: web.Request):
+		import depthai as dai
+
+		result = []
+		for device in dai.Device.getAllConnectedDevices():
+			result.append({
+				'name': device.name,
+				'mxid': device.mxid,
+				'state': device.state.name,
+				'status': device.status.name,
+				'platform': device.platform.name,
+				'protocol': device.protocol.name
+			})
+		
+		return web.Response(
+			content_type="application/json",
+			text=json.dumps(result)
+		)
+		
 	async def send_msg(self, msg):
 		loop = asyncio.get_event_loop()
-		return await loop.run_in_executor(self._executor, self.msgq.put, msg)
+		return await loop.run_in_executor(self.dispatch._executor, self.msgq.put, msg)
 	
 	async def request(self, msg: ty.WMsgRequest[T], timeout: float = 1) -> T:
 		"Request data from parent"
+		# print("[web] get msg", repr(msg))
 		loop = asyncio.get_event_loop()
 		future = asyncio.Future(loop=loop)
 
@@ -313,8 +336,9 @@ class WebServer:
 			web.get('/api/schema', web_get_schema),
 			web.get('/api/config', self.web_get_config),
 			web.get('/api/streams', self.web_list_streams),
+			web.get('/api/cameras', self.web_enumerate_cameras),
 		])
-		self._cmd_thread.start()
+		self.dispatch.start()
 		self._vid_thread.start()
 		web.run_app(app, host=self.config.host, port=self.config.port, ssl_context=ssl_context)
 

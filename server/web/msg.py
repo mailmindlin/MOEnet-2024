@@ -4,7 +4,7 @@ from typing import Literal, Any, Generic, TypeVar, Union
 from pydantic import BaseModel, Field, RootModel
 
 from typedef.cfg import WebConfig, LocalConfig, RemoteConfig
-from typedef.worker import MsgFrame
+from worker.msg import MsgFrame
 
 R = TypeVar('R')
 "Response type"

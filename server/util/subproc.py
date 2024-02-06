@@ -38,6 +38,7 @@ class Subprocess(Generic[M, C], ABC):
 		self.cmd_queue = self._make_queue(cmd_queue)
 		self.msg_queue = self._make_queue(msg_queue)
 		self._handlers: list[tuple[Type[Any], Callable[[Any], None]]] = []
+		self.proc = None
 	
 	def _make_queue(self, arg: Union['Queue[T]', int, None]) -> 'Queue[T]':
 		if arg is None:

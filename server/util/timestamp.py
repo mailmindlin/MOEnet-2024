@@ -26,6 +26,10 @@ class Timestamp:
 	"""
 
 	@classmethod
+	def invalid(cls, clock: Optional['Clock'] = None) -> 'Timestamp':
+		return cls(0, clock=clock)
+
+	@classmethod
 	def from_seconds(cls, seconds: float, clock: Optional['Clock'] = None) -> 'Timestamp':
 		return cls.from_nanos(int(seconds * 1_000_000_000 + 0.5), clock)
 	

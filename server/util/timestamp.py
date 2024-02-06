@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, overload, Optional, Literal, Union
+from typing import TYPE_CHECKING, overload, Optional, Literal, Union, TypeVar, Generic
 from functools import total_ordering
 from datetime import timedelta
 import warnings
@@ -151,3 +151,10 @@ class Timestamp:
 	def __float__(self):
 		#TODO: is this ambiguous
 		return self.as_seconds()
+
+
+T = TypeVar('T')
+class Stamped(Generic[T]):
+	def __init__(self, value: T, stamp: Timestamp):
+		self.stamp = stamp
+		self.value = value

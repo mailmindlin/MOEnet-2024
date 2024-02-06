@@ -1,111 +1,115 @@
 {
 	"$defs": {
-		"AprilTagFieldConfig": {
-			"description": "Inline AprilTag config",
+		"ApriltagStage": {
 			"properties": {
-				"format": {
-					"const": "inline",
-					"title": "Format"
+				"stage": {
+					"const": "apriltag",
+					"title": "Stage"
 				},
-				"field": {
-					"$ref": "#/$defs/FieldLayout"
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
 				},
-				"tags": {
-					"$ref": "#/$defs/RootModel_List_AprilTagInfo__"
-				}
-			},
-			"required": [
-				"format",
-				"field",
-				"tags"
-			],
-			"title": "AprilTagFieldConfig",
-			"type": "object"
-		},
-		"AprilTagFieldFRCRef": {
-			"description": "Reference to an AprilTag JSON file (in WPIlib format)",
-			"properties": {
-				"format": {
-					"const": "frc",
-					"title": "Format"
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
 				},
-				"path": {
-					"description": "Path to AprilTag configuration",
-					"format": "path",
-					"title": "Path",
-					"type": "string"
-				},
-				"tagFamily": {
-					"description": "AprilTag family",
+				"runtime": {
+					"default": "host",
 					"enum": [
-						"tag16h5",
-						"tag25h9",
-						"tag36h11"
+						"device",
+						"host"
 					],
-					"title": "Tagfamily",
+					"title": "Runtime",
 					"type": "string"
 				},
-				"tagSize": {
-					"description": "AprilTag side length, in meters",
-					"title": "Tagsize",
-					"type": "number"
-				}
-			},
-			"required": [
-				"format",
-				"path",
-				"tagFamily",
-				"tagSize"
-			],
-			"title": "AprilTagFieldFRCRef",
-			"type": "object"
-		},
-		"AprilTagFieldSAIRef": {
-			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
-			"properties": {
-				"format": {
-					"const": "sai",
-					"title": "Format"
-				},
-				"path": {
-					"description": "Path to AprilTag configuration",
-					"format": "path",
-					"title": "Path",
+				"camera": {
+					"default": "left",
+					"enum": [
+						"left",
+						"right",
+						"rgb"
+					],
+					"title": "Camera",
 					"type": "string"
-				}
-			},
-			"required": [
-				"format",
-				"path"
-			],
-			"title": "AprilTagFieldSAIRef",
-			"type": "object"
-		},
-		"AprilTagInfo": {
-			"properties": {
-				"id": {
-					"title": "Id",
+				},
+				"apriltags": {
+					"anyOf": [
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/SaiAprilTagFieldRef",
+									"wpi": "#/$defs/WpiAprilTagFieldRef"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/WpiAprilTagFieldRef"
+								},
+								{
+									"$ref": "#/$defs/SaiAprilTagFieldRef"
+								}
+							]
+						},
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/SaiInlineAprilTagField",
+									"wpi": "#/$defs/WpiInlineAprilTagField"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/WpiInlineAprilTagField"
+								},
+								{
+									"$ref": "#/$defs/SaiInlineAprilTagField"
+								}
+							]
+						}
+					],
+					"title": "Apriltags"
+				},
+				"quadDecimate": {
+					"default": 1,
+					"title": "Quaddecimate",
 					"type": "integer"
 				},
-				"size": {
-					"title": "Size",
+				"quadSigma": {
+					"default": 0.0,
+					"title": "Quadsigma",
 					"type": "number"
 				},
-				"family": {
-					"title": "Family",
-					"type": "string"
+				"refineEdges": {
+					"default": true,
+					"title": "Refineedges",
+					"type": "boolean"
 				},
-				"tagToWorld": {
-					"$ref": "#/$defs/RootModel_Tuple_RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____"
+				"numIterations": {
+					"default": 40,
+					"title": "Numiterations",
+					"type": "integer"
+				},
+				"hammingDist": {
+					"default": 0,
+					"title": "Hammingdist",
+					"type": "integer"
+				},
+				"decisionMargin": {
+					"default": 35,
+					"title": "Decisionmargin",
+					"type": "integer"
 				}
 			},
 			"required": [
-				"id",
-				"size",
-				"family",
-				"tagToWorld"
+				"stage",
+				"apriltags"
 			],
-			"title": "AprilTagInfo",
+			"title": "ApriltagStage",
 			"type": "object"
 		},
 		"CameraConfig": {
@@ -239,7 +243,7 @@
 				"pipeline": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/PipelineConfig"
+							"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___"
 						},
 						{
 							"type": "string"
@@ -440,56 +444,36 @@
 			"title": "DataLogConfig",
 			"type": "object"
 		},
+		"DepthConfigStage": {
+			"properties": {
+				"stage": {
+					"const": "depth",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"stage"
+			],
+			"title": "DepthConfigStage",
+			"type": "object"
+		},
 		"EstimatorConfig": {
 			"properties": {
-				"pose_history": {
-					"default": "PT3S",
-					"description": "Length of pose replay buffer (seconds)",
-					"format": "duration",
-					"title": "Pose History",
-					"type": "string"
+				"detections": {
+					"$ref": "#/$defs/ObjectTrackerConfig"
 				},
-				"object_min_detections": {
-					"default": 8,
-					"description": "Number of times to have seen an object",
-					"exclusiveMinimum": 0,
-					"title": "Object Min Detections",
-					"type": "integer"
-				},
-				"object_detected_duration": {
-					"default": "PT1S",
-					"description": "Length of time to keep an object detecting (seconds)",
-					"format": "duration",
-					"title": "Object Detected Duration",
-					"type": "string"
-				},
-				"object_history_duration": {
-					"default": "PT8S",
-					"description": "Length of time to retain an object detection (seconds)",
-					"format": "duration",
-					"title": "Object History Duration",
-					"type": "string"
-				},
-				"object_clustering_distance": {
-					"default": 0.3,
-					"description": "",
-					"exclusiveMinimum": 0.0,
-					"title": "Object Clustering Distance",
-					"type": "number"
-				},
-				"object_min_depth": {
-					"default": 0.5,
-					"description": "",
-					"exclusiveMinimum": 0.0,
-					"title": "Object Min Depth",
-					"type": "number"
-				},
-				"object_alpha": {
-					"default": 0.2,
-					"description": "",
-					"exclusiveMinimum": 0.0,
-					"title": "Object Alpha",
-					"type": "number"
+				"pose": {
+					"$ref": "#/$defs/PoseEstimatorConfig"
 				}
 			},
 			"title": "EstimatorConfig",
@@ -498,10 +482,12 @@
 		"FieldLayout": {
 			"properties": {
 				"length": {
+					"description": "Field length (meters)",
 					"title": "Length",
 					"type": "number"
 				},
 				"width": {
+					"description": "Field width (meters)",
 					"title": "Width",
 					"type": "number"
 				}
@@ -511,6 +497,34 @@
 				"width"
 			],
 			"title": "FieldLayout",
+			"type": "object"
+		},
+		"InheritStage": {
+			"properties": {
+				"stage": {
+					"const": "inherit",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"id": {
+					"title": "Id",
+					"type": "string"
+				}
+			},
+			"required": [
+				"stage",
+				"id"
+			],
+			"title": "InheritStage",
 			"type": "object"
 		},
 		"LogConfig": {
@@ -542,6 +556,38 @@
 				}
 			},
 			"title": "LogConfig",
+			"type": "object"
+		},
+		"MonoConfigStage": {
+			"properties": {
+				"stage": {
+					"const": "mono",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"target": {
+					"enum": [
+						"left",
+						"right"
+					],
+					"title": "Target",
+					"type": "string"
+				}
+			},
+			"required": [
+				"stage",
+				"target"
+			],
+			"title": "MonoConfigStage",
 			"type": "object"
 		},
 		"NNConfig": {
@@ -614,7 +660,13 @@
 			"description": "NavX configuration",
 			"properties": {
 				"port": {
-					"description": "NavX serial port path",
+					"default": "usb",
+					"description": "NavX connection",
+					"enum": [
+						"usb",
+						"usb1",
+						"usb2"
+					],
 					"title": "Port",
 					"type": "string"
 				},
@@ -627,9 +679,6 @@
 					"type": "integer"
 				}
 			},
-			"required": [
-				"port"
-			],
 			"title": "NavXConfig",
 			"type": "object"
 		},
@@ -872,32 +921,21 @@
 			"title": "OakSelector",
 			"type": "object"
 		},
-		"ObjectDetectionDefinition": {
-			"description": "Configure an object detection pipeline",
+		"ObjectDetectionStage": {
 			"properties": {
-				"id": {
-					"title": "Id",
-					"type": "string"
+				"stage": {
+					"const": "nn",
+					"title": "Stage"
 				},
-				"blobPath": {
-					"description": "Path to NN blob",
-					"format": "path",
-					"title": "Blobpath",
-					"type": "string"
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
 				},
-				"configPath": {
-					"anyOf": [
-						{
-							"format": "path",
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Path to NN config",
-					"title": "Configpath"
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
 				},
 				"config": {
 					"anyOf": [
@@ -905,251 +943,103 @@
 							"$ref": "#/$defs/NNConfig"
 						},
 						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Inline NN config"
-				}
-			},
-			"required": [
-				"id",
-				"blobPath"
-			],
-			"title": "ObjectDetectionDefinition",
-			"type": "object"
-		},
-		"PipelineConfig": {
-			"properties": {
-				"backend": {
-					"const": "sai",
-					"default": "sai",
-					"title": "Backend"
-				},
-				"syncNN": {
-					"default": false,
-					"title": "Syncnn",
-					"type": "boolean"
-				},
-				"slam": {
-					"default": true,
-					"title": "Slam",
-					"type": "boolean"
-				},
-				"vio": {
-					"default": false,
-					"description": "Enable VIO",
-					"title": "Vio",
-					"type": "boolean"
-				},
-				"debugRgb": {
-					"default": false,
-					"title": "Debugrgb",
-					"type": "boolean"
-				},
-				"debugLeft": {
-					"default": false,
-					"title": "Debugleft",
-					"type": "boolean"
-				},
-				"debugRight": {
-					"default": false,
-					"title": "Debugright",
-					"type": "boolean"
-				},
-				"debugDepth": {
-					"default": false,
-					"title": "Debugdepth",
-					"type": "boolean"
-				},
-				"debugImageRate": {
-					"anyOf": [
-						{
-							"type": "integer"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"title": "Debugimagerate"
-				},
-				"apriltag_explicit": {
-					"default": false,
-					"title": "Apriltag Explicit",
-					"type": "boolean"
-				},
-				"telemetry": {
-					"default": false,
-					"title": "Telemetry",
-					"type": "boolean"
-				},
-				"apriltag": {
-					"anyOf": [
-						{
-							"discriminator": {
-								"mapping": {
-									"frc": "#/$defs/AprilTagFieldFRCRef",
-									"inline": "#/$defs/AprilTagFieldConfig",
-									"sai": "#/$defs/AprilTagFieldSAIRef"
-								},
-								"propertyName": "format"
-							},
-							"oneOf": [
-								{
-									"$ref": "#/$defs/AprilTagFieldFRCRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldSAIRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldConfig"
-								}
-							]
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "AprilTag configuration data",
-					"title": "Apriltag"
-				},
-				"object_detection": {
-					"anyOf": [
-						{
+							"format": "path",
 							"type": "string"
-						},
-						{
-							"type": "null"
 						}
 					],
-					"default": null,
-					"description": "Which object detection pipeline should we use?",
-					"title": "Object Detection"
-				}
-			},
-			"title": "PipelineConfig",
-			"type": "object"
-		},
-		"PipelineDefinition": {
-			"properties": {
-				"backend": {
-					"const": "sai",
-					"default": "sai",
-					"title": "Backend"
+					"title": "Config"
 				},
-				"syncNN": {
-					"default": false,
-					"title": "Syncnn",
-					"type": "boolean"
-				},
-				"slam": {
-					"default": true,
-					"title": "Slam",
-					"type": "boolean"
-				},
-				"vio": {
-					"default": false,
-					"description": "Enable VIO",
-					"title": "Vio",
-					"type": "boolean"
-				},
-				"debugRgb": {
-					"default": false,
-					"title": "Debugrgb",
-					"type": "boolean"
-				},
-				"debugLeft": {
-					"default": false,
-					"title": "Debugleft",
-					"type": "boolean"
-				},
-				"debugRight": {
-					"default": false,
-					"title": "Debugright",
-					"type": "boolean"
-				},
-				"debugDepth": {
-					"default": false,
-					"title": "Debugdepth",
-					"type": "boolean"
-				},
-				"debugImageRate": {
-					"anyOf": [
-						{
-							"type": "integer"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"title": "Debugimagerate"
-				},
-				"apriltag_explicit": {
-					"default": false,
-					"title": "Apriltag Explicit",
-					"type": "boolean"
-				},
-				"telemetry": {
-					"default": false,
-					"title": "Telemetry",
-					"type": "boolean"
-				},
-				"apriltag": {
-					"anyOf": [
-						{
-							"discriminator": {
-								"mapping": {
-									"frc": "#/$defs/AprilTagFieldFRCRef",
-									"inline": "#/$defs/AprilTagFieldConfig",
-									"sai": "#/$defs/AprilTagFieldSAIRef"
-								},
-								"propertyName": "format"
-							},
-							"oneOf": [
-								{
-									"$ref": "#/$defs/AprilTagFieldFRCRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldSAIRef"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldConfig"
-								}
-							]
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "AprilTag configuration data",
-					"title": "Apriltag"
-				},
-				"object_detection": {
-					"anyOf": [
-						{
-							"type": "string"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Which object detection pipeline should we use?",
-					"title": "Object Detection"
-				},
-				"id": {
-					"title": "Id",
+				"blobPath": {
+					"format": "path",
+					"title": "Blobpath",
 					"type": "string"
 				}
 			},
 			"required": [
-				"id"
+				"stage",
+				"config",
+				"blobPath"
+			],
+			"title": "ObjectDetectionStage",
+			"type": "object"
+		},
+		"ObjectTrackerConfig": {
+			"description": "Configuration for tracking object detections over time",
+			"properties": {
+				"min_detections": {
+					"default": 8,
+					"description": "Number of times to have seen an object before accepting it",
+					"exclusiveMinimum": 0,
+					"title": "Min Detections",
+					"type": "integer"
+				},
+				"detected_duration": {
+					"default": "PT1S",
+					"description": "Length of time to keep an object detecting (seconds)",
+					"format": "duration",
+					"title": "Detected Duration",
+					"type": "string"
+				},
+				"history_duration": {
+					"default": "PT8S",
+					"description": "Length of time to retain an object detection (seconds)",
+					"format": "duration",
+					"title": "History Duration",
+					"type": "string"
+				},
+				"clustering_distance": {
+					"default": 0.3,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Clustering Distance",
+					"type": "number"
+				},
+				"min_depth": {
+					"default": 0.5,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Min Depth",
+					"type": "number"
+				},
+				"alpha": {
+					"default": 0.2,
+					"description": "",
+					"exclusiveMinimum": 0.0,
+					"title": "Alpha",
+					"type": "number"
+				}
+			},
+			"title": "ObjectTrackerConfig",
+			"type": "object"
+		},
+		"PipelineDefinition": {
+			"properties": {
+				"id": {
+					"title": "Id",
+					"type": "string"
+				},
+				"stages": {
+					"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___"
+				}
+			},
+			"required": [
+				"id",
+				"stages"
 			],
 			"title": "PipelineDefinition",
+			"type": "object"
+		},
+		"PoseEstimatorConfig": {
+			"properties": {
+				"history": {
+					"default": "PT3S",
+					"description": "Length of pose replay buffer (seconds)",
+					"format": "duration",
+					"title": "History",
+					"type": "string"
+				}
+			},
+			"title": "PoseEstimatorConfig",
 			"type": "object"
 		},
 		"RetryConfig": {
@@ -1181,34 +1071,95 @@
 			"title": "RetryConfig",
 			"type": "object"
 		},
-		"RootModel_List_AprilTagInfo__": {
-			"items": {
-				"$ref": "#/$defs/AprilTagInfo"
+		"RgbConfigStage": {
+			"properties": {
+				"stage": {
+					"const": "rgb",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				}
 			},
-			"title": "RootModel[List[AprilTagInfo]]",
+			"required": [
+				"stage"
+			],
+			"title": "RgbConfigStage",
+			"type": "object"
+		},
+		"RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___": {
+			"items": {
+				"anyOf": [
+					{
+						"$ref": "#/$defs/InheritStage"
+					},
+					{
+						"$ref": "#/$defs/RgbConfigStage"
+					},
+					{
+						"$ref": "#/$defs/MonoConfigStage"
+					},
+					{
+						"$ref": "#/$defs/DepthConfigStage"
+					},
+					{
+						"$ref": "#/$defs/ObjectDetectionStage"
+					},
+					{
+						"$ref": "#/$defs/ApriltagStage"
+					},
+					{
+						"$ref": "#/$defs/SlamStage"
+					},
+					{
+						"$ref": "#/$defs/WebStreamStage"
+					},
+					{
+						"$ref": "#/$defs/SaveStage"
+					},
+					{
+						"$ref": "#/$defs/ShowStage"
+					}
+				]
+			},
+			"title": "RootModel[list[Annotated[Union[Annotated[InheritStage, Tag], Annotated[RgbConfigStage, Tag], Annotated[MonoConfigStage, Tag], Annotated[DepthConfigStage, Tag], Annotated[ObjectDetectionStage, Tag], Annotated[ApriltagStage, Tag], Annotated[SlamStage, Tag], Annotated[WebStreamStage, Tag], Annotated[SaveStage, Tag], Annotated[ShowStage, Tag]], Discriminator]]]",
 			"type": "array"
 		},
-		"RootModel_Tuple_RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____RootModel_Tuple_float__float__float__float____": {
+		"RootModel_list_SaiAprilTag__": {
+			"items": {
+				"$ref": "#/$defs/SaiAprilTag"
+			},
+			"title": "RootModel[list[SaiAprilTag]]",
+			"type": "array"
+		},
+		"RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____": {
 			"maxItems": 4,
 			"minItems": 4,
 			"prefixItems": [
 				{
-					"$ref": "#/$defs/RootModel_Tuple_float__float__float__float__"
+					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
 				},
 				{
-					"$ref": "#/$defs/RootModel_Tuple_float__float__float__float__"
+					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
 				},
 				{
-					"$ref": "#/$defs/RootModel_Tuple_float__float__float__float__"
+					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
 				},
 				{
-					"$ref": "#/$defs/RootModel_Tuple_float__float__float__float__"
+					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
 				}
 			],
-			"title": "RootModel[Tuple[RootModel[Tuple[float, float, float, float]], RootModel[Tuple[float, float, float, float]], RootModel[Tuple[float, float, float, float]], RootModel[Tuple[float, float, float, float]]]]",
+			"title": "RootModel[tuple[RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]]]]",
 			"type": "array"
 		},
-		"RootModel_Tuple_float__float__float__float__": {
+		"RootModel_tuple_float__float__float__float__": {
 			"maxItems": 4,
 			"minItems": 4,
 			"prefixItems": [
@@ -1225,8 +1176,291 @@
 					"type": "number"
 				}
 			],
-			"title": "RootModel[Tuple[float, float, float, float]]",
+			"title": "RootModel[tuple[float, float, float, float]]",
 			"type": "array"
+		},
+		"SaiAprilTag": {
+			"properties": {
+				"id": {
+					"description": "AprilTag id",
+					"minimum": 0,
+					"title": "Id",
+					"type": "integer"
+				},
+				"size": {
+					"description": "Tag size (meters)",
+					"title": "Size",
+					"type": "number"
+				},
+				"family": {
+					"description": "Tag family",
+					"enum": [
+						"tag16h5",
+						"tag25h9",
+						"tag36h11"
+					],
+					"title": "Family",
+					"type": "string"
+				},
+				"tagToWorld": {
+					"$ref": "#/$defs/RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____"
+				}
+			},
+			"required": [
+				"id",
+				"size",
+				"family",
+				"tagToWorld"
+			],
+			"title": "SaiAprilTag",
+			"type": "object"
+		},
+		"SaiAprilTagFieldRef": {
+			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
+			"properties": {
+				"format": {
+					"const": "sai",
+					"title": "Format"
+				},
+				"path": {
+					"description": "Path to AprilTag configuration",
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				},
+				"field": {
+					"$ref": "#/$defs/FieldLayout"
+				}
+			},
+			"required": [
+				"format",
+				"path",
+				"field"
+			],
+			"title": "SaiAprilTagFieldRef",
+			"type": "object"
+		},
+		"SaiInlineAprilTagField": {
+			"description": "Inline AprilTag config (SAI format)",
+			"properties": {
+				"format": {
+					"const": "sai",
+					"title": "Format"
+				},
+				"field": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/FieldLayout"
+						}
+					],
+					"description": "Field size"
+				},
+				"tags": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/RootModel_list_SaiAprilTag__"
+						}
+					],
+					"description": "AprilTags (SAI format)"
+				}
+			},
+			"required": [
+				"format",
+				"field",
+				"tags"
+			],
+			"title": "SaiInlineAprilTagField",
+			"type": "object"
+		},
+		"SaveStage": {
+			"properties": {
+				"stage": {
+					"const": "save",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"target": {
+					"enum": [
+						"left",
+						"right",
+						"rgb",
+						"depth"
+					],
+					"title": "Target",
+					"type": "string"
+				},
+				"path": {
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				},
+				"maxFramerate": {
+					"anyOf": [
+						{
+							"exclusiveMinimum": 0,
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Maximum framerate for stream",
+					"title": "Maxframerate"
+				}
+			},
+			"required": [
+				"stage",
+				"target",
+				"path"
+			],
+			"title": "SaveStage",
+			"type": "object"
+		},
+		"ShowStage": {
+			"properties": {
+				"stage": {
+					"const": "show",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"target": {
+					"enum": [
+						"left",
+						"right",
+						"rgb",
+						"depth"
+					],
+					"title": "Target",
+					"type": "string"
+				}
+			},
+			"required": [
+				"stage",
+				"target"
+			],
+			"title": "ShowStage",
+			"type": "object"
+		},
+		"SlamStage": {
+			"description": "SAI slam",
+			"properties": {
+				"stage": {
+					"const": "slam",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"slam": {
+					"default": true,
+					"title": "Slam",
+					"type": "boolean"
+				},
+				"vio": {
+					"default": false,
+					"description": "Enable VIO",
+					"title": "Vio",
+					"type": "boolean"
+				},
+				"map_save": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Map Save"
+				},
+				"map_load": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Map Load"
+				},
+				"apriltags": {
+					"anyOf": [
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/SaiAprilTagFieldRef",
+									"wpi": "#/$defs/WpiAprilTagFieldRef"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/WpiAprilTagFieldRef"
+								},
+								{
+									"$ref": "#/$defs/SaiAprilTagFieldRef"
+								}
+							]
+						},
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/SaiInlineAprilTagField",
+									"wpi": "#/$defs/WpiInlineAprilTagField"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/WpiInlineAprilTagField"
+								},
+								{
+									"$ref": "#/$defs/SaiInlineAprilTagField"
+								}
+							]
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Apriltags"
+				}
+			},
+			"required": [
+				"stage"
+			],
+			"title": "SlamStage",
+			"type": "object"
 		},
 		"WebConfig": {
 			"description": "Configure webserver",
@@ -1307,6 +1541,228 @@
 			},
 			"title": "WebConfig",
 			"type": "object"
+		},
+		"WebStreamStage": {
+			"properties": {
+				"stage": {
+					"const": "web",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"target": {
+					"enum": [
+						"left",
+						"right",
+						"rgb",
+						"depth"
+					],
+					"title": "Target",
+					"type": "string"
+				},
+				"maxFramerate": {
+					"anyOf": [
+						{
+							"exclusiveMinimum": 0,
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Maximum framerate for stream",
+					"title": "Maxframerate"
+				}
+			},
+			"required": [
+				"stage",
+				"target"
+			],
+			"title": "WebStreamStage",
+			"type": "object"
+		},
+		"WpiAprilTagFieldRef": {
+			"description": "Reference to an AprilTag JSON file (in WPIlib format)",
+			"properties": {
+				"format": {
+					"const": "wpi",
+					"title": "Format"
+				},
+				"path": {
+					"description": "Path to AprilTag configuration",
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				},
+				"tagFamily": {
+					"description": "AprilTag family",
+					"enum": [
+						"tag16h5",
+						"tag25h9",
+						"tag36h11"
+					],
+					"title": "Tagfamily",
+					"type": "string"
+				},
+				"tagSize": {
+					"description": "AprilTag side length, in meters",
+					"title": "Tagsize",
+					"type": "number"
+				}
+			},
+			"required": [
+				"format",
+				"path",
+				"tagFamily",
+				"tagSize"
+			],
+			"title": "WpiAprilTagFieldRef",
+			"type": "object"
+		},
+		"WpiFieldTag": {
+			"properties": {
+				"ID": {
+					"description": "AprilTag id",
+					"minimum": 0,
+					"title": "Id",
+					"type": "integer"
+				},
+				"pose": {
+					"description": "AprilTag pose, in field-space (field->tag)",
+					"properties": {
+						"translation": {
+							"properties": {
+								"x": {
+									"title": "X",
+									"type": "number"
+								},
+								"y": {
+									"title": "Y",
+									"type": "number"
+								},
+								"z": {
+									"title": "Z",
+									"type": "number"
+								}
+							},
+							"required": [
+								"x",
+								"y",
+								"z"
+							],
+							"title": "Translation",
+							"type": "object"
+						},
+						"rotation": {
+							"properties": {
+								"quaternion": {
+									"properties": {
+										"W": {
+											"title": "W",
+											"type": "number"
+										},
+										"X": {
+											"title": "X",
+											"type": "number"
+										},
+										"Y": {
+											"title": "Y",
+											"type": "number"
+										},
+										"Z": {
+											"title": "Z",
+											"type": "number"
+										}
+									},
+									"required": [
+										"W",
+										"X",
+										"Y",
+										"Z"
+									],
+									"title": "Quaternion",
+									"type": "object"
+								}
+							},
+							"required": [
+								"quaternion"
+							],
+							"title": "Rotation",
+							"type": "object"
+						}
+					},
+					"required": [
+						"translation",
+						"rotation"
+					],
+					"title": "Pose",
+					"type": "object"
+				}
+			},
+			"required": [
+				"ID",
+				"pose"
+			],
+			"title": "WpiFieldTag",
+			"type": "object"
+		},
+		"WpiInlineAprilTagField": {
+			"description": "Inline AprilTag config (WPI format)",
+			"properties": {
+				"format": {
+					"const": "wpi",
+					"title": "Format"
+				},
+				"field": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/FieldLayout"
+						}
+					],
+					"description": "Field size"
+				},
+				"tags": {
+					"description": "AprilTags (WPI format)",
+					"items": {
+						"$ref": "#/$defs/WpiFieldTag"
+					},
+					"title": "Tags",
+					"type": "array"
+				},
+				"tagFamily": {
+					"description": "AprilTag family",
+					"enum": [
+						"tag16h5",
+						"tag25h9",
+						"tag36h11"
+					],
+					"title": "Tagfamily",
+					"type": "string"
+				},
+				"tagSize": {
+					"description": "AprilTag side length, in meters",
+					"title": "Tagsize",
+					"type": "number"
+				}
+			},
+			"required": [
+				"format",
+				"field",
+				"tags",
+				"tagFamily",
+				"tagSize"
+			],
+			"title": "WpiInlineAprilTagField",
+			"type": "object"
 		}
 	},
 	"description": "Local config data",
@@ -1348,13 +1804,6 @@
 		"estimator": {
 			"$ref": "#/$defs/EstimatorConfig"
 		},
-		"pipelines": {
-			"items": {
-				"$ref": "#/$defs/ObjectDetectionDefinition"
-			},
-			"title": "Pipelines",
-			"type": "array"
-		},
 		"camera_selectors": {
 			"items": {
 				"$ref": "#/$defs/CameraSelectorConfig"
@@ -1371,12 +1820,12 @@
 			"title": "Cameras",
 			"type": "array"
 		},
-		"presets": {
-			"description": "Global SLAM config (used on cameras where slam=True)",
+		"pipelines": {
+			"description": "Reusable pipelines",
 			"items": {
 				"$ref": "#/$defs/PipelineDefinition"
 			},
-			"title": "Presets",
+			"title": "Pipelines",
 			"type": "array"
 		},
 		"web": {

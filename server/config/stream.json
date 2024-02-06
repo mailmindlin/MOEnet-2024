@@ -9,9 +9,21 @@
         "enabled": true,
         "port": 8080
     },
+	"pipelines": [
+		{
+			"id": "stream-left",
+			"stages": [
+				{
+					"stage": "web",
+					"target": "left",
+					"maxFramerate": 30
+				}
+			]
+		}
+	],
 	"cameras": [
 		{
-			"id": "main",
+			"id": "Default",
 			"selector": { "ordinal": 1 },
 			"pose": {
 				"rotation": {
@@ -28,14 +40,26 @@
 					"z": 0
 				}
 			},
-			"pipeline": {
-				"slam": false,
-				"vio": false,
-				"debugRgb": true,
-				"debugLeft": true,
-				"debugRight": true,
-				"debugImageRate": 30,
-				"apriltag_explicit": false
+			"pipeline": [
+				{
+					"stage": "web",
+					"target": "left",
+					"maxFramerate": 30
+				},
+				{
+					"stage": "web",
+					"target": "right",
+					"maxFramerate": 30
+				},
+				{
+					"stage": "web",
+					"target": "rgb",
+					"maxFramerate": 30
+				}
+			],
+			"retry": {
+				"connection_tries": 0,
+				"restart_tries": 0
 			}
 		}
 	]

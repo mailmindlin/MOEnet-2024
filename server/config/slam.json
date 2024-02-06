@@ -22,17 +22,24 @@
 		"tfOodomToRobot": "pub",
 		"publishField2dF2R": true
 	},
-	"slam": {
-		"backend": "sai",
-		"apriltag": {
-			"format": "frc",
-			"path": "./apriltag/2024-crescendo.json",
-			"tagFamily": "tag36h11",
-			"tagSize": 0.1651
-		},
-		"slam": true,
-		"vio": true
-	},
+	"pipelines": [
+		{
+			"id": "slam",
+			"stages": [
+				{
+					"stage": "slam",
+					"slam": true,
+					"vio": true,
+					"apriltags": {
+						"format": "wpi",
+						"path": "./apriltag/2024-crescendo.json",
+						"tagFamily": "tag36h11",
+						"tagSize": 0.1651
+					}
+				}
+			]
+		}
+	],
 	"cameras": [
 		{
 			"id": "S2",
@@ -52,7 +59,7 @@
 					}
 				}
 			},
-			"slam": true
+			"pipeline": "slam"
 		}
 	]
 }

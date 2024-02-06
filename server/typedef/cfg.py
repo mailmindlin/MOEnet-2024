@@ -2,16 +2,30 @@
 
 from typing import TYPE_CHECKING, Optional, Literal, Union, Annotated
 from pathlib import Path
-from pydantic import BaseModel, Field, RootModel, model_validator
+from pydantic import BaseModel, Field, model_validator, TypeAdapter, Tag, Discriminator
 from ntcore import NetworkTableInstance
 from datetime import timedelta
 
 if __name__ == '__main__' and (not TYPE_CHECKING):
-    from common import NNConfig, PipelineConfigBase, OakSelector, FieldLayout, RetryConfig
-    from geom import Pose3d, Transform3d
+    import common, geom, apriltag, pipeline
 else:
-    from .common import NNConfig, PipelineConfigBase, OakSelector, FieldLayout, RetryConfig
-    from .geom import Pose3d, Transform3d
+    from . import common, geom, apriltag, pipeline
+
+class ObjectTrackerConfig(BaseModel):
+	"Configuration for tracking object detections over time"
+	min_detections: int = Field(8, gt=0, description="Number of times to have seen an object before accepting it")
+	detected_duration: timedelta = Field(timedelta(seconds=1), description="Length of time to keep an object detecting (seconds)")
+	history_duration: timedelta = Field(timedelta(seconds=8), description="Length of time to retain an object detection (seconds)")
+	clustering_distance: float = Field(0.3, gt=0, description="")
+	min_depth: float = Field(0.5, gt=0, description="")
+	alpha: float = Field(0.2, gt=0, description="")
+
+class PoseEstimatorConfig(BaseModel):
+	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
+
+class EstimatorConfig(BaseModel):
+    detections: ObjectTrackerConfig = Field(default_factory=ObjectTrackerConfig)
+    pose: PoseEstimatorConfig = Field(default_factory=PoseEstimatorConfig)
 
 
 class WebConfig(BaseModel):
@@ -57,70 +71,43 @@ class NetworkTablesConfig(BaseModel):
     publishField2dF2R: bool = Field(False, description="Publish Field2d widget (field->robot)")
     publishField2dDets: bool = Field(False, description="Publish Field2d widget (field->notes)")
 
-class ObjectDetectionDefinition(BaseModel):
+
+class ObjectDetectionDefinitionBase(BaseModel):
     "Configure an object detection pipeline"
     id: str
     blobPath: Path = Field(description="Path to NN blob")
-    configPath: Optional[Path] = Field(None, description="Path to NN config")
-    "Configuration path (relative to file)"
-    config: Optional[NNConfig] = Field(None, description="Inline NN config")
 
-    @model_validator(mode='after')
-    def check_config_once(cls, values: 'ObjectDetectionDefinition'):
-        if (values.configPath is None) == (values.config is None):
-            raise ValueError('Exactly ONE of `config` and `configPath` are required')
-        return values
+class ObjectDetectionDefinitionRef(ObjectDetectionDefinitionBase):
+    configPath: Optional[Path] = Field(description="Path to NN config")
+    "Configuration path (relative to config file)"
+
+class ObjectDetectionDefinitionInline(ObjectDetectionDefinitionBase):
+    config: Optional[pipeline.NNConfig] = Field(description="Inline NN config")
+
+ObjectDetectionDefinition = TypeAdapter(Union[
+    Annotated[ObjectDetectionDefinitionInline, Tag("inline")],
+    Annotated[ObjectDetectionDefinitionRef, Tag("reference")],
+])
+
 
 class NavXConfig(BaseModel):
     "NavX configuration"
-    port: str = Field(description="NavX serial port path")
+    port: Literal["usb", "usb1", "usb2"] = Field("usb", description="NavX connection")
     update_rate: int = Field(60, description="NavX poll rate (in hertz)", gt=0, le=255)
 
-class AprilTagFieldFRCRef(BaseModel):
-    "Reference to an AprilTag JSON file (in WPIlib format)"
-    format: Literal["frc"]
-    path: Path = Field(description="Path to AprilTag configuration")
-    tagFamily: Literal['tag16h5', 'tag25h9', 'tag36h11'] = Field(description="AprilTag family")
-    tagSize: float = Field(description="AprilTag side length, in meters")
+PipelineConfig = pipeline.PipelineConfig
 
-class AprilTagFieldSAIRef(BaseModel):
-    "Reference to an AprilTag JSON file (in SpectacularAI format)"
-    format: Literal["sai"]
-    path: Path = Field(description="Path to AprilTag configuration")
-
-Vec4 = RootModel[Tuple[float, float, float, float]]
-Mat44 = RootModel[Tuple[Vec4, Vec4, Vec4, Vec4]]
-
-class AprilTagInfo(BaseModel):
-    id: int
-    size: float
-    family: str
-    tagToWorld: Mat44
-
-AprilTagList = RootModel[List[AprilTagInfo]]
-
-class AprilTagFieldConfig(BaseModel):
-    "Inline AprilTag config"
-    format: Literal["inline"]
-    field: FieldLayout
-    "Field size"
-    tags: AprilTagList
-    "AprilTags (SAI format)"
-
-class PipelineConfig(PipelineConfigBase):
-    apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None] = Field(None, description="AprilTag configuration data", discriminator="format")
-    object_detection: Optional[str] = Field(None, description="Which object detection pipeline should we use?")
-
-class PipelineDefinition(PipelineConfig):
+class PipelineDefinition(BaseModel):
     id: str
+    stages: PipelineConfig
 
 
 class CameraConfig(BaseModel):
     id: Optional[str] = Field(None, description="Human-readable name")
-    selector: Union[str, OakSelector] = Field(description="Which camera are we referencing?")
+    selector: Union[str, common.OakSelector] = Field(description="Which camera are we referencing?")
     max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
-    retry: RetryConfig = Field(default_factory=RetryConfig)
-    pose: Optional[Transform3d] = Field(description="Camera pose (in robot-space)")
+    retry: common.RetryConfig = Field(default_factory=common.RetryConfig)
+    pose: Optional[geom.Transform3d] = Field(description="Camera pose (in robot-space)")
     pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
 class LogConfig(BaseModel):
@@ -137,19 +124,9 @@ class DataLogConfig(BaseModel):
     folder: Optional[str] = Field(None)
 
 
-class EstimatorConfig(BaseModel):
-    pose_history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
-    object_min_detections: int = Field(8, gt=0, description="Number of times to have seen an object")
-    object_detected_duration: timedelta = Field(timedelta(seconds=1), description="Length of time to keep an object detecting (seconds)")
-    object_history_duration: timedelta = Field(timedelta(seconds=8), description="Length of time to retain an object detection (seconds)")
-    object_clustering_distance: float = Field(0.3, gt=0, description="")
-    object_min_depth: float = Field(0.5, gt=0, description="")
-    object_alpha: float = Field(0.2, gt=0, description="")
-
-
-class CameraSelectorConfig(OakSelector):
+class CameraSelectorConfig(common.OakSelector):
     id: str = Field(description="Human-readable ID")
-    pose: Optional[Pose3d] = None
+    pose: Optional[geom.Pose3d] = None
 
 class LocalConfig(BaseModel):
     "Local config data"
@@ -159,10 +136,9 @@ class LocalConfig(BaseModel):
     log: LogConfig = Field(default_factory=DataLogConfig)
     datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
     estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
-    pipelines: List[ObjectDetectionDefinition] = Field(default_factory=list)
-    camera_selectors: List[CameraSelectorConfig] = Field(default_factory=list)
-    cameras: List[CameraConfig] = Field(None, description="Configuration for individual cameras")
-    presets: List[PipelineDefinition] = Field(default_factory=list, description="Global SLAM config (used on cameras where slam=True)")
+    camera_selectors: list[CameraSelectorConfig] = Field(default_factory=list)
+    cameras: list[CameraConfig] = Field(None, description="Configuration for individual cameras")
+    pipelines: list[PipelineDefinition] = Field(default_factory=list, description="Reusable pipelines")
     web: WebConfig = Field(default_factory=lambda: WebConfig(enabled=False))
 
     def merge(self, update: 'RemoteConfig') -> 'LocalConfig':
@@ -177,7 +153,7 @@ class LocalConfig(BaseModel):
         #     result.cameras = update.cameras
 
 class RemoteConfig(BaseModel):
-    cameras: List[CameraConfig]
+    cameras: list[CameraConfig]
 
 if __name__ == '__main__':
     import argparse, sys, typing
@@ -187,7 +163,7 @@ if __name__ == '__main__':
         'LocalConfig': LocalConfig,
         'RemoteConfig': RemoteConfig,
     }
-    parser.add_argument('type', choices=types.keys(), help='Type to dump')
+    parser.add_argument('type', choices=types.keys(), help='Type to dump', default='LocalConfig')
     parser.add_argument('--format', choices=['json', 'proto'], default='json')
     parser.add_argument('-o', '--out', type=str, default='-')
 

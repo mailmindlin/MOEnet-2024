@@ -4,42 +4,6 @@ from datetime import timedelta
 if TYPE_CHECKING:
 	import depthai as dai
 
-try:
-	from .wpilib_compat import FieldLayout, FieldTag
-except ImportError:
-	from wpilib_compat import FieldLayout, FieldTag
-
-class NNConfig(BaseModel):
-	"Base config for NN"
-	confidence_threshold: float
-	iou_threshold: float
-	labels: List[str]
-	depthLowerThreshold: int
-	depthUpperThreshold: int
-	classes: int
-	coordinateSize: int
-	anchors: List[float]
-	anchor_masks: Dict[str, List[int]]
-
-class AprilTagFieldConfig(BaseModel):
-    field: FieldLayout
-    tags: List[FieldTag]
-
-class PipelineConfigBase(BaseModel):
-	"Configure video pipeline"
-	backend: Literal["sai"] = Field("sai")
-	syncNN: bool = False
-	slam: bool = True
-	vio: bool = Field(False, description="Enable VIO")
-	debugRgb: bool = False
-	debugLeft: bool = False
-	debugRight: bool = False
-	debugDepth: bool = False
-	debugImageRate: Optional[int] = Field(None)
-	apriltag_explicit: bool = Field(False)
-	telemetry: bool = Field(False)
-
-
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"
 	optional: bool = Field(False, description="Is it an error if this camera is not detected?")

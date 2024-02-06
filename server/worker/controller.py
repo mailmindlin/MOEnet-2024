@@ -1,19 +1,22 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Dict, Union, List, Union
+from typing import TYPE_CHECKING, Optional, Dict, Union, Union, cast
 import logging, os.path, time
 from multiprocessing import Process, get_context
 from queue import Empty
 from pathlib import Path
 from logging import Logger
-from typedef import worker
-from typedef.wpilib_compat import AprilTagFieldJSON
-from typedef.cfg import (
-	PipelineDefinition, PipelineConfig, PipelineConfigBase,
-	NNConfig, LocalConfig,
-	CameraConfig, OakSelector,
-	AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, AprilTagInfo,
-	AprilTagList, Mat44
+from dataclasses import dataclass
+
+from typedef import apriltag
+from . import msg as worker
+from typedef.pipeline import (
+    PipelineConfig, PipelineConfigWorker, PipelineStageWorker,
+	ApriltagStageWorker, SlamStageWorker
 )
+from typedef.common import (
+	OakSelector
+)
+from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig
 from typedef.geom import Pose3d, Transform3d
 from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
 
@@ -35,20 +38,33 @@ class CameraId:
 			return f'#{self.idx} (name {self.name})'
 
 
+@dataclass
+class ResolvedApriltag:
+	wpi: apriltag.WpiInlineAprilTagField
+	sai: apriltag.SaiAprilTagFieldRef
+
+
 class WorkerConfigResolver:
 	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None):
 		self.log = log.getChild('config')
 		self.config = config
 		self.config_path = config_path
-		self.at_cache: Dict[Union[str, AprilTagFieldJSON], Path] = dict()
+		self.pipelines: dict[str, PipelineDefinition] = dict()
+		self.at_cache: Dict[str, ResolvedApriltag] = dict()
 		"Cache for AprilTag config resolutions"
 		self.nn_cache: Dict[str, worker.ObjectDetectionConfig] = dict()
 		"Cache object detection resolutions"
 		self._tempdir = None
+
+		# Resolve presets
+		for pipeline in self.config.pipelines:
+			self.pipelines[pipeline.id] = self._resolve_pipeline(None, pipeline.stages)
 	
 	def _resolve_path(self, relpart: Union[str, Path]) -> Path:
 		"Resolve a path relative to the config directory"
 		return (Path(self.config_path).parent / os.path.expanduser(relpart)).resolve()
+	def _basepath(self):
+		return Path(self.config_path).parent
 	
 	def _resolve_nn(self, cid: CameraId, pipeline_id: Optional[str]) -> Optional[worker.ObjectDetectionConfig]:
 		"Resolve a pipeline ID into a config"
@@ -118,112 +134,41 @@ class WorkerConfigResolver:
 		else:
 			return raw_selector
 
-	def _resolve_apriltag(self, cid: CameraId, apriltag: Union[AprilTagFieldFRCRef, AprilTagFieldSAIRef, AprilTagFieldConfig, None]) -> Optional[Path]:
-		if apriltag is None:
-			self.log.info("Camera %s SLAM has no AprilTags", cid)
+	def _resolve_pipeline(self, cid: CameraId | None, pipeline: str | PipelineConfig | None) -> PipelineConfigWorker | None:
+		if pipeline is None:
 			return None
-
-		if getattr(apriltag, 'format', None) == 'frc':
-			apriltag: AprilTagFieldFRCRef
-			# Load path to AprilTag info
-			if (cached := self.at_cache.get(apriltag.path, None)) is not None:
-				return cached
-			apriltagPath = self._resolve_path(apriltag.path)
-			if not apriltagPath.exists():
-				self.log.warning("Camera %s requested SLAM with AprilTags at %s, but that file doesn't exist", cid, apriltagPath)
-				return None
-			
-			# Load FRC data
+		if isinstance(pipeline, str):
 			try:
-				with open(apriltagPath, 'r') as f:
-					at_text = f.read()
-			except:
-				self.log.exception("Error reading AprilTag config at %s (requested by camera %s)", apriltagPath, cid)
+				return self.pipelines[pipeline]
+			except KeyError:
+				self.log.warning("Camera %s requested preset pipeline %s, but that preset doesn't exist", cid, pipeline)
 				return None
-			
-			try:
-				atRaw = AprilTagFieldJSON.model_validate_json(at_text)
-			except ValueError:
-				self.log.exception("Camera %s requested SLAM with AprilTags at %s, but that file is in the wrong format", cid, apriltagPath)
-				return None
-			else:
-				cache_key = str(apriltag.path)
-			
-			from scipy.spatial.transform import Rotation as R
-			
-			def pose_to_mat44(pose: Pose3d) -> 'Mat44':
-				import numpy as np
-				fieldToTag = Transform3d(pose.translation(), pose.rotation())
-				tagToField = fieldToTag
-				position = tagToField.translation()
-				orientation = tagToField.rotation().getQuaternion()
-				x, y, z = position.x, position.y, position.z
-				i, j, k, w = orientation.X(), orientation.Y(), orientation.Z(), orientation.W()
-
-				# create rotation matrix
-				r = R.from_quat([i, j, k, w])
-				r_matrix = r.as_matrix()
-
-				# create homogenous matrix
-				matrix = np.eye(4) # 4x4 identity matrix
-				matrix[:3, :3] = r_matrix # first 3 in rows and columns
-				matrix[:3, 3] = [x, y, z] # first 3 in rows, last in columns
-				return matrix
-			
-			atData = AprilTagFieldConfig(
-				format='inline',
-				field=atRaw.field,
-				tags=AprilTagList([
-					AprilTagInfo(
-						id=tag.ID,
-						size=apriltag.tagSize,
-						family=apriltag.tagFamily,
-						tagToWorld=pose_to_mat44(tag.pose)
-					)
-					for tag in atRaw.tags
-				])
-			)
-		elif getattr(apriltag, 'format', None) == 'sai':
-			apriltag: AprilTagFieldSAIRef
-			if (cached := self.at_cache.get(apriltag.path, None)) is not None:
-				return cached
-			apriltagPath = self._resolve_path(apriltag.path)
-			if not apriltagPath.exists():
-				self.log.warning("Camera %s requested SLAM with AprilTags at %s, but that file doesn't exist", cid, apriltagPath)
-				return None
-			# Check that it's correct
-			with open(apriltagPath, 'r') as f:
-				at_json = f.read()
-			AprilTagList.model_validate_json(at_json)
-			self.at_cache[apriltag.path] = apriltagPath
-			return apriltagPath
-		else:
-			apriltag: AprilTagFieldConfig
-			# I'm not sure if this is ever cached
-			if (cached := self.at_cache.get(apriltag, None)) is not None:
-				return cached
-			else:
-				atData: AprilTagFieldConfig = apriltag
-				cache_key = apriltag
 		
-		if self._tempdir is None:
-			from tempfile import TemporaryDirectory
-			self._tempdir = TemporaryDirectory()
-
-		# Write SAI-formatted AprilTag data to a temp file
-		result = Path(self._tempdir.name) / f'apriltag_{int(time.time_ns())}.json'
-		self.log.info("Create temp file %s for AprilTag data", result)
-		at_json = atData.tags.model_dump_json(indent=4)
-		with open(result, 'w') as apriltagFile:
-			apriltagFile.write(at_json)
-		# with open(Path('.') / f'apriltag_{int(time.time_ns())}.json', 'w') as apriltagFile:
-		# 	apriltagFile.write(AprilTagList(atData.tags).model_dump_json())
-		self.log.debug("AprilTag info: %s", at_json)
-
-		assert result.exists(), "AprilTag file is missing"
-
-		self.at_cache[cache_key] = result
-		return result
+		stages: list[PipelineStageWorker] = list()
+		for i, stage in enumerate(pipeline.root):
+			try:
+				if stage.stage == 'inherit':
+					stages.extend(self._resolve_pipeline(cid, stage.id))
+				elif stage.stage == 'apriltag':
+					args = dict(stage)
+					args['apriltags'] = stage.apriltags.load(self._basepath()).to_wpi_inline().store(self._basepath())
+					stages.append(ApriltagStageWorker(**args))
+				elif stage.stage == 'slam':
+					args = dict(stage)
+					args['apriltags'] = stage.apriltags.load(self._basepath()).to_sai_inline().store(self._basepath())
+					stages.append(SlamStageWorker(**args))
+				elif stage.stage == 'nn':
+					args = dict(stage)
+				else:
+					stages.append(stage)
+			except:
+				if stage.optional:
+					self.log.warning("Camera %s had error in stage %d", cid, i, exc_info=True)
+					continue
+				else:
+					self.log.exception("Camera %s had error in stage %d", cid, i)
+					raise
+		return stages
 	
 	def _resolve_slam(self, cid: CameraId, raw_slam: Union[str, PipelineConfig, None]) -> Optional[PipelineConfig]:
 		"Resolve SLAM configuration. We use global SLAM config for when `raw_slam=True`"
@@ -252,11 +197,9 @@ class WorkerConfigResolver:
 				syncNN=slam_cfg.syncNN,
 				slam=slam_cfg.slam,
 				vio=slam_cfg.vio,
-				debugRgb=slam_cfg.debugRgb,
-				debugDepth=slam_cfg.debugDepth,
-				debugLeft=slam_cfg.debugLeft,
-				debugRight=slam_cfg.debugRight,
-				debugImageRate=slam_cfg.debugImageRate,
+				streams=slam_cfg.streams,
+				slam_save=slam_cfg.slam_save,
+				slam_load=slam_cfg.slam_load,
 				telemetry=slam_cfg.telemetry,
 				apriltag_explicit=slam_cfg.apriltag_explicit,
 				apriltagPath=str(apriltagPath) if (apriltagPath is not None) else None,
@@ -270,13 +213,10 @@ class WorkerConfigResolver:
 		"Resolve the config for a single camera"
 		cid = CameraId(idx, camera.id)
 		selector = self._resolve_selector(cid, camera.selector)
-		pipeline = self._resolve_slam(cid, camera.pipeline)
+		pipeline = self._resolve_pipeline(cid, camera.pipeline)
 
 		if pipeline is None:
-			pipeline = worker.WorkerPipelineConfig(
-				slam=False,
-				vio=False,
-			)
+			pipeline = []
 
 		return worker.WorkerInitConfig(
 			id=camera.id or str(cid),
@@ -302,7 +242,7 @@ class WorkerManager:
 	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None) -> None:
 		self.log = log.getChild('worker')
 		self.config = WorkerConfigResolver(self.log, config, config_path)
-		self._workers: List['WorkerHandle'] = list()
+		self._workers: list['WorkerHandle'] = list()
 		self.datalog = datalog
 		self.ctx = get_context('spawn')
 		self.video_queue = vidq
@@ -379,7 +319,7 @@ class WorkerHandle:
 			self.log.warning('Started twice!')
 			return
 		
-		from worker import main as worker_main
+		from worker.worker import main as worker_main
 		self.proc = self._ctx.Process(
 			target=worker_main,
 			args=[self.config, self.data_queue, self.cmd_queue, self.video_queue],

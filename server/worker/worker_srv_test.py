@@ -1,6 +1,6 @@
 from unittest import TestCase
 from logging import getLogger
-from worker_srv import WorkerManager, CameraId
+from .controller import WorkerManager, CameraId
 
 class TestManager(TestCase):
 	def test_apriltags(self):

@@ -1,0 +1,5 @@
+import React from 'react';
+export default function Loading(props) {
+    return (React.createElement("div", null, "Loading..."));
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiTG9hZGluZy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbIi4uLy4uL3RzL2NvbXBvbmVudHMvTG9hZGluZy50c3giXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsT0FBTyxLQUFLLE1BQU0sT0FBTyxDQUFDO0FBQzFCLE1BQU0sQ0FBQyxPQUFPLFVBQVUsT0FBTyxDQUFDLEtBQVU7SUFDdEMsT0FBTyxDQUFDLDhDQUFxQixDQUFDLENBQUM7QUFDbkMsQ0FBQyJ9

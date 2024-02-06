@@ -1,6 +1,8 @@
 import React from 'react';
 import RtcVideo from '../components/RtcVideo';
 import { RouteProps } from '../routing';
+import ErrorMsg from '../components/ErrorMsg';
+import Loading from '../components/Loading';
 interface Props extends RouteProps {
 
 }
@@ -8,7 +10,7 @@ interface Props extends RouteProps {
 interface State {
     cancel: AbortController;
     streams?: Array<{name: string, worker: string}>;
-    error?: string;
+    error: string | null;
 }
 
 export default class StreamList extends React.Component<Props, State> {
@@ -21,7 +23,7 @@ export default class StreamList extends React.Component<Props, State> {
         this.state = {
             cancel: new AbortController(),
             streams: undefined,
-            error: undefined,
+            error: null,
         };
     }
     componentDidMount(): void {
@@ -33,24 +35,41 @@ export default class StreamList extends React.Component<Props, State> {
 
     async loadHeaders() {
         try {
-            let rsp = await fetch('/api/streams', {
+            var rsp = await fetch('/api/streams', {
                 headers: { 'Content-Type': 'application/json' },
                 signal: this.state.cancel.signal,
             });
-            var json = await rsp.json();
-        } catch(e) {
-            console.error("Unable to load headers");
-            this.setState({ error: `${e}`});
+        } catch (e) {
+            if (e instanceof DOMException && e.name == 'AbortError') {
+                this.setState({ error: 'Aborted' });
+            } else {
+                this.setState({ error: `${e}` });
+            }
             return;
         }
-        this.setState({streams: json });
+        if (!rsp.ok) {
+            let error = `Error listing streams: HTTP ${rsp.status} ${rsp.statusText}`;
+            try {
+                error += " " + await rsp.text();
+            } catch {}
+            this.setState({ error });
+            return;
+        }
+        console.log(rsp);
+        try {
+            var json = await rsp.json();
+        } catch(e) {
+            console.error("Unable to get json");
+            this.setState({ error: `Unable to parse API response`});
+            return;
+        }
+        this.setState({ error: null, streams: json });
     }
     render(): React.ReactNode {
-        if (this.state.error) {
-            return <div style={{color: 'red'}}>Error: {this.state.error}</div>
-        }
-        if (typeof this.state.streams === 'undefined')
-            return <div>Loading...</div>;
+        if (this.state.error)
+            return <ErrorMsg>{this.state.error}</ErrorMsg>;
+        else if (typeof this.state.streams === 'undefined')
+            return <Loading />;
         
         const streamsByCamera = new Map<string, string[]>();
         for (const stream of this.state.streams ?? []) {

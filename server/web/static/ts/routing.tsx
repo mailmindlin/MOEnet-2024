@@ -4,6 +4,7 @@ import EditConfig from "./route/EditConfig";
 import ViewStream from "./route/ViewStream";
 import { URLPatternResult } from './pattern';
 import StreamList from './route/StreamList';
+import ConfigBuilder from './route/ConfigBuilder/index';
 
 export interface RouteProps {
 	route: URLPatternResult,
@@ -20,6 +21,7 @@ const routes: ReadonlyArray<DeclaredRoute> = [
 	EditConfig,
 	StreamList,
 	ViewStream,
+	ConfigBuilder,
 ];
 
 function NavLink(props: {target: DeclaredRoute, active: boolean}) {

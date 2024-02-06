@@ -15,9 +15,9 @@ interface State {
 }
 
 export default class EditConfig extends React.Component<Props, State> {
-    static readonly pattern: URLPattern = new URLPattern({ pathname: '/config' });
-    static readonly title: string = 'Config';
-    static readonly base: string = '/config';
+    static readonly pattern: URLPattern = new URLPattern({ pathname: '/configraw' });
+    static readonly title: string = 'Raw Config';
+    static readonly base: string = '/configraw';
     constructor(props: Props) {
         super(props);
 

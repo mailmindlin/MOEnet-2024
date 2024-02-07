@@ -27,13 +27,17 @@ class WorkerInitConfig(BaseModel):
 
 
 class WorkerState(IntEnum):
-    INITIALIZING = 0
-    CONNECTING = 1
-    RUNNING = 2
-    PAUSED = 3
-    FAILED = 4
-    STOPPING = 5
-    STOPPED = 6
+    INITIALIZING = auto()
+    CONNECTING = auto()
+    "Worker is connecting to the camera"
+    RUNNING = auto()
+    "Running as expected"
+    PAUSED = auto()
+    FAILED = auto()
+    STOPPING = auto()
+    STOPPED = auto()
+
+    
 
 class CmdPoseOverride(BaseModel):
     "Override worker pose"

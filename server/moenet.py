@@ -11,7 +11,7 @@ from typedef import worker as wmsg
 
 from comms import Comms
 from web.web_srv import RemoteWebServer
-from worker_srv import WorkerManager
+from worker.controller import WorkerManager
 from estimator import DataFusion
 from util.watchdog import Watchdog
 from util.interrupt import InterruptHandler
@@ -22,12 +22,13 @@ class MoeNet:
 	camera_workers: Optional[WorkerManager]
 	def __init__(self, config_path: str, config: LocalConfig):
 		if config.log is not None:
+			from util.log import ColorFormatter
 			level = config.log.level.upper()
 			root = logging.getLogger()
-			print(root.handlers)
 			root.setLevel(level)
 			sh = logging.StreamHandler(sys.stdout)
-			sh.setFormatter(logging.Formatter('[%(levelname)s]%(name)s:%(message)s'))
+			# sh.setFormatter(logging.Formatter('[%(levelname)s]%(name)s:%(message)s'))
+			sh.setFormatter(ColorFormatter())
 			root.addHandler(sh)
 
 		self.log = logging.getLogger("MoeNet")

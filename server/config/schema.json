@@ -1,18 +1,30 @@
 {
 	"$defs": {
+		"AprilTagStrategy": {
+			"enum": [
+				1,
+				2,
+				3
+			],
+			"title": "AprilTagStrategy",
+			"type": "integer"
+		},
 		"ApriltagStage": {
 			"properties": {
 				"stage": {
 					"const": "apriltag",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -34,6 +46,56 @@
 					],
 					"title": "Camera",
 					"type": "string"
+				},
+				"quadDecimate": {
+					"default": 1,
+					"title": "Quaddecimate",
+					"type": "integer"
+				},
+				"quadSigma": {
+					"default": 0.0,
+					"title": "Quadsigma",
+					"type": "number"
+				},
+				"refineEdges": {
+					"default": true,
+					"title": "Refineedges",
+					"type": "boolean"
+				},
+				"hammingDist": {
+					"default": 0,
+					"title": "Hammingdist",
+					"type": "integer"
+				},
+				"decisionMargin": {
+					"default": 35,
+					"title": "Decisionmargin",
+					"type": "integer"
+				},
+				"numIterations": {
+					"default": 40,
+					"title": "Numiterations",
+					"type": "integer"
+				},
+				"undistort": {
+					"default": false,
+					"title": "Undistort",
+					"type": "boolean"
+				},
+				"solvePNP": {
+					"default": true,
+					"title": "Solvepnp",
+					"type": "boolean"
+				},
+				"doMultiTarget": {
+					"default": false,
+					"title": "Domultitarget",
+					"type": "boolean"
+				},
+				"doSingleTargetAlways": {
+					"default": false,
+					"title": "Dosingletargetalways",
+					"type": "boolean"
 				},
 				"apriltags": {
 					"anyOf": [
@@ -73,40 +135,9 @@
 						}
 					],
 					"title": "Apriltags"
-				},
-				"quadDecimate": {
-					"default": 1,
-					"title": "Quaddecimate",
-					"type": "integer"
-				},
-				"quadSigma": {
-					"default": 0.0,
-					"title": "Quadsigma",
-					"type": "number"
-				},
-				"refineEdges": {
-					"default": true,
-					"title": "Refineedges",
-					"type": "boolean"
-				},
-				"numIterations": {
-					"default": 40,
-					"title": "Numiterations",
-					"type": "integer"
-				},
-				"hammingDist": {
-					"default": 0,
-					"title": "Hammingdist",
-					"type": "integer"
-				},
-				"decisionMargin": {
-					"default": 35,
-					"title": "Decisionmargin",
-					"type": "integer"
 				}
 			},
 			"required": [
-				"stage",
 				"apriltags"
 			],
 			"title": "ApriltagStage",
@@ -420,6 +451,25 @@
 			"title": "CameraSelectorConfig",
 			"type": "object"
 		},
+		"ColorCameraProperties_SensorResolution": {
+			"enum": [
+				"THE_1080_P",
+				"THE_1200_P",
+				"THE_4_K",
+				"THE_5_MP",
+				"THE_12_MP",
+				"THE_4000X3000",
+				"THE_13_MP",
+				"THE_5312X6000",
+				"THE_48_MP",
+				"THE_720_P",
+				"THE_800_P",
+				"THE_1440X1080",
+				"THE_1352X1012",
+				"THE_2024X1520"
+			],
+			"type": "string"
+		},
 		"DataLogConfig": {
 			"description": "Configuration for datalog",
 			"properties": {
@@ -445,25 +495,62 @@
 			"type": "object"
 		},
 		"DepthConfigStage": {
+			"description": "Configure stereo depth",
 			"properties": {
 				"stage": {
 					"const": "depth",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
+				},
+				"checkLeftRight": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Enable Left-Right check",
+					"title": "Checkleftright"
+				},
+				"extendedDisparity": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Enable extended disparity mode",
+					"title": "Extendeddisparity"
+				},
+				"preset": {
+					"default": null,
+					"description": "Set preset profile",
+					"enum": [
+						"high_accuracy",
+						"high_density",
+						null
+					],
+					"title": "Preset"
 				}
 			},
-			"required": [
-				"stage"
-			],
 			"title": "DepthConfigStage",
 			"type": "object"
 		},
@@ -500,18 +587,22 @@
 			"type": "object"
 		},
 		"InheritStage": {
+			"description": "Include another defined pipeline",
 			"properties": {
 				"stage": {
 					"const": "inherit",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -521,7 +612,6 @@
 				}
 			},
 			"required": [
-				"stage",
 				"id"
 			],
 			"title": "InheritStage",
@@ -558,19 +648,33 @@
 			"title": "LogConfig",
 			"type": "object"
 		},
+		"MonoCameraProperties_SensorResolution": {
+			"enum": [
+				"THE_720_P",
+				"THE_800_P",
+				"THE_400_P",
+				"THE_480_P",
+				"THE_1200_P"
+			],
+			"type": "string"
+		},
 		"MonoConfigStage": {
+			"description": "Configure mono camera",
 			"properties": {
 				"stage": {
 					"const": "mono",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -581,10 +685,34 @@
 					],
 					"title": "Target",
 					"type": "string"
+				},
+				"resolution": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/MonoCameraProperties_SensorResolution"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Camera sensor resolution"
+				},
+				"fps": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Max FPS",
+					"title": "Fps"
 				}
 			},
 			"required": [
-				"stage",
 				"target"
 			],
 			"title": "MonoConfigStage",
@@ -925,15 +1053,18 @@
 			"properties": {
 				"stage": {
 					"const": "nn",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -956,7 +1087,6 @@
 				}
 			},
 			"required": [
-				"stage",
 				"config",
 				"blobPath"
 			],
@@ -1037,6 +1167,17 @@
 					"format": "duration",
 					"title": "History",
 					"type": "string"
+				},
+				"apriltagStrategy": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/AprilTagStrategy"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": 1
 				}
 			},
 			"title": "PoseEstimatorConfig",
@@ -1075,22 +1216,34 @@
 			"properties": {
 				"stage": {
 					"const": "rgb",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
+				},
+				"resolution": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ColorCameraProperties_SensorResolution"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Camera sensor resolution"
 				}
 			},
-			"required": [
-				"stage"
-			],
 			"title": "RgbConfigStage",
 			"type": "object"
 		},
@@ -1273,18 +1426,22 @@
 			"type": "object"
 		},
 		"SaveStage": {
+			"description": "Save images to file",
 			"properties": {
 				"stage": {
 					"const": "save",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -1319,7 +1476,6 @@
 				}
 			},
 			"required": [
-				"stage",
 				"target",
 				"path"
 			],
@@ -1330,15 +1486,18 @@
 			"properties": {
 				"stage": {
 					"const": "show",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -1354,7 +1513,6 @@
 				}
 			},
 			"required": [
-				"stage",
 				"target"
 			],
 			"title": "ShowStage",
@@ -1365,15 +1523,18 @@
 			"properties": {
 				"stage": {
 					"const": "slam",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -1391,6 +1552,7 @@
 				"map_save": {
 					"anyOf": [
 						{
+							"format": "path",
 							"type": "string"
 						},
 						{
@@ -1403,6 +1565,7 @@
 				"map_load": {
 					"anyOf": [
 						{
+							"format": "path",
 							"type": "string"
 						},
 						{
@@ -1456,9 +1619,6 @@
 					"title": "Apriltags"
 				}
 			},
-			"required": [
-				"stage"
-			],
 			"title": "SlamStage",
 			"type": "object"
 		},
@@ -1543,18 +1703,22 @@
 			"type": "object"
 		},
 		"WebStreamStage": {
+			"description": "Stream data to web",
 			"properties": {
 				"stage": {
 					"const": "web",
+					"description": "Stage name",
 					"title": "Stage"
 				},
 				"enabled": {
 					"default": true,
+					"description": "Is this stage enabled?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
 				"optional": {
 					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
 					"title": "Optional",
 					"type": "boolean"
 				},
@@ -1584,7 +1748,6 @@
 				}
 			},
 			"required": [
-				"stage",
 				"target"
 			],
 			"title": "WebStreamStage",

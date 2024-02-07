@@ -110,4 +110,18 @@ class MsgFrame:
     timestamp_insert: int = 0
     timestamp_extract: int = 0
 
-AnyMsg = Union[MsgChangeState, MsgFlush, MsgDetections, MsgPose, MsgLog]
+WorkerMsg: TypeAlias = Union[
+    MsgChangeState,
+    MsgFlush,
+    MsgDetections,
+    MsgPose,
+    MsgLog,
+]
+"Worker message types"
+
+AnyMsg = Union[
+    MsgDetections,
+    MsgPose,
+    MsgAprilTagPoses,
+]
+"Public message types"

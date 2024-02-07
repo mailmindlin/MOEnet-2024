@@ -14,7 +14,7 @@ def app_main(config, msgq, cmdq, vidq):
 
 T = TypeVar('T')
 
-class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny]):
+class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
     "Cross-process comms to WebServer"
 
     @staticmethod
@@ -25,8 +25,9 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny]):
 
     def __init__(self, moenet: 'MoeNet') -> None:
         self.moenet = moenet
+        self.proc = None
         if not moenet.config.web.enabled:
-            self.vidq = None
+            self.vid_queue = None
             return
         
         super().__init__(

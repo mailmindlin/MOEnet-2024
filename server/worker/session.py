@@ -7,11 +7,11 @@ from typedef.geom import Pose3d, Translation3d, Rotation3d, Quaternion, Twist3d
 from util.clock import WallClock
 from util.timestamp import Timestamp
 
-from .msg import MsgFrame, MsgDetection, MsgDetections, MsgPose
+from .msg import MsgFrame, ObjectDetection, MsgDetections, MsgPose
 
 if TYPE_CHECKING:
     import logging
-    from .pipeline import MoeNetPipeline, XLinkOut
+    from .node import MoeNetPipeline, XLinkOut
     from typedef.sai_types import VioOutput, VioSession, MapperOutput
 
 T = TypeVar('T')
@@ -165,7 +165,7 @@ class MoeNetSession:
                 self.log.warning('Unknown label %s', raw_det.label)
                 label = f'unknown_{raw_det.label}'
             
-            detections.append(MsgDetection(
+            detections.append(ObjectDetection(
                 label=label,
                 confidence=raw_det.confidence,
                 position=Translation3d(

@@ -1,11 +1,15 @@
-from typing import Literal, Optional, Union, Annotated
+"Pipeline stage configuration"
+
+from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, TypeVar, Generic, ClassVar
 from pydantic import BaseModel, Field, Tag, Discriminator, RootModel
 from pathlib import Path
+from enum import Enum
+import depthai as dai
 
 try:
-	from . import apriltag
+	from . import apriltag, util
 except ImportError:
-	import apriltag
+	import apriltag, util
 
 
 class NNConfig(BaseModel):
@@ -21,86 +25,126 @@ class NNConfig(BaseModel):
 	anchor_masks: dict[str, list[int]]
 
 
-class StageBase(BaseModel):
-	stage: str
-	enabled: bool = Field(True)
-	optional: bool = Field(False)
+S = TypeVar('S', bound=str)
+class StageBase(BaseModel, Generic[S]):
+	infer: ClassVar[bool] = False
+	merge: ClassVar[bool] = False
+
+	stage: S = Field(description="Stage name")
+	enabled: bool = Field(default=True, description="Is this stage enabled?")
+	optional: bool = Field(default=False, description="If there's an error constructing this stage, is that a pipeline failure?")
 
 	@property
 	def name(self):
+		if (target := getattr(self, 'target', None)) is not None:
+			return f'{self.stage}.{target}'
 		return self.stage
 
-class InheritStage(StageBase):
-	stage: Literal["inherit"]
+def stage_base(name: S, *, merge: bool = False, implicit: bool = False):
+	_merge = merge
+	S1 = S
+	if not TYPE_CHECKING:
+		S1 = Literal[name]
+	class StageBaseSpec(StageBase[S]):
+		merge: ClassVar[bool] = _merge
+		infer: ClassVar[bool] = implicit
+		stage: S1 = Field(description="Stage name", default_factory=lambda: name)
+	
+	return StageBaseSpec
+
+class InheritStage(stage_base('inherit')):
+	"Include another defined pipeline"
 	id: str
 
-class RgbConfigStage(StageBase):
-	stage: Literal['rgb']
+RgbSensorResolution = util.wrap_dai_enum(dai.ColorCameraProperties.SensorResolution)
+class RgbConfigStage(stage_base('rgb', merge=True, implicit=True)):
+	resolution: RgbSensorResolution | None = Field(default=None, description="Camera sensor resolution")
 
-class MonoConfigStage(StageBase):
-	stage: Literal['mono']
+
+MonoSensorResolution = util.wrap_dai_enum(dai.MonoCameraProperties.SensorResolution)
+class MonoConfigStage(stage_base('mono', implicit=True)):
+	"Configure mono camera"
 	target: Literal["left", "right"]
-	@property
-	def name(self):
-		return f'{self.stage}.{self.target}'
+	resolution: MonoSensorResolution | None = Field(default=None, description='Camera sensor resolution')
+	fps: float | None = Field(default=None, description='Max FPS')
+	
 
-class DepthConfigStage(StageBase):
-	stage: Literal['depth']
+class DepthConfigStage(stage_base('depth')):
+	"Configure stereo depth"
+	checkLeftRight: bool | None = Field(default=None, description="Enable Left-Right check")
+	extendedDisparity: bool | None = Field(default=None, description="Enable extended disparity mode")
+	preset: Literal[
+		'high_accuracy',
+		'high_density',
+		None,
+	] = Field(default=None, description='Set preset profile')
 
-class ObjectDetectionStage(StageBase):
-	stage: Literal["nn"]
+
+class ObjectDetectionStage(stage_base("nn")):
 	config: Union[NNConfig, Path]
 	blobPath: Path
 
-class WebStreamStage(StageBase):
-	stage: Literal['web']
+class WebStreamStage(stage_base("web")):
+	"Stream data to web"
 	target: Literal["left", "right", "rgb", "depth"]
 	maxFramerate: Optional[int] = Field(None, gt=0, description="Maximum framerate for stream")
 	@property
 	def name(self):
 		return f'{self.stage}.{self.target}'
 
-class SaveStage(StageBase):
-	stage: Literal['save']
+class SaveStage(stage_base("save")):
+	"Save images to file"
 	target: Literal["left", "right", "rgb", "depth"]
 	path: Path
-	maxFramerate: Optional[int] = Field(None, gt=0, description="Maximum framerate for stream")
+	maxFramerate: Optional[int] = Field(default=None, gt=0, description="Maximum framerate for stream")
 
-class ShowStage(StageBase):
-	stage: Literal['show']
+class ShowStage(stage_base('show')):
 	target: Literal["left", "right", "rgb", "depth"]
 
-class ApriltagStage(StageBase):
-	stage: Literal["apriltag"]
+class ApriltagBase(stage_base('apriltag')):
 	runtime: Literal["device", "host"] = Field("host")
 	camera: Literal["left", "right", "rgb"] = Field("left")
-	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.InlineAprilTagField]
 
+	# AprilTag detector runtime
+	detectorThreads: int | None = Field(default=None, ge=0, description="How many threads should be used for computation")
+	detectorAsync: bool = Field(False, description="Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera")
+
+	# AprilTag detector params
+	decodeSharpening: float | None = Field(default=None, ge=0, description="How much sharpening should be done to decoded images")
 	quadDecimate: int = Field(1)
 	quadSigma: float = Field(0.0)
 	refineEdges: bool = Field(True)
-	numIterations: int = Field(40)
-	hammingDist: int = Field(0)
+	# Filter
+	hammingDist: int = Field(default=0, ge=0, lt=3, description="Maximum number of bits to correct")
 	decisionMargin: int = Field(35)
 
-class ApriltagStageWorker(ApriltagStage):
+	# Pose
+	numIterations: int = Field(40)
+	undistort: bool = Field(False)
+	solvePNP: bool = Field(True)
+	doMultiTarget: bool = Field(False)
+	doSingleTargetAlways: bool = Field(False)
+
+class ApriltagStage(ApriltagBase):
+	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.InlineAprilTagField]
+
+class ApriltagStageWorker(ApriltagBase):
 	apriltags: apriltag.WpiInlineAprilTagField
 
 
-class SlamStage(StageBase):
+class SlamStage(stage_base('slam')):
 	"SAI slam"
-	stage: Literal['slam']
-	slam: bool = Field(True)
-	vio: bool = Field(False, description="Enable VIO")
-	map_save: Optional[str] = Field(None)
-	map_load: Optional[str] = Field(None)
+	slam: bool = Field(default=True)
+	vio: bool = Field(default=False, description="Enable VIO")
+	map_save: Optional[Path] = Field(default=None)
+	map_load: Optional[Path] = Field(default=None)
 	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.InlineAprilTagField, None] = Field(None)
 
 class SlamStageWorker(SlamStage):
 	apriltags: Optional[apriltag.SaiAprilTagFieldRef]
 
-class TelemetryStage(StageBase):
-	stage: Literal["telemetry"]
+class TelemetryStage(stage_base('telemetry')):
+	pass
 
 PipelineStage = Annotated[
 	Union[
@@ -120,6 +164,7 @@ PipelineStage = Annotated[
 
 PipelineStageWorker = Annotated[
 	Union[
+		# Annotated[InheritStage, Tag("inherit")],
 		Annotated[RgbConfigStage, Tag("rgb")],
 		Annotated[MonoConfigStage, Tag("mono")],
 		Annotated[DepthConfigStage, Tag("depth")],

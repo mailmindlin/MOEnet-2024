@@ -199,6 +199,8 @@ class MoeNet:
 						self.estimator.record_f2r(worker.robot_to_camera, packet)
 					elif isinstance(packet, wmsg.MsgDetections):
 						self.estimator.record_detections(worker.robot_to_camera, packet)
+					elif isinstance(packet, wmsg.MsgAprilTagPoses):
+						self.estimator.record_apriltag(worker.robot_to_camera, packet)
 					active = True
 		
 		# Write transforms to NT

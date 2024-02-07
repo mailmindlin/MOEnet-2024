@@ -74,8 +74,10 @@ class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetection
 					z=raw_det.spatialCoordinates.z / SCALE,
 				),
 			))
-		return MsgDetections(
-			timestamp=ts.nanos,
-			detections=detections,
-		)
-		return super().handle(packet)
+		# We have to return an iterable
+		return [
+			MsgDetections(
+				timestamp=ts.nanos,
+				detections=detections,
+			)
+		]

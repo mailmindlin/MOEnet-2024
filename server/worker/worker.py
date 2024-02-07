@@ -156,10 +156,9 @@ class DeviceManager:
 				self._retries += 1
 				# We're out of connection tries
 				if self._retries >= self.config.retry.connection_tries:
-					e1 = OakNotFoundException()
 					for prev_exc in prev_excs:
-						e1.add_note(f'Previous exception: {prev_exc}')
-					raise e1 from e
+						e.add_note(f'Previous exception: {prev_exc}')
+					raise
 				prev_excs.append(e)
 
 

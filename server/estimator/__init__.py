@@ -4,36 +4,31 @@ from collections import OrderedDict
 
 from wpiutil.log import DataLog
 
-from typedef.cfg import EstimatorConfig
-from util.log import child_logger
-from util.clock import Clock, WallClock
-from .estimator import PoseEstimator
-from .tracker import ObjectTracker
-
-
-
-from worker.msg import MsgPose, MsgDetections
-from typedef.cfg import EstimatorConfig
+from worker.msg import MsgPose, MsgDetections, MsgAprilTagPoses
 from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
 from typedef.geom import Transform3d, Rotation3d, Pose3d
-from typedef import net
+from typedef import net, cfg
 from util.log import child_logger
 from util.clock import Clock, WallClock
 from util.timemap import TimeMapper, IdentityTimeMapper
 from util.timestamp import Timestamp
 
+from .estimator import PoseEstimator
+from .tracker import ObjectTracker
+
+
 class DataFusion:
 	pose_estimator: PoseEstimator
 	object_tracker: ObjectTracker
 
-	def __init__(self, config: EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
+	def __init__(self, config: cfg.EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
 		self.log = child_logger("data", log)
 		self.datalog = datalog
 		self.clock = clock or WallClock()
 		self.config = config
 
-		self.pose_estimator = PoseEstimator(config, self.clock, log=self.log, datalog=self.datalog)
-		self.object_tracker = ObjectTracker(config)
+		self.pose_estimator = PoseEstimator(config.pose, self.clock, log=self.log, datalog=self.datalog)
+		self.object_tracker = ObjectTracker(config.detections)
 
 		# Datalogs
 		if self.datalog is not None:

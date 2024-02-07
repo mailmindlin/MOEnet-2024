@@ -169,6 +169,7 @@ class WebServer:
 		self.msgq = msgq
 		self.cmdq = cmdq
 		self.vidq = vidq
+		self.si_lock = Lock()
 		self.stream_info: dict[tuple[str, str], StreamInfo] = dict()
 		"Dispatch for video frames"
 		
@@ -186,7 +187,10 @@ class WebServer:
 		while True:
 			frame = self.vidq.get()
 			frame.timestamp_extract = time.time_ns()
-			if handler := self.stream_info[(frame.worker, frame.stream)]:
+			with self.si_lock:
+				handler = self.stream_info.get((frame.worker, frame.stream), None)
+			
+			if handler:
 				self._loop.run_until_complete(handler.provide_frame(frame))
 	
 	async def web_enumerate_cameras(self, req: web.Request):
@@ -263,14 +267,17 @@ class WebServer:
 		)
 	
 	async def get_stream(self, worker: str, name: str) -> StreamInfo:
-		if prev := self.stream_info.get((worker, name), None):
+		with self.si_lock:
+			prev = self.stream_info.get((worker, name), None)
+		if prev:
 			return prev
 		
 		info = StreamInfo(
 			relay=MediaRelay(),
 			track=IPCTrack(),
 		)
-		self.stream_info[(worker, name)] = info
+		with self.si_lock:
+			self.stream_info[(worker, name)] = info
 		await self.send_msg(ty.WMsgStreamCtl(
 			worker=worker,
 			name=name,

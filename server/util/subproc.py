@@ -18,7 +18,10 @@ M = TypeVar('M')
 C = TypeVar('C')
 "Command type"
 
-class Subprocess(Generic[M, C], ABC):
+R = TypeVar('R')
+"Result message types"
+
+class Subprocess(Generic[M, C, R], ABC):
 	proc: Process
 	cmd_queue: 'Queue[C]'
 	msg_queue: 'Queue[M]'
@@ -48,10 +51,10 @@ class Subprocess(Generic[M, C], ABC):
 		else:
 			return arg
 	
-	def add_handler(self, msg: Type[M], callback: Callable[[M], None]):
+	def add_handler(self, msg: Type[M], callback: Callable[[M], R | None]):
 		self._handlers.append((msg, callback))
 	
-	def handle_default(self, msg: M):
+	def handle_default(self, msg: M) -> R | None:
 		"Default message handler"
 		print("Unknown message:", repr(msg))
 	

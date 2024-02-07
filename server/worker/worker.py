@@ -27,15 +27,28 @@ class OakNotFoundException(RuntimeError):
 
 
 class ForwardHandler(logging.Handler):
-	def __init__(self, queue: Queue[AnyMsg], level: logging._Level = 0) -> None:
+	"Forward worker logs to main process"
+	def __init__(self, queue: Queue[WorkerMsg], level: logging._Level = 0) -> None:
 		super().__init__(level)
+		self.setFormatter(logging.Formatter('%(message)s'))
 		self._queue = queue
 	
 	def emit(self, record: logging.LogRecord):
 		try:
 			msg = self.format(record)
 			try:
-				self._queue.put(MsgLog(level=int(record.levelno), msg=str(msg)), timeout=0.1)
+				packet = MsgLog(
+					level=int(record.levelno),
+					name=str(record.name),
+					msg=str(msg)
+				)
+				# Higher severity messages have longer timeouts, as we want them to get through
+				timeout = 0.0001 # 0.1ms
+				if record.levelno >= logging.ERROR:
+					timeout = 0.1 # 100ms
+				elif record.levelno >= logging.WARN:
+					timeout = 0.01 # 10ms
+				self._queue.put(packet, timeout=timeout)
 			except Full:
 				print("[overflow]", msg)
 		except RecursionError:  # See issue 36272

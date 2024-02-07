@@ -37,6 +37,7 @@ def get_descriptor(type: Type[T]) -> wpistruct.StructDescriptor:
         schema=wpistruct.getSchema(type),
         size=wpistruct.getSize(type),
         pack=wpistruct.pack,
+        packInto=wpistruct.packInto,
         unpack=lambda buffer: wpistruct.unpack(type, buffer),
         forEachNested=lambda callback: wpistruct.forEachNested(type, callback),
     )

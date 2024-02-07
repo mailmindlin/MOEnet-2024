@@ -153,13 +153,13 @@ class WorkerConfigResolver:
 							)
 						))
 					case 'slam':
-						stages.append(SlamStageWorker(
+						stages.append(SlamStageWorker(dict(
 							**stage,
 							apriltags=cast(SlamStage, stage).apriltags \
 								.load(self._basepath()) \
 								.to_sai_inline() \
 								.store(self._basepath())
-						))
+						)))
 					case 'nn':
 						if stage := self._resolve_nn(cid, stage):
 							stages.append(stage)

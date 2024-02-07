@@ -2,7 +2,7 @@ from typing import Optional, overload
 import logging
 from collections import OrderedDict
 
-from wpiutil.log import DataLog
+from wpiutil.log import DataLog, DoubleLogEntry
 
 from worker.msg import MsgPose, MsgDetections, MsgAprilTagPoses
 from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
@@ -37,6 +37,15 @@ class DataFusion:
 			self.log_o2r = StructLogEntry(self.datalog, 'filt/odomToRobot', Transform3d)
 			self.log_objdet = StructArrayLogEntry(self.datalog, 'filt/fieldToDetections', Pose3d)
 			self.log_objdet_full = ProtoLogEntry(self.datalog, 'filt/detections', net.ObjectDetections)
+			self.logFpsF2R = DoubleLogEntry(datalog, 'fps/field_to_robot')
+			self.logFpsF2O = DoubleLogEntry(datalog, 'fps/field_to_odom')
+			self.logFpsApriltag = DoubleLogEntry(datalog, 'fps/apriltag')
+			self.logFpsDetections = DoubleLogEntry(datalog, 'fps/detections')
+			now = clock.now()
+			self._last_f2r_ts = now
+			self._last_f2o_ts = now
+			self._last_apr_ts = now
+			self._last_det_ts = now
 
 		# Track fresh data
 		self.fresh_f2r = True
@@ -45,14 +54,25 @@ class DataFusion:
 		self.fresh_det = True
 	
 	def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
+		timestamp = Timestamp.from_nanos(msg.timestamp, WallClock())
 		self.pose_estimator.record_f2r(robot_to_camera, msg)
+
 		if self.datalog is not None:
 			simple_f2o = msg.pose.transformBy(robot_to_camera.inverse())
 			self.log_f2o.append(simple_f2o)
+			
+			delta = timestamp - self._last_f2r_ts
+			self._last_f2r_ts = timestamp
+			self.logFpsF2R.append(1.0 / delta.total_seconds())
+		
 		self.fresh_f2r = True
 		self.fresh_o2r = True
 	
 	def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
+		if self.datalog:
+			delta = timestamp - self._last_f2o_ts
+			self._last_f2o_ts = timestamp
+			self.logFpsF2O.append(1.0 / delta.total_seconds())
 		self.pose_estimator.record_f2o(timestamp, field_to_odom)
 		self.fresh_f2o = True
 		self.fresh_o2r = True
@@ -137,6 +157,16 @@ class DataFusion:
 			detections=res,
 		)
 	
+	def record_apriltag(self, robot_to_camera: Transform3d, apriltags: MsgAprilTagPoses):
+		timestamp = Timestamp.from_nanos(apriltags.timestamp, clock=WallClock())
+		if self.datalog:
+			delta = timestamp - self._last_apr_ts
+			self._last_apr_ts = timestamp
+			self.logFpsApriltag.append(1.0 / delta.total_seconds())
+		
+		self.fresh_f2r = True
+		self.pose_estimator.record_apriltag(timestamp, robot_to_camera, apriltags.poses)
+	
 	def record_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None):
 		"Record some detections for tracking"
 		if mapper_loc is not None:
@@ -145,6 +175,11 @@ class DataFusion:
 		# I'm not super happy with this method being on PoseEstimator, but whatever
 		timestamp     = Timestamp.from_nanos(detections.timestamp)
 		timestamp_loc = timestamp if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
+
+		if self.datalog:
+			delta = timestamp - self._last_det_ts
+			self._last_det_ts = timestamp
+			self.logFpsDetections.append(1.0 / delta.total_seconds())
 
 		field_to_robot = self.pose_estimator.field_to_robot(timestamp_loc)
 

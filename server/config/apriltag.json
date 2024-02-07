@@ -1,0 +1,187 @@
+{
+	"$schema": "./schema.json",
+	"description": "Detect AprilTags",
+	"timer": "system",
+	"log": {
+		"level": "DEBUG"
+	},
+	"datalog": {
+		"enabled": false,
+		"folder": "./log"
+	},
+	"nt": {
+		"enabled": true,
+		"host": "localhost",
+		"team": 365,
+		"tfFieldToRobot": "pub",
+		"publishField2dF2O": true,
+		"publishField2dF2R": true
+	},
+	"pipelines": [
+		{
+			"id": "device-rgb",
+			"stages": [
+				{
+					"stage": "rgb",
+					"resolution": "THE_800_P",
+					"fps": 30
+				},
+				{
+					"stage": "apriltag",
+					"camera": "rgb",
+					"hammingDist": 0,
+					"apriltags": {
+						"format": "wpi",
+						"path": "./apriltag/2024-crescendo.json",
+						"tagFamily": "tag36h11",
+						"tagSize": 0.1651
+					},
+					"runtime": "device"
+				},
+				{
+					"stage": "show",
+					"target": "rgb"
+				}
+			]
+		},
+		{
+			"id": "device-mono",
+			"stages": [
+				{
+					"stage": "mono",
+					"target": "left",
+					"resolution": "THE_400_P",
+					"fps": 30
+				},
+				{
+					"stage": "apriltag",
+					"camera": "left",
+					"hammingDist": 0,
+					"apriltags": {
+						"format": "wpi",
+						"path": "./apriltag/2024-crescendo.json",
+						"tagFamily": "tag36h11",
+						"tagSize": 0.1651
+					},
+					"runtime": "device"
+				},
+				{
+					"stage": "show",
+					"target": "left"
+				}
+			]
+		},
+		{
+			"id": "host-rgb",
+			"stages": [
+				{
+					"stage": "rgb",
+					"resolution": "THE_800_P",
+					"fps": 30
+				},
+				{
+					"stage": "apriltag",
+					"camera": "rgb",
+					"hammingDist": 0,
+					"apriltags": {
+						"format": "wpi",
+						"path": "./apriltag/2024-crescendo.json",
+						"tagFamily": "tag36h11",
+						"tagSize": 0.1651
+					},
+					"runtime": "host"
+				},
+				{
+					"stage": "show",
+					"target": "rgb"
+				}
+			]
+		},
+		{
+			"id": "host-mono",
+			"stages": [
+				{
+					"stage": "mono",
+					"target": "left",
+					"resolution": "THE_800_P",
+					"fps": 30
+				},
+				{
+					"stage": "apriltag",
+					"camera": "left",
+					"hammingDist": 0,
+					"apriltags": {
+						"format": "wpi",
+						"tagFamily": "tag36h11",
+						"tagSize": 0.1651,
+						"field": {
+							"length": 16.451,
+							"width": 8.211
+						},
+						"tags": [
+							{
+								"ID": 42,
+								"pose": {
+									"translation": {
+										"x": 15.079471999999997,
+										"y": 0.24587199999999998,
+										"z": 1.355852
+									},
+									"rotation": {
+										"quaternion": {
+											"W": 0.5000000000000001,
+											"X": 0.0,
+											"Y": 0.0,
+											"Z": 0.8660254037844386
+										}
+									}
+								}
+							}
+						]
+					},
+					"runtime": "host",
+					"doMultiTarget": true,
+					"solvePNP": true
+				},
+				{
+					"stage": "show",
+					"enabled": false,
+					"target": "left"
+				}
+			]
+		}
+	],
+	"cameras": [
+		{
+			"id": "Default",
+			"selector": {
+				"ordinal": 1
+			},
+			"pose": {
+				"rotation": {
+					"quaternion": {
+						"W": 1,
+						"X": 0,
+						"Y": 0,
+						"Z": 0
+					}
+				},
+				"translation": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				}
+			},
+			"pipeline": [
+				{
+					"stage": "inherit",
+					"id": "host-mono"
+				}
+			],
+			"retry": {
+				"connection_tries": 0,
+				"restart_tries": 0
+			}
+		}
+	]
+}

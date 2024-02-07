@@ -7,7 +7,7 @@ from pydantic_core import ValidationError
 from typedef.cfg import LocalConfig, RemoteConfig
 from typedef.net import Status
 from typedef.geom import Pose3d
-from typedef import worker as wmsg
+from worker import msg as wmsg
 
 from comms import Comms
 from web.web_srv import RemoteWebServer

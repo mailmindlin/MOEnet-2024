@@ -10,13 +10,13 @@ from .msg import (
 	CmdFlush, MsgFlush,
 	CmdEnableStream, MsgFrame,
 	MsgLog,
-	AnyMsg, AnyCmd
+	WorkerMsg, AnyCmd
 )
 
 if TYPE_CHECKING:
 	from multiprocessing import Queue
 	import depthai as dai
-	from pipeline import MoeNetPipeline
+	from .pipeline import MoeNetPipeline
 
 
 class WorkerStop(Exception):
@@ -176,7 +176,7 @@ class DeviceManager:
 
 
 class CameraWorker:
-	def __init__(self, config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]) -> None:
+	def __init__(self, config: WorkerInitConfig, data_queue: Queue[WorkerMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]) -> None:
 		self.config = config
 		self.data_queue = data_queue
 		self.command_queue = command_queue
@@ -186,11 +186,10 @@ class CameraWorker:
 		self.state = WorkerState.INITIALIZING
 
 		handler = ForwardHandler(data_queue, logging.INFO)
-		handler.setFormatter(logging.Formatter('%(name)s:%(message)s'))
-		logging.getLogger().addHandler(handler)
-		logging.getLogger().setLevel(logging.INFO)
 
-		self.log = logging.getLogger(config.id)
+		self.log = logging.getLogger()
+		self.log.addHandler(handler)
+		self.log.setLevel(logging.INFO)
 
 		self.dev_mgr = DeviceManager(config, self.log)
 	
@@ -201,6 +200,7 @@ class CameraWorker:
 	@state.setter
 	def state(self, next: WorkerState):
 		if next != self._state:
+			# This message is important, so block for as long as it takes
 			self.data_queue.put(MsgChangeState(previous=self._state, current=next))
 			self._state = next
 	
@@ -241,7 +241,6 @@ class CameraWorker:
 		return self
 
 	def poll(self):
-		self.log.debug("Poll camera")
 		for packet in self.pipeline.poll():
 			if isinstance(packet, MsgPose):
 				self.log.info(" -> Pose %05.03f %05.03f %05.05f %05.05f", packet.pose.translation().x, packet.pose.translation().y, packet.pose.translation().z, packet.poseCovariance[0,0])
@@ -254,7 +253,7 @@ class CameraWorker:
 				try:
 					self.video_queue.put(packet, timeout=0.1)
 				except Full:
-					self.log.info('Drop frame')
+					self.log.info('Drop frame (%d frames)', self.video_queue.qsize())
 					pass
 				continue
 			self.data_queue.put(packet)
@@ -302,7 +301,7 @@ class CameraWorker:
 		self.state = WorkerState.STOPPED
 
 
-def main(config: WorkerInitConfig, data_queue: Queue[AnyMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]):
+def main(config: WorkerInitConfig, data_queue: Queue[WorkerMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]):
 	# Cap at 100Hz
 	min_loop_duration = 1 / config.maxRefresh
 	from util.interrupt import InterruptHandler

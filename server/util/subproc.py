@@ -113,12 +113,19 @@ class Subprocess(Generic[M, C, R], ABC):
 		return True
 	
 	def _handle(self, msg: M):
+		"Handle message from subprocess"
+		
+		# self.log.debug("Handle message %s", repr(msg))
+		handled = False
 		for (msg_type, handler) in self._handlers:
 			if not isinstance(msg, msg_type):
 				continue
-			res = handler(msg)
-			if res is not None:
-				pass
+			handled = True
+			if (res := handler(msg)) is not None:
+				yield res
+		if not handled:
+			if (res := self.handle_default(msg)) is not None:
+				yield res
 	
 	def poll(self):
 		"Process messages from worker"
@@ -126,27 +133,30 @@ class Subprocess(Generic[M, C, R], ABC):
 			return
 		
 		is_alive = True
-		while True:
-			if is_alive:
-				is_alive = self.proc.is_alive()
-			
-			try:
-				# We want to process any remaining packets even if the process died
-				# but we know we don't need to block on the queue then
-				msg = self.msg_queue.get(block=is_alive, timeout=0.01)
-			except Empty:
-				break
-			else:
-				for msg_type, handler in self._handlers:
-					if isinstance(msg, msg_type):
-						res = handler(msg)
-						break
+		finished_queue = False
+		with Watchdog(f'{self.name}:poll', max=timedelta(milliseconds=1), log_overrun=False) as w:
+			while w.has_remaining():
+				# Check that our process is still alive
+				if is_alive:
+					is_alive = self.proc.is_alive()
+				
+				try:
+					# We want to process any remaining packets even if the process died
+					# but we know we don't need to block on the queue then
+					if not is_alive:
+						# We've recieved all the messages we're ever going to, blocking doesn't help
+						msg = self.msg_queue.get_nowait()
+					else:
+						msg = self.msg_queue.get(**w.block_args())
+				except Empty:
+					finished_queue = True
+					break
 				else:
-					res = self.handle_default(msg)
-
-				if res is not None:
-					yield res
-		if not is_alive:
+					if res := self._handle(msg):
+						yield from res
+		if (not is_alive) and finished_queue:
+			# We want to make sure we've processed all the messages from the subprocess before
+			# handling it as dead (we might have elapsed our timeout)
 			self.handle_dead()
 
 	def close_queues(self):

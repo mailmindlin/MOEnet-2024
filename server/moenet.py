@@ -157,7 +157,7 @@ class MoeNet:
 				self.config,
 				config_path=self.config_path,
 				datalog=self.datalog,
-				vidq=self.web.vidq
+				vidq=self.web.vid_queue
 			)
 			self.camera_workers.start()
 			self.status = Status.READY

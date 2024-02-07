@@ -147,8 +147,10 @@ class WorkerConfigResolver:
 							raise e
 					case 'apriltag':
 						stages.append(ApriltagStageWorker(
-							**stage,
-							apriltags=cast(ApriltagStage, stage).apriltags.load(self._basepath()).to_wpi_inline()
+							**dict(
+								stage,
+								apriltags=cast(ApriltagStage, stage).apriltags.load(self._basepath()).to_wpi_inline(),
+							)
 						))
 					case 'slam':
 						stages.append(SlamStageWorker(

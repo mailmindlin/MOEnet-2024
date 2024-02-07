@@ -258,7 +258,6 @@ class AprilTagRuntimeBase(NodeRuntime):
 						camToTag=camToTag_wpi,
 						fieldToCam=fieldToCam,
 					))
-
 		# for v in targetList:
 		# 	self.datapoints.append(v)
 
@@ -474,20 +473,31 @@ class AprilTagDeviceRuntime(XOutRuntime[dai.AprilTags], AprilTagRuntimeBase):
 		return self._homography_from_corners(corners)
 	
 	def handle(self, packet: dai.AprilTags):
+		ts = self.context.local_timestamp(packet)
 		dets = list()
 		
 		for tag in packet.aprilTags:
-			H = self._get_homography(tag)
-			center = self._homography_project(H, 0, 0)
+			corners = np.empty((4,2), dtype=np.float32)
+			for i, corner in enumerate([tag.bottomLeft, tag.bottomRight, tag.topLeft, tag.topRight]):
+				corners[i,0] = corner.x
+				corners[i,1] = corner.y
+			
+			H = self._homography_from_corners(corners)
+			if H is None:
+				continue
+			
+			# center = self._homography_project(H, 0, 0)
 			dets.append(AprilTagDetection(
 				tag_family=self.config.apriltags.tagFamily,
 				tag_id=tag.id,
 				hamming=tag.hamming,
 				decision_margin=tag.decisionMargin,
 				homography=H,
-				center=center
+				corners=corners,
+				# center=center
 			))
-		self._process_dets(dets)
+		self.log.info("Got raw dets %s", dets)
+		return self._process_dets(ts, dets)
 
 def map_family(family: str) -> dai.AprilTagConfig.Family:
 	match family:

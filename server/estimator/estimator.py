@@ -2,12 +2,12 @@ from typing import Optional
 import logging
 
 from wpimath.interpolation._interpolation import TimeInterpolatablePose3dBuffer
-from wpiutil.log import DataLog
+from wpiutil.log import DataLog, DoubleArrayLogEntry, DoubleLogEntry
 
-from worker.msg import MsgPose
-from typedef.cfg import EstimatorConfig
+from worker.msg import MsgPose, AprilTagPose
+from typedef.cfg import PoseEstimatorConfig, AprilTagStrategy
 from wpi_compat.datalog import StructLogEntry
-from typedef.geom import Transform3d, Pose3d
+from typedef.geom import Transform3d, Pose3d, Translation3d, Rotation3d
 from util.clock import Clock
 from util.timestamp import Timestamp
 from .util import interpolate_pose3d
@@ -17,7 +17,7 @@ class PoseEstimator:
 	"""
 	We need to merge together (often) conflicting views of the world.
 	"""
-	def __init__(self, config: EstimatorConfig, clock: Clock, *, log: logging.Logger, datalog: Optional[DataLog] = None) -> None:
+	def __init__(self, config: PoseEstimatorConfig, clock: Clock, *, log: logging.Logger, datalog: Optional[DataLog] = None) -> None:
 		self.log = log.getChild('pose')
 		self.datalog = datalog
 		self.config = config
@@ -30,16 +30,16 @@ class PoseEstimator:
 		self._last_o2r = Transform3d()
 		"Last `odom`→`robot` (for caching `odom_to_robot()`)"
 
-		pose_history = config.pose_history.total_seconds()
+		pose_history = config.history.total_seconds()
 		if pose_history < 0:
-			self.log.error("Negative pose history (%s). Default to zero.", config.pose_history)
+			self.log.error("Negative pose history (%s). Default to zero.", config.history)
 			pose_history = 0
 		elif pose_history == 0:
 			self.log.warning("No pose history (syncing f2r and f2o may not work right)")
 
-		self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(config.pose_history.total_seconds(), interpolate_pose3d)
+		self.buf_field_to_robot = TimeInterpolatablePose3dBuffer(pose_history, interpolate_pose3d)
 		"Buffer for `field`→`robot` transforms (for sync with odometry)"
-		self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(config.pose_history.total_seconds(), interpolate_pose3d)
+		self.buf_field_to_odom = TimeInterpolatablePose3dBuffer(pose_history, interpolate_pose3d)
 		"Buffer for `field`→`odom` transforms (for sync with absolute pose)"
 	
 	def odom_to_robot(self) -> Transform3d:
@@ -89,16 +89,44 @@ class PoseEstimator:
 		# Return zero if we don't have any info
 		return Pose3d()
 	
-	def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
+	def record_f2r(self, timestamp: Timestamp, robot_to_camera: Transform3d, field_to_camera: Pose3d):
 		"Record SLAM pose"
-		field_to_camera = msg.pose
 		field_to_robot = field_to_camera.transformBy(robot_to_camera.inverse())
-		timestamp = Timestamp.from_nanos(msg.timestamp)
 
 		if self.datalog is not None:
 			self.logFieldToRobot.append(field_to_robot, timestamp.as_wpi())
 		
 		self.buf_field_to_robot.addSample(timestamp.as_seconds(), field_to_robot)
+
+	def _select_apriltag(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: list[AprilTagPose]) -> Pose3d | None:
+		if len(detections) == 0:
+			return None
+		if len(detections) == 1:
+			return detections[0].fieldToCam
+		
+		match self.config.apriltagStrategy:
+			case AprilTagStrategy.LOWEST_AMBIGUITY:
+				best_det = min(detections, key=lambda det: det.error)
+				return best_det.fieldToCam
+			case AprilTagStrategy.CLOSEST_TO_LAST_POSE:
+				last_f2r = self.field_to_robot(timestamp)
+				last_f2c = last_f2r.transformBy(robot_to_camera)
+				best_det = min(detections, key=lambda det: det.camToTag.translation().distance(last_f2c.translation()))
+				return best_det.fieldToCam
+			case AprilTagStrategy.AVERAGE_BEST_TARGETS:
+				tra = Translation3d()
+				rot = Rotation3d()
+				total_error = sum(1.0 / det.error for det in detections)
+				for det in detections:
+					weight = (1.0 / det.error) / total_error
+					tra += det.camToTag.translation() * weight
+					rot += det.camToTag.rotation() * weight
+				return Pose3d(tra, rot)
+	
+	def record_apriltag(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: list[AprilTagPose]):
+		field_to_camera = self._select_apriltag(timestamp, robot_to_camera, detections)
+		if field_to_camera is not None:
+			self.record_f2r(timestamp, robot_to_camera, field_to_camera)		
 	
 	def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
 		"Record odometry pose"

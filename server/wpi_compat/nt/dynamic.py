@@ -1,5 +1,6 @@
-from .typedef import GenericPublisher, GenericSubscriber, GenericTsValue
 from typing import overload, Generic, TypeVar, Callable, Optional, Union, Tuple, Type
+from .typedef import GenericPublisher, GenericSubscriber, GenericTsValue, GenericTopic
+from ntcore import NetworkTableInstance, NetworkTable, PubSubOptions
 
 
 P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
@@ -7,42 +8,84 @@ T = TypeVar("T")
 
 
 class DynamicPublisher(Generic[T]):
-	def __init__(self, builder: Callable[[], GenericPublisher[T]]) -> None:
+	@staticmethod
+	def create(base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], options: Optional[PubSubOptions] = None) -> 'DynamicPublisher[T]':
+		pass
+
+	_builder: Optional[Callable[[], GenericTopic[T]]]
+	"Topic builder (lets us be lazy)"
+	_topic: Optional[GenericTopic[T]]
+	"Handle to real topic"
+	_options: PubSubOptions
+	"Options to use when publishing"
+	_publisher: Optional[GenericPublisher[T]]
+	"Real publisher handle"
+	_last: Optional[T]
+
+	def __init__(self, topic: Union[Callable[[], GenericTopic[T]], GenericTopic[T]], options: Optional[PubSubOptions] = None, *, enabled: bool = False):
 		super().__init__()
-		self._builder = builder
-		self._handle = None
+		if callable(topic):
+			self._builder = topic
+			self._topic = None
+		else:
+			self._builder = None
+			self._topic = topic
+		self._options = options or PubSubOptions()
+		self._publisher = None
+		self._last = None
+
+		# Enable on start?
+		if enabled:
+			self._start()
+
+	def _start(self):
+		if self._topic is None:
+			self._topic = self._builder()
+		
+		self._publisher = self._topic.publish(self._options)
+	
+	def _stop(self):
+		if self._publisher is not None:
+			self._publisher.close()
+			self._publisher = None
+		
+		if (self._topic is not None) and (self._builder is not None):
+			# Close topic if we can re-create it
+			self._topic.close()
+			self._topic = None
+		
 		self._last = None
 	
 	@property
 	def enabled(self) -> bool:
-		return (self._handle is not None)
+		return (self._publisher is not None)
 
 	@enabled.setter
 	def enabled(self, enabled: bool):
 		if enabled == (self.enabled):
 			return
 		elif enabled:
-			self._handle = self._builder()
+			self._start()
 		else:
-			self._handle.close()
-			self._handle = None
-			self._last = None
+			self.close()
 	
 	def __enter__(self):
+		"Context manager that closes on exit"
 		return self
 	
 	def __exit__(self, *args):
-		self.close()
+		self._stop()
 	
 	def close(self):
-		self.enabled = False
+		self._stop()
 
 	def set(self, value: T, time: int = 0):
-		if self._handle:
-			self._handle.set(value, time)
+		if self._publisher:
+			self._publisher.set(value, time)
 			self._last = value
 	
 	def set_fresh(self, value: T):
+		"Set, but only if the value is new"
 		if self._last != value:
 			self.set(value)
 		

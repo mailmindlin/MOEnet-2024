@@ -23,7 +23,7 @@ class WorkerInitConfig(BaseModel):
     max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(None)
     maxRefresh: float = Field(10, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
-    pipeline: list[PipelineStage] = Field(default_factory=list)
+    pipeline: list[PipelineStageWorker] = Field(default_factory=list)
 
 
 class WorkerState(IntEnum):

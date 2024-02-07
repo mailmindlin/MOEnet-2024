@@ -47,11 +47,13 @@ class CmdPoseOverride(BaseModel):
 class CmdFlush(BaseModel):
     "Request a data flush"
     id: int
+    "Flush ID (for matching with MsgFlush)"
 
 class CmdChangeState(BaseModel):
     target: WorkerState
 
 class CmdEnableStream(BaseModel):
+    "Request the worker enable the named stream"
     stream: str
     enable: bool
 
@@ -59,8 +61,11 @@ AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState, CmdEnableStream]
 
 
 class MsgChangeState(BaseModel):
+    "Notify the main process that the worker changed its state"
     previous: Optional[WorkerState]
+    "Previous state"
     current: WorkerState
+    "Current state"
 
 class MsgFlush(BaseModel):
     "Notify that a flush was completed"

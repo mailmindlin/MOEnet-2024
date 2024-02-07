@@ -37,14 +37,20 @@ class MoeNet:
 		self.config = config
 		self.initial_config = config
 		self.log.info('Using config from %s', config_path)
-
+		
 		# Set up DataLog
+		datalog_folder = None
 		if self.config.datalog.enabled:
+			datalog_folder = Path(config_path).parent.resolve() / (self.config.datalog.folder or 'log')
+			if not datalog_folder.exists():
+				datalog_folder = None
+		
+		if datalog_folder is not None:
 			from wpiutil.log import DataLog, IntegerLogEntry, StringLogEntry
-			from wpi_compat.datalog import PyToNtHandler
-			folder = Path(config_path).parent.resolve() / self.config.datalog.folder
-			self.log.info("DataLog write to folder %s", folder)
-			self.datalog = DataLog(dir=str(folder))
+			from wpi_compat.datalog.log import PyToNtHandler
+			
+			self.log.info("DataLog write to folder %s", datalog_folder)
+			self.datalog = DataLog(dir=str(datalog_folder))
 			self.logStatus = IntegerLogEntry(self.datalog, 'meta/status')
 			self.logConfig = StringLogEntry(self.datalog, 'meta/config')
 			self.logConfig.append(self.config.model_dump_json())

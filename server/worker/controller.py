@@ -1,7 +1,7 @@
 from __future__ import annotations
 from multiprocessing.context import BaseContext
 from multiprocessing.queues import Queue
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, cast
 import logging, os.path
 from multiprocessing import Process, get_context
 from queue import Empty
@@ -15,7 +15,9 @@ from . import msg as worker
 from typedef import apriltag
 from typedef.pipeline import (
     PipelineConfig, PipelineConfigWorker, PipelineStageWorker,
-	ApriltagStageWorker, SlamStageWorker
+	ApriltagStage, ApriltagStageWorker,
+	SlamStage, SlamStageWorker,
+	ObjectDetectionStage, NNConfig
 )
 from typedef.common import OakSelector
 from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig
@@ -54,8 +56,6 @@ class WorkerConfigResolver:
 		self.pipelines: dict[str, PipelineDefinition] = dict()
 		self.at_cache: dict[str, ResolvedApriltag] = dict()
 		"Cache for AprilTag config resolutions"
-		self.nn_cache: dict[str, worker.ObjectDetectionConfig] = dict()
-		"Cache object detection resolutions"
 		self._tempdir = None
 
 		# Resolve presets
@@ -68,64 +68,43 @@ class WorkerConfigResolver:
 	def _basepath(self):
 		return Path(self.config_path).parent
 	
-	def _resolve_nn(self, cid: CameraId, pipeline_id: Optional[str]) -> Optional[worker.ObjectDetectionConfig]:
+	def _resolve_nn(self, cid: CameraId, nn_stage: ObjectDetectionStage) -> Optional[ObjectDetectionStage]:
 		"Resolve a pipeline ID into a config"
-		if pipeline_id is None:
+		if nn_stage is None:
 			return None
-		self.log.debug("Resolving pipeline '%s' for camera %s", pipeline_id, cid)
+		
+		self.log.debug("Resolving nn for camera %s", cid)
 
-		# Prefer cached results
-		if (cached := self.nn_cache.get(pipeline_id, None)) is not None:
-			return cached
-		
-		# Find definition (linear search is probably fine here)
-		try:
-			pipeline_def = next(p for p in self.config.detection_pipelines if p.id == pipeline_id)
-		except StopIteration:
-			# Fail safe, just disable the camera
-			self.log.error("Camera %s requested pipeline %s, but it wasn't defined", cid, pipeline_id)
-			return None
-		
 		# Resolve blobPath relative to config file
-		blobPath = self._resolve_path(pipeline_def.blobPath)
-		self.log.info("Resolved NN blob path '%s' -> '%s'", pipeline_def.blobPath, str(blobPath))
+		blobPath = self._resolve_path(nn_stage.blobPath)
+		self.log.info("Resolved NN blob path '%s' -> '%s'", nn_stage.blobPath, str(blobPath))
 		if not blobPath.exists():
-			self.log.error("Camera %s requested pipeline %s with a blob at %s but that file doesn't exist", cid, pipeline_id, blobPath)
+			self.log.error("Camera %s requested object detection stage with a blob at '%s', but that file doesn't exist", cid, blobPath)
 			return None
 		
-		if pipeline_def.config is not None:
-			# Inline config
-			if pipeline_def.configPath is not None:
-				self.log.warning("Camera %s requested pipeline %s with both an internal and external config", cid, pipeline_id)
-			nn_cfg = pipeline_def.config
-		elif pipeline_def.configPath is not None:
+		if isinstance(nn_stage.config, (str, Path)):
 			# Load pipeline from file
-			configPath = self._resolve_path(pipeline_def.configPath)
+			configPath = self._resolve_path(nn_stage.config)
 			if not configPath.exists():
-				self.log.error("Camera %s requested pipeline %s with a config at %s but that file doesn't exist", cid, pipeline_id, configPath)
+				self.log.error("Camera %s requested object detection stage with a config at '%s', but that file doesn't exist", cid, configPath)
 				return None
 			try:
-				nn_cfg = worker.NNConfig.parse_file(configPath)
+				with open(configPath, 'r') as f:
+					configRaw = f.read()
+				config = NNConfig.model_validate_json(configRaw)
 			except:
-				self.log.exception("Camera %s requested pipeline %s with a config at %s but that file doesn't exist", cid, pipeline_id, configPath)
+				self.log.exception("Camera %s requested object detection stage with a config at %s but that file doesn't exist", cid, configPath)
 		else:
-			self.log.error("Camera %s requested pipeline %s with no config", cid, pipeline_id)
-			return None
+			# Inline config
+			config = nn_stage.config
 		
-		object_detection = worker.ObjectDetectionConfig(
-			confidence_threshold=nn_cfg.confidence_threshold,
-			iou_threshold=nn_cfg.iou_threshold,
-			labels=nn_cfg.labels,
-			depthLowerThreshold=nn_cfg.depthLowerThreshold,
-			depthUpperThreshold=nn_cfg.depthUpperThreshold,
-			classes=nn_cfg.classes,
-			coordinateSize=nn_cfg.coordinateSize,
-			anchors=nn_cfg.anchors,
-			anchor_masks=nn_cfg.anchor_masks,
-			blobPath=str(blobPath)
+		return ObjectDetectionStage(
+			**dict(
+				nn_stage,
+				config=config,
+				blobPath=blobPath,
+			),
 		)
-		self.nn_cache[pipeline_id] = object_detection
-		return object_detection
 	
 	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> OakSelector:
 		"Resolve an OakSelector, possibly by name"
@@ -140,8 +119,12 @@ class WorkerConfigResolver:
 		if pipeline is None:
 			return None
 		if isinstance(pipeline, str):
+			self.log.info("Looking up pipeline %s", pipeline)
+			self.log.info("Pipelines: %s", self.pipelines)
 			try:
-				return self.pipelines[pipeline]
+				res = self.pipelines[pipeline]
+				self.log.info('Resolved pipeline %s: %s', pipeline, res)
+				return res
 			except KeyError:
 				self.log.warning("Camera %s requested preset pipeline %s, but that preset doesn't exist", cid, pipeline)
 				return None
@@ -149,23 +132,40 @@ class WorkerConfigResolver:
 		stages: list[PipelineStageWorker] = list()
 		for i, stage in enumerate(pipeline.root):
 			try:
-				if stage.stage == 'inherit':
-					if parent := self._resolve_pipeline(cid, stage.id):
-						stages.extend(parent)
-					else:
-						raise RuntimeError(f"Unable to inherit from pipeline '{stage.id}', as id doesn't exist")
-				elif stage.stage == 'apriltag':
-					args = dict(stage)
-					args['apriltags'] = stage.apriltags.load(self._basepath()).to_wpi_inline()
-					stages.append(ApriltagStageWorker(**args))
-				elif stage.stage == 'slam':
-					args = dict(stage)
-					args['apriltags'] = stage.apriltags.load(self._basepath()).to_sai_inline().store(self._basepath())
-					stages.append(SlamStageWorker(**args))
-				elif stage.stage == 'nn':
-					args = dict(stage)
-				else:
-					stages.append(stage)
+				match stage.stage:
+					# We need to map some stages
+					case 'inherit':
+						if (parent := self._resolve_pipeline(cid, stage.id)) is not None:
+							stages.extend(parent)
+						else:
+							e = RuntimeError(f"Unable to inherit from pipeline '{stage.id}', as id doesn't exist")
+							if self.config.pipelines:
+								for pipeline in self.config.pipelines:
+									e.add_note(f"Valid pipeline: {pipeline.id}")
+							else:
+								e.add_note("There are no registered pipelines")
+							raise e
+					case 'apriltag':
+						stages.append(ApriltagStageWorker(
+							**stage,
+							apriltags=cast(ApriltagStage, stage).apriltags.load(self._basepath()).to_wpi_inline()
+						))
+					case 'slam':
+						stages.append(SlamStageWorker(
+							**stage,
+							apriltags=cast(SlamStage, stage).apriltags \
+								.load(self._basepath()) \
+								.to_sai_inline() \
+								.store(self._basepath())
+						))
+					case 'nn':
+						if stage := self._resolve_nn(cid, stage):
+							stages.append(stage)
+						else:
+							self.log.warning('Camera %s unable to resolve object detection stage %d', cid, i)
+					case _:
+						# Passthrough
+						stages.append(stage)
 			except:
 				if stage.optional:
 					self.log.warning("Camera %s had error in stage %d", cid, i, exc_info=True)

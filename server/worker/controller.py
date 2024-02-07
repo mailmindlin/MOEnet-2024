@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Union, Union
+from multiprocessing.context import BaseContext
+from multiprocessing.queues import Queue
+from typing import TYPE_CHECKING, Optional, Union
 import logging, os.path
 from multiprocessing import Process, get_context
 from queue import Empty
@@ -7,18 +9,18 @@ from pathlib import Path
 from logging import Logger
 from dataclasses import dataclass
 
-from typedef import apriltag
+from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
+
 from . import msg as worker
+from typedef import apriltag
 from typedef.pipeline import (
     PipelineConfig, PipelineConfigWorker, PipelineStageWorker,
 	ApriltagStageWorker, SlamStageWorker
 )
-from typedef.common import (
-	OakSelector
-)
+from typedef.common import OakSelector
 from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig
-from typedef.geom import Pose3d, Transform3d
-from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
+from util.subproc import Subprocess
+from util.log import child_logger
 
 if TYPE_CHECKING:
 	from multiprocessing.context import BaseContext
@@ -60,7 +62,7 @@ class WorkerConfigResolver:
 		for pipeline in self.config.pipelines:
 			self.pipelines[pipeline.id] = self._resolve_pipeline(None, pipeline.stages)
 	
-	def _resolve_path(self, relpart: Union[str, Path]) -> Path:
+	def _resolve_path(self, relpart: str | Path) -> Path:
 		"Resolve a path relative to the config directory"
 		return (Path(self.config_path).parent / os.path.expanduser(relpart)).resolve()
 	def _basepath(self):
@@ -103,7 +105,7 @@ class WorkerConfigResolver:
 				self.log.error("Camera %s requested pipeline %s with a config at %s but that file doesn't exist", cid, pipeline_id, configPath)
 				return None
 			try:
-				nn_cfg = NNConfig.parse_file(configPath)
+				nn_cfg = worker.NNConfig.parse_file(configPath)
 			except:
 				self.log.exception("Camera %s requested pipeline %s with a config at %s but that file doesn't exist", cid, pipeline_id, configPath)
 		else:
@@ -125,7 +127,7 @@ class WorkerConfigResolver:
 		self.nn_cache[pipeline_id] = object_detection
 		return object_detection
 	
-	def _resolve_selector(self, cid: CameraId, raw_selector: Union[str, OakSelector]) -> OakSelector:
+	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> OakSelector:
 		"Resolve an OakSelector, possibly by name"
 		if isinstance(raw_selector, str):
 			for selector in self.config.camera_selectors:
@@ -148,10 +150,13 @@ class WorkerConfigResolver:
 		for i, stage in enumerate(pipeline.root):
 			try:
 				if stage.stage == 'inherit':
-					stages.extend(self._resolve_pipeline(cid, stage.id))
+					if parent := self._resolve_pipeline(cid, stage.id):
+						stages.extend(parent)
+					else:
+						raise RuntimeError(f"Unable to inherit from pipeline '{stage.id}', as id doesn't exist")
 				elif stage.stage == 'apriltag':
 					args = dict(stage)
-					args['apriltags'] = stage.apriltags.load(self._basepath()).to_wpi_inline().store(self._basepath())
+					args['apriltags'] = stage.apriltags.load(self._basepath()).to_wpi_inline()
 					stages.append(ApriltagStageWorker(**args))
 				elif stage.stage == 'slam':
 					args = dict(stage)
@@ -170,7 +175,7 @@ class WorkerConfigResolver:
 					raise
 		return stages
 	
-	def _resolve_slam(self, cid: CameraId, raw_slam: Union[str, PipelineConfig, None]) -> Optional[PipelineConfig]:
+	def _resolve_slam(self, cid: CameraId, raw_slam: str | PipelineConfig | None) -> Optional[PipelineConfig]:
 		"Resolve SLAM configuration. We use global SLAM config for when `raw_slam=True`"
 		if raw_slam is None:
 			return None
@@ -191,7 +196,6 @@ class WorkerConfigResolver:
 		
 		try:
 			apriltagPath = self._resolve_apriltag(cid, slam_cfg.apriltag)
-			slam_cfg: PipelineConfigBase
 			return worker.WorkerPipelineConfig(
 				backend=slam_cfg.backend,
 				syncNN=slam_cfg.syncNN,
@@ -263,7 +267,7 @@ class WorkerManager:
 		
 		self.log.info("Stopping workers")
 		for child in self._workers:
-			child.close()
+			child.stop()
 		self.log.info("Workers stopped")
 		self._workers.clear()
 
@@ -510,7 +514,8 @@ class WorkerHandle0:
 					self._last_flush_id = max(self._last_flush_id, packet.id)
 					continue # We don't need to forward this
 				elif isinstance(packet, worker.MsgLog):
-					self.log.log(packet.level, packet.msg)
+					child_logger = self.log.getChild(packet.name) if packet.name != 'root' else self.log
+					child_logger.log(packet.level, packet.msg)
 					if self.datalog is not None:
 						self.logLog.append(f'[{logging.getLevelName(packet.level)}]{packet.msg}')
 					continue

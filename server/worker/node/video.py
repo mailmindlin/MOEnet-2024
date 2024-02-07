@@ -95,6 +95,7 @@ class RgbBuilder(VideoBuilder[cfg.RgbConfigStage]):
 
 class DepthBuilder(VideoBuilder[cfg.DepthConfigStage]):
 	node: dai.node.StereoDepth
+	camera_socket = None #TODO: fix inheritance so we can get rid of this method
 	requires = [
 		('mono.left', False),
 		('mono.right', False),

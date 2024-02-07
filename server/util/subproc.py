@@ -3,6 +3,9 @@ from multiprocessing import Process, get_context
 from abc import ABC, abstractproperty
 from queue import Full, Empty
 import time
+from datetime import timedelta
+
+from .watchdog import Watchdog
 
 if TYPE_CHECKING:
 	import logging
@@ -154,35 +157,29 @@ class Subprocess(Generic[M, C, R], ABC):
 		if self.proc is None:
 			return
 		
-		t0 = time.time()
-		def timeout_remaining(default: Optional[float] = None):
-			if timeout is None:
-				return default
-			elapsed = time.time() - t0
-			return timeout - elapsed
-		
 		try:
-			self.log.info('Stopping...')
-			if ask and self.proc.is_alive():
-				# Try stopping nicely
-				try:
-					cmd_stop = self.make_stop_command()
-				except NotImplementedError:
-					if self.log: self.log.debug('Unable to send stop command: not implemented')
-				else:
+			with Watchdog(f'{self.name}:stop', max=timeout, log_overrun=False) as w:
+				self.log.info('Stopping...')
+				if ask and self.proc.is_alive():
+					# Try stopping nicely
 					try:
-						self.cmd_queue.put(cmd_stop, block=(timeout is not None), timeout=timeout)
-					except Full:
-						if self.log: self.log.info('Unable to send stop command: queue full')
-			
-			# Now join nicely
-			if (timeout_join := timeout_remaining(1.0)) > 0:
-				try:
-					self.proc.join(timeout_join)
-				except:
-					self.log.exception("Error on join")
-			
-			# Kill it
+						cmd_stop = self.make_stop_command()
+					except NotImplementedError:
+						if self.log: self.log.debug('Unable to send stop command: not implemented')
+					else:
+						try:
+							self.cmd_queue.put(cmd_stop, **w.block_args())
+						except Full:
+							if self.log: self.log.info('Unable to send stop command: queue full')
+				
+				# Now join nicely
+				if (timeout_join := (w.remaining_seconds() or 1.0)) > 0:
+					try:
+						self.proc.join(timeout_join)
+					except:
+						self.log.exception("Error on join")
+				
+			# Kill it with fire
 			if self.proc.is_alive():
 				self.proc.kill()
 			

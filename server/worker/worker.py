@@ -138,7 +138,7 @@ class DeviceManager:
 		prev_excs = list()
 		while True:
 			# Try to connect
-			self.log.info("Trying to attach to OAK (try %d of %d)", self._retries + 1, self.config.retry.connection_tries)
+			self.log.info("Trying to attach to OAK (try %d of %d)", self._retries + 1, self.config.retry.connection_tries + 1)
 			try:
 				# Pick best constructor
 				if (ordinal is None) or (ordinal == 1):

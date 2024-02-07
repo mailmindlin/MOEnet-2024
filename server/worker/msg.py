@@ -2,14 +2,19 @@
 Type definitions for communicating between the master and worker processes
 """
 
-from typing import Optional, Any, Literal, Union
-from enum import IntEnum
+from typing import Optional, Any, Literal, Union, TypeAlias
+from enum import IntEnum, auto
 from pydantic import BaseModel, Field
 from dataclasses import dataclass
+import numpy as np
 
 from typedef.common import OakSelector, RetryConfig
 from typedef.geom import Pose3d, Translation3d, Twist3d, Transform3d
-from typedef.pipeline import PipelineStage, NNConfig
+from typedef.pipeline import PipelineStageWorker, NNConfig
+
+Mat33 = np.ndarray[float, tuple[Literal[3], Literal[3]]]
+Mat44 = np.ndarray[float, tuple[Literal[4], Literal[4]]]
+Mat66 = np.ndarray[float, tuple[Literal[6], Literal[6]]]
 
 class ObjectDetectionConfig(NNConfig):
     "Configure an object detection pipeline"
@@ -57,7 +62,13 @@ class CmdEnableStream(BaseModel):
     stream: str
     enable: bool
 
-AnyCmd = Union[CmdPoseOverride, CmdFlush, CmdChangeState, CmdEnableStream]
+AnyCmd = Union[
+    CmdPoseOverride,
+    CmdFlush,
+    CmdChangeState,
+    CmdEnableStream,
+]
+"Commands to send to worker"
 
 
 class MsgChangeState(BaseModel):
@@ -71,32 +82,76 @@ class MsgFlush(BaseModel):
     "Notify that a flush was completed"
     id: int
 
-class MsgDetection(BaseModel):
+@dataclass
+class ObjectDetection:
     label: str
     confidence: float
     position: Translation3d
 
+@dataclass
+class AprilTagDetection:
+    tag_family: str
+    tag_id: int
+    hamming: int
+    decision_margin: float
+    corners: np.ndarray[float, tuple[Literal[4], Literal[2]]]
+    homography: Mat33
+
+    def getFamily(self):
+        return self.tag_family
+    
+    def getId(self):
+        return self.tag_id
+    def getHamming(self):
+        return self.hamming
+    def getDecisionMargin(self):
+        return self.decision_margin
+    def getCorners(self, *args):
+        return self.corners
+
+
 class MsgDetections(BaseModel):
     timestamp: int
     "Wall time (ns)"
-    detections: list[MsgDetection]
+    detections: list[ObjectDetection]
 
     def __iter__(self):
         return iter(self.detections)
 
-class MsgPose(BaseModel):
+class AprilTagPose(BaseModel):
+    error: float
+    camToTag: Transform3d
+    fieldToCam: Pose3d | None
+
+
+class MsgAprilTagPoses(BaseModel):
+    timestamp: int
+    poses: list[AprilTagPose]
+
+
+@dataclass
+class MsgPose:
+    timestamp: int
+    "Wall time (ns)"
+    pose: Pose3d
+    "Field-to-camera pose"
+    poseCovariance: Mat66
+
+@dataclass
+class MsgOdom:
     timestamp: int
     "Wall time (ns)"
     view_mat: Any
     pose: Pose3d
     "Field-to-camera pose"
-    poseCovariance: Any
+    poseCovariance: Mat66
     twist: Twist3d
     "Field-to-camera twist"
-    twistCovariance: Any
+    twistCovariance: Mat66
 
 class MsgLog(BaseModel):
     level: int
+    name: str
     msg: str
 
 @dataclass

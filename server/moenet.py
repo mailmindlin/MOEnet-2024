@@ -31,7 +31,7 @@ class MoeNet:
 			sh.setFormatter(ColorFormatter())
 			root.addHandler(sh)
 
-		self.log = logging.getLogger("MoeNet")
+		self.log = logging.getLogger()
 		self.datalog = None
 		self.config_path = config_path
 		self.config = config

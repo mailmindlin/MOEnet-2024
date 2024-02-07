@@ -10,15 +10,11 @@ import numpy as np
 
 from typedef.common import OakSelector, RetryConfig
 from typedef.geom import Pose3d, Translation3d, Twist3d, Transform3d
-from typedef.pipeline import PipelineStageWorker, NNConfig
+from typedef.pipeline import PipelineStageWorker
 
 Mat33 = np.ndarray[float, tuple[Literal[3], Literal[3]]]
 Mat44 = np.ndarray[float, tuple[Literal[4], Literal[4]]]
 Mat66 = np.ndarray[float, tuple[Literal[6], Literal[6]]]
-
-class ObjectDetectionConfig(NNConfig):
-    "Configure an object detection pipeline"
-    blobPath: str
 
 class WorkerInitConfig(BaseModel):
     "Config for worker.main"

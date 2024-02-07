@@ -2,12 +2,12 @@
 	"$defs": {
 		"AprilTagStrategy": {
 			"enum": [
-				1,
-				2,
-				3
+				"lowest_ambiguity",
+				"closest_to_last_pose",
+				"average_best_targets"
 			],
 			"title": "AprilTagStrategy",
-			"type": "integer"
+			"type": "string"
 		},
 		"ApriltagStage": {
 			"properties": {
@@ -47,6 +47,40 @@
 					"title": "Camera",
 					"type": "string"
 				},
+				"detectorThreads": {
+					"anyOf": [
+						{
+							"minimum": 0,
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "How many threads should be used for computation",
+					"title": "Detectorthreads"
+				},
+				"detectorAsync": {
+					"default": false,
+					"description": "Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera",
+					"title": "Detectorasync",
+					"type": "boolean"
+				},
+				"decodeSharpening": {
+					"anyOf": [
+						{
+							"minimum": 0.0,
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "How much sharpening should be done to decoded images",
+					"title": "Decodesharpening"
+				},
 				"quadDecimate": {
 					"default": 1,
 					"title": "Quaddecimate",
@@ -64,6 +98,9 @@
 				},
 				"hammingDist": {
 					"default": 0,
+					"description": "Maximum number of bits to correct",
+					"exclusiveMaximum": 3,
+					"minimum": 0,
 					"title": "Hammingdist",
 					"type": "integer"
 				},
@@ -1177,7 +1214,7 @@
 							"type": "null"
 						}
 					],
-					"default": 1
+					"default": "lowest_ambiguity"
 				}
 			},
 			"title": "PoseEstimatorConfig",

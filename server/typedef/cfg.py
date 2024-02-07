@@ -1,10 +1,12 @@
 "Type definitions for parsing the configuration"
 
 from typing import TYPE_CHECKING, Optional, Literal, Union, Annotated
+import enum
 from pathlib import Path
-from pydantic import BaseModel, Field, model_validator, TypeAdapter, Tag, Discriminator
-from ntcore import NetworkTableInstance
 from datetime import timedelta
+
+from pydantic import BaseModel, Field, TypeAdapter, Tag
+from ntcore import NetworkTableInstance
 
 if __name__ == '__main__' and (not TYPE_CHECKING):
     import common, geom, apriltag, pipeline
@@ -20,8 +22,14 @@ class ObjectTrackerConfig(BaseModel):
 	min_depth: float = Field(0.5, gt=0, description="")
 	alpha: float = Field(0.2, gt=0, description="")
 
+class AprilTagStrategy(enum.StrEnum):
+    LOWEST_AMBIGUITY = enum.auto()
+    CLOSEST_TO_LAST_POSE = enum.auto()
+    AVERAGE_BEST_TARGETS = enum.auto()
+
 class PoseEstimatorConfig(BaseModel):
 	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
+	apriltagStrategy: AprilTagStrategy | None = Field(default=AprilTagStrategy.LOWEST_AMBIGUITY)
 
 class EstimatorConfig(BaseModel):
     detections: ObjectTrackerConfig = Field(default_factory=ObjectTrackerConfig)

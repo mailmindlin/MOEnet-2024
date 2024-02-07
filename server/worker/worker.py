@@ -185,11 +185,11 @@ class CameraWorker:
 		self._state = None
 		self.state = WorkerState.INITIALIZING
 
-		handler = ForwardHandler(data_queue, logging.INFO)
+		handler = ForwardHandler(data_queue, logging.DEBUG)
 
 		self.log = logging.getLogger()
 		self.log.addHandler(handler)
-		self.log.setLevel(logging.INFO)
+		self.log.setLevel(logging.DEBUG)
 
 		self.dev_mgr = DeviceManager(config, self.log)
 	
@@ -236,11 +236,13 @@ class CameraWorker:
 			self.log.info("Attached to OAK (mxid=%s)", mxid)
 
 		self.pipeline.start(self.device)
+		self.log.info('Pipeline started')
 		self.state = WorkerState.RUNNING
 
 		return self
 
 	def poll(self):
+		self.log.debug("Poll camera")
 		for packet in self.pipeline.poll():
 			if isinstance(packet, MsgPose):
 				self.log.info(" -> Pose %05.03f %05.03f %05.05f %05.05f", packet.pose.translation().x, packet.pose.translation().y, packet.pose.translation().z, packet.poseCovariance[0,0])

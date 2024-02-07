@@ -321,6 +321,29 @@ class FixedOffsetMapper(TimeMapper):
 			return (self.clock_a == other.clock_a) and (self.clock_b == other.clock_b) and (self.offset_ns == other.offset_ns)
 		return super().__eq__(other)
 
+class DynamicOffsetMapper(TimeMapper):
+	"""
+	Try to compute the offset between the monotonic clock and system time
+	We use this to convert timestamps to system time between processes
+	"""
+
+	def __init__(self, clock_a: 'Clock', clock_b: 'Clock') -> None:
+		super().__init__(clock_a, clock_b)
+	
+	@property
+	def constant_offset(self):
+		return False
+	
+	def get_offset(self):
+		a = self.clock_a.now_ns()
+		b = self.clock_b.now_ns()
+		return b - a
+	
+	def __eq__(self, other) -> bool:
+		if isinstance(other, DynamicOffsetMapper):
+			return (self.clock_a == other.clock_a) and (self.clock_b == other.clock_b)
+		return super().__eq__(other)
+
 
 class IdentityTimeMapper(TimeMapper):
 	def __init__(self, clock: 'Clock') -> None:

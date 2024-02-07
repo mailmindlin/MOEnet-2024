@@ -173,7 +173,9 @@ class Comms:
 		if psutil is not None:
 			try:
 				if self._pub_telem_cpu.enabled:
-					self._pub_telem_cpu.set(psutil.cpu_percent())
+					val = psutil.cpu_percent()
+					if val != 0:
+						self._pub_telem_cpu.set(val)
 				if self._pub_telem_ram.enabled:
 					self._pub_telem_ram.set(psutil.virtual_memory().percent)
 			except Exception:
@@ -215,7 +217,6 @@ class Comms:
 	def tx_pose(self, pose: Pose3d):
 		self._pub_tf_field_robot.set(pose)
 
-		self.log.warning("Publish f2r %s/%s", self._pub_f2d_f2r.enabled, self.config.nt.publishField2dF2R)
 		q = pose.rotation().getQuaternion()
 		self._pub_tf_field_robot2.set([
 			pose.x,

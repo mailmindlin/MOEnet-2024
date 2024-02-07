@@ -23,7 +23,7 @@ def _iter_descriptor(file: 'FileDescriptor', exists: Callable[[str], bool]) -> I
 		yield from _iter_descriptor(dep, exists)
 	yield (name, file.serialized_pb)
 
-def add_schema(registry: 'SchemaRegistry', proto: 'GeneratedProtocolMessageType'):
+def add_schema(registry: 'SchemaRegistry', proto: 'GeneratedProtocolMessageType', timestamp: int = 0):
 	"Register a protobuf's schema with NetworkTables"
 	for (typeString, schema) in _iter_descriptor(proto.DESCRIPTOR.file, registry.hasSchema):
 		registry.addSchema(typeString, "proto:FileDescriptorProto", schema)

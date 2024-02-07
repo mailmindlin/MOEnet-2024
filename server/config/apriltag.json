@@ -94,7 +94,8 @@
 						"tagFamily": "tag36h11",
 						"tagSize": 0.1651
 					},
-					"runtime": "host"
+					"runtime": "host",
+					"undistort": true
 				},
 				{
 					"stage": "show",
@@ -115,15 +116,17 @@
 					"stage": "apriltag",
 					"camera": "left",
 					"hammingDist": 0,
+					"decisionMargin": 35,
 					"apriltags": {
 						"format": "wpi",
 						"tagFamily": "tag36h11",
 						"tagSize": 0.1651,
-						"field": {
+						"path": "./apriltag/2024-crescendo.json",
+						"field0": {
 							"length": 16.451,
 							"width": 8.211
 						},
-						"tags": [
+						"tags0": [
 							{
 								"ID": 42,
 								"pose": {
@@ -146,7 +149,8 @@
 					},
 					"runtime": "host",
 					"doMultiTarget": false,
-					"solvePNP": true
+					"solvePNP": true,
+					"undistort": false
 				},
 				{
 					"stage": "show",
@@ -174,7 +178,7 @@
 				"translation": {
 					"x": 0,
 					"y": 0,
-					"z": 1
+					"z": 0
 				}
 			},
 			"pipeline": [

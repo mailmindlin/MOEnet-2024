@@ -17,6 +17,11 @@
 		"publishField2dF2O": true,
 		"publishField2dF2R": true
 	},
+	"estimator": {
+		"pose": {
+			"apriltagStrategy": "closest_to_last_pose"
+		}
+	},
 	"pipelines": [
 		{
 			"id": "device-rgb",
@@ -103,7 +108,7 @@
 				{
 					"stage": "mono",
 					"target": "left",
-					"resolution": "THE_800_P",
+					"resolution": "THE_400_P",
 					"fps": 30
 				},
 				{
@@ -123,16 +128,16 @@
 								"ID": 42,
 								"pose": {
 									"translation": {
-										"x": 15.079471999999997,
-										"y": 0.24587199999999998,
-										"z": 1.355852
+										"x": 11.220196,
+										"y": 4.105148,
+										"z": 1.3208
 									},
 									"rotation": {
 										"quaternion": {
-											"W": 0.5000000000000001,
+											"W": 6.123233995736766e-17,
 											"X": 0.0,
 											"Y": 0.0,
-											"Z": 0.8660254037844386
+											"Z": 1.0
 										}
 									}
 								}
@@ -140,12 +145,12 @@
 						]
 					},
 					"runtime": "host",
-					"doMultiTarget": true,
+					"doMultiTarget": false,
 					"solvePNP": true
 				},
 				{
 					"stage": "show",
-					"enabled": false,
+					"enabled": true,
 					"target": "left"
 				}
 			]
@@ -169,7 +174,7 @@
 				"translation": {
 					"x": 0,
 					"y": 0,
-					"z": 0
+					"z": 1
 				}
 			},
 			"pipeline": [

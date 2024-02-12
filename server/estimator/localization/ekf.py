@@ -195,13 +195,13 @@ class EKF(FilterBase):
 			sr * tp,
 			cr * tp,
 		]) * delta_sec
-		transfer_function_(StateMemberPitch, StateMemberVpitch) = cr * delta_sec;
-		transfer_function_(StateMemberPitch, StateMemberVyaw) = -sr * delta_sec;
-		transfer_function_(StateMemberYaw, StateMemberVpitch) = sr * cpi * delta_sec;
-		transfer_function_(StateMemberYaw, StateMemberVyaw) = cr * cpi * delta_sec;
-		transfer_function_(StateMemberVx, StateMemberAx) = delta_sec;
-		transfer_function_(StateMemberVy, StateMemberAy) = delta_sec;
-		transfer_function_(StateMemberVz, StateMemberAz) = delta_sec;
+		self.transfer_function[StateMembers.Pitch.idx(), StateMembers.Vpitch.idx()] = cr * delta_sec
+		self.transfer_function[StateMembers.Pitch.idx(), StateMembers.Vyaw.idx()] = -sr * delta_sec
+		self.transfer_function[StateMembers.Yaw.idx(), StateMembers.Vpitch.idx()] = sr * cpi * delta_sec
+		self.transfer_function[StateMembers.Yaw.idx(), StateMembers.Vyaw.idx()] = cr * cpi * delta_sec
+		self.transfer_function[StateMembers.Vx.idx(), StateMembers.Ax.idx()] = delta_sec
+		self.transfer_function[StateMembers.Vy.idx(), StateMembers.Ay.idx()] = delta_sec
+		self.transfer_function[StateMembers.Vz.idx(), StateMembers.Az.idx()] = delta_sec
 
 		# Prepare the transfer function Jacobian. This function is analytically
 		# derived from the transfer function.

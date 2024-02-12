@@ -8,8 +8,8 @@ from enum import Enum, auto
 from datetime import timedelta
 
 import numpy as np
-from server.typedef.geom import Transform3d
-from server.typedef.geom_cov import Twist3dCov
+from typedef.geom import Transform3d
+from typedef.geom_cov import Twist3dCov
 
 from typedef.geom import Transform3d, Rotation3d, Pose3d, Twist3d
 from typedef.geom_cov import Acceleration3dCov, Twist3dCov, Pose3dCov, rot3_to_mat, rot3_to_mat6, Odometry
@@ -17,7 +17,8 @@ from util.timestamp import Timestamp, Stamped
 from util.clock import WallClock
 from .base import ControlMembers, StateMembers, Measurement, block
 from .ekf import EKF
-from .queue import Heap
+from ..util.queue import Heap
+from ..util.replay import ReplayFilter
 
 def update_counts(acc: dict[StateMembers, int], updates: StateMembers, mask: StateMembers, map: StateMembers | None = None):
 	if map is None:
@@ -129,24 +130,29 @@ def mask(members: IntFlag) -> np.ndarray[float, tuple[Literal[3], Literal[3]]]:
 	
 
 class PoseEstimator:
+	"""
+	Kalman filter based on robot_localization
+	"""
 	def __init__(self, config: PoseEstimatorConfig):
 		self._sources: list[DataSource] = list()
 		self.log = logging.getLogger("pose")
-		self._filter = EKF()
 		self.config = config
 		self.clock = WallClock()
+		self._filter = EKF(
+			self.log.getChild('ekf'),
+			self.clock,
+		)
 
 		self._last_set_pose_ts = Timestamp.invalid()
 		self._last_diag_time = self.clock.now()
 		self._last_diff_time = Timestamp.invalid(self.clock)
 
 		self._sources: list[DataSource] = list()
-		self._measurement_queue: Heap[Measurement] = Heap()
-		self._filter_state_history = list()
-		self._measurement_history: deque[Measurement] = deque()
+		self._replay = ReplayFilter(
+			self.log,
+			self._filter,
+		)
 		
-		self._toggled_on = True
-
 		self.twist_var_counts = {
 			key: 0
 			for key in StateMembers.TWIST
@@ -162,7 +168,7 @@ class PoseEstimator:
 	
 	def initialize(self):
 		# Init the last measurement time so we don't get a huge initial delta
-		self._filter.last_measurement_time = self.clock.now()
+		self._filter.last_measurement_ts = self.clock.now()
 		
 	def set_pose(self, msg: Stamped[Pose3d | Pose3dCov]):
 		# RCLCPP_INFO_STREAM(
@@ -199,7 +205,7 @@ class PoseEstimator:
 		self._filter.state = measurement.mean_dense
 		self._filter.estimate_error_covariance = measurement.covariance_dense
 
-		self._filter.last_measurement_time = self.clock.now()
+		self._filter.last_measurement_ts = self.clock.now()
 
 	def make_odom(self, name: str, robot_to_sensor: Transform3d, update: StateMembers, pose_threshold: float | None = None, twist_threshold: float | None = None, mode: SensorMode = SensorMode.ABSOLUTE):
 		# Now pull in its boolean update vector configuration. Create separate
@@ -375,7 +381,8 @@ class PoseEstimator:
 		return res
 	
 	def poll(self):
-		cur_time = self.clock.now()
+		now = self.clock.now()
+		self._replay.poll(now)
 
 		if self._toggled_on:
 			# Now we'll integrate any measurements we've received if requested,
@@ -388,7 +395,7 @@ class PoseEstimator:
 
 			# Reset last measurement time so we don't get a large time delta on toggle
 			if self._filter.is_initialized:
-				self._filter.last_measurement_time = self.clock.now()
+				self._filter.last_measurement_ts = self.clock.now()
 
 		# Get latest state and publish it
 		corrected_data = False
@@ -510,7 +517,7 @@ class PoseEstimator:
 
 		# Clear out expired history data
 		if self.config.smooth_lagged_data:
-			self._clearExpiredHistory(self._filter.last_measurement_time - self.config.history_length)
+			self._clearExpiredHistory(self._filter.last_measurement_ts - self.config.history_length)
 
 		# Warn the user if the update took too long
 		loop_elapsed = (self.clock.now() - cur_time).total_seconds()
@@ -539,7 +546,7 @@ class PoseEstimator:
 			block(estimate_error_covariance, StateMembers.TWIST),
 		)
 		return Odometry(
-			stamp=self._filter.last_measurement_time,
+			stamp=self._filter.last_measurement_ts,
 			pose=pose,
 			twist=twist,
 		)
@@ -551,7 +558,7 @@ class PoseEstimator:
 		popped_measurements = 0
 		popped_states = 0
 
-		while (len(self._measurement_history) > 0) and self._measurement_history[0].stamp < cutoff_time:
+		while (len(self._measurement_history) > 0) and self._measurement_history[0].ts < cutoff_time:
 			self._measurement_history.popleft()
 			popped_measurements += 1
 
@@ -598,9 +605,9 @@ class PoseEstimator:
 			# Repeat for measurements, but push every measurement onto the measurement
 			# queue as we go
 			restored_measurements = 0
-			while self._measurement_history and self._measurement_history[-1].stamp > time:
+			while self._measurement_history and self._measurement_history[-1].ts > time:
 				# Don't need to restore measurements that predate our earliest state time
-				if state.last_measurement_time <= self._measurement_history[-1].stamp:
+				if state.last_measurement_time <= self._measurement_history[-1].ts:
 					self._measurement_queue.push(self._measurement_queue[-1])
 					restored_measurements += 1
 
@@ -629,11 +636,11 @@ class PoseEstimator:
 			# filter state and measurement queue to the first state that preceded the
 			# time stamp of our first measurement.
 			restored_measurement_count = 0
-			if (self.config.smooth_lagged_data and first_measurement.stamp < self._filter.last_measurement_time):
-				self.log.debug("Received a measurement that was %s seconds in the past. Reverting filter state and measurement queue...", (self._filter.last_measurement_time - first_measurement.stamp).total_seconds())
+			if (self.config.smooth_lagged_data and first_measurement.ts < self._filter.last_measurement_ts):
+				self.log.debug("Received a measurement that was %s seconds in the past. Reverting filter state and measurement queue...", (self._filter.last_measurement_ts - first_measurement.ts).total_seconds())
 
 				original_count = len(self._measurement_queue)
-				first_measurement_time = first_measurement.stamp
+				first_measurement_time = first_measurement.ts
 				first_measurement_topic = first_measurement.source.name
 				# revertTo may invalidate first_measurement
 				if not self.revert_to(first_measurement_time - timedelta(microseconds=1)):
@@ -653,7 +660,7 @@ class PoseEstimator:
 				# If we've reached a measurement that has a time later than now, it
 				# should wait until a future iteration. Since measurements are stored in
 				# a priority queue, all remaining measurements will be in the future.
-				if current_time < measurement.stamp:
+				if current_time < measurement.ts:
 					break
 				self._measurement_queue.pop()
 
@@ -681,29 +688,29 @@ class PoseEstimator:
 					self._measurement_history.append(measurement)
 
 					# We should only save the filter state once per unique timstamp
-					if len(self._measurement_queue) == 0 or self._measurement_queue.peek().stamp != self._filter.last_measurement_time:
+					if len(self._measurement_queue) == 0 or self._measurement_queue.peek().ts != self._filter.last_measurement_ts:
 						self._saveFilterState(self._filter);
 		elif self._filter.is_initialized:
 			# In the event that we don't get any measurements for a long time,
 			# we still need to continue to estimate our state. Therefore, we
 			# should project the state forward here.
-			last_update_delta = current_time - self._filter.last_measurement_time
+			last_update_delta = current_time - self._filter.last_measurement_ts
 
 			# If we get a large delta, then continuously predict until
 			if last_update_delta >= self._filter.sensor_timeout:
 				predict_to_current_time = True
-				self.log.debug("Sensor timeout! Last measurement time was %s, current time is %s, delta is %s", self._filter.last_measurement_time, current_time, last_update_delta)
+				self.log.debug("Sensor timeout! Last measurement time was %s, current time is %s, delta is %s", self._filter.last_measurement_ts, current_time, last_update_delta)
 		else:
 			self.log.debug("Filter not yet initialized.\n")
 
 		if (self._filter.is_initialized and predict_to_current_time):
-			last_update_delta = current_time - self._filter.last_measurement_time
+			last_update_delta = current_time - self._filter.last_measurement_ts
 
 			self._filter.validateDelta(last_update_delta)
 			self._filter.predict(current_time, last_update_delta)
 
 			# Update the last measurement time and last update time
-			self._filter.last_measurement_time = self._filter.last_measurement_time + last_update_delta
+			self._filter.last_measurement_ts = self._filter.last_measurement_ts + last_update_delta
 
 	def _differentiate_measurements(self, current_time: Timestamp):
 		"""
@@ -959,12 +966,12 @@ class PoseEstimator:
 			# First, convert the transform and measurement rotation to RPY
 			# @todo: There must be a way to handle this with quaternions. Need to
 			# look into it.
-			double roll_offset = 0
-			double pitch_offset = 0
-			double yaw_offset = 0
-			double roll = 0
-			double pitch = 0
-			double yaw = 0
+			roll_offset = 0.0
+			pitch_offset = 0.0
+			yaw_offset = 0.0
+			roll = 0.0
+			pitch = 0.0
+			yaw = 0.0
 			ros_filter_utilities.quatToRPY(
 				target_frame_trans.getRotation(),
 				roll_offset, pitch_offset, yaw_offset)

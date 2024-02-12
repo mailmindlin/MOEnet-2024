@@ -9,6 +9,7 @@ from enum import IntFlag, auto, Flag
 from abc import ABC, abstractmethod, abstractproperty
 import logging
 from . import angles
+from ..util.replay import GenericFilter
 
 if TYPE_CHECKING:
 	from .filter import DataSource
@@ -87,7 +88,7 @@ class ControlMembers(Flag):
 
 
 class Measurement:
-	stamp: Timestamp
+	ts: Timestamp
 	mahalanobis_threshold: float | None = None
 	"The Mahalanobis distance threshold in number of sigmas"
 	latest_control_time: Timestamp | None = None
@@ -108,7 +109,7 @@ class Measurement:
 	covariance: NDArray
 
 	def __init__(self, ts: Timestamp, source: 'DataSource', *, update_vector: StateMembers = StateMembers.NONE) -> None:
-		self.stamp = ts
+		self.ts = ts
 		self.source = source
 		self.update_vector = update_vector
 		self.measurement = np.zeros(15, dtype=float)
@@ -131,44 +132,149 @@ class Measurement:
 	def covariance_dense(self):
 		return self.covariance
 
+class FilterSnapshot:
+	ts: Timestamp
+
 S = Literal[15]
 
-class FilterBase:
+class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 	debug: bool
 	estimate_error_covariance: np.ndarray[float, tuple[S, S]]
 	process_noise_covariance: np.ndarray[float, tuple[S, S]]
 	"Gets the filter's process noise covariance"
 
 	dynamic_process_noise_covariance: np.ndarray[float, tuple[S, S]]
-	def __init__(self, log: logging.Logger, clock: Clock):
+	def __init__(self, log: logging.Logger, clock: Clock, state_size: int = 15):
 		self.log = log
 		self.debug = False
 		self.is_initialized = False
 		"True if we've received our first measurement, false otherwise"
-		self.state_len = 15
-		self.state = np.zeros((self.state_len), dtype=float)
-		self.estimate_error_covariance = np.zeros()
+		self.state_size = state_size
 		"The estimated error covariance"
-		self.predicted_state = np.zeros()
-		"The filter's predicted state, i.e., the state estimate before correct() is called."
 		self.use_control = False
 		"Whether or not we apply the control term"
 		self.use_dynamic_process_noise_covariance = False
+
+		TWIST_SIZE = len(StateMembers.TWIST)
+		self.control_update_vector = (TWIST_SIZE, 0)
+		self.control_acceleration = np.zeros(TWIST_SIZE, dtype=bool)
+		self.latest_control = np.zeros(TWIST_SIZE, dtype=np.float32)
+		self.predicted_state = np.zeros()
+		"The filter's predicted state, i.e., the state estimate before correct() is called."
+		self.state = np.zeros((state_size), dtype=float)
+		self.covariance_epsilon = np.zeros((state_size, state_size), dtype=np.float32)
+		self.dynamic_process_noise_covariance = np.zeros((state_size, state_size), dtype=np.float32)
+		self.estimate_error_covariance = np.zeros((state_size, state_size), dtype=np.float32)
+		self.process_noise_covariance = np.zeros((state_size, state_size), dtype=np.float32)
+		self.transfer_function = np.zeros((state_size, state_size), dtype=np.float32)
+		self.transfer_function_jacobian = np.zeros((state_size, state_size), dtype=np.float32)
 		"""
 		If true, uses the robot's vehicle state and the static process noise
 		covariance matrix to generate a dynamic process noise covariance matrix"""
 
 		self.clock = clock
-		self.last_measurement_time = Timestamp.invalid(clock)
+		self.last_measurement_ts = Timestamp.invalid(clock)
 		"Gets the most recent measurement time"
-		self.control_time = Timestamp.invalid(clock)
+		self.control_ts = Timestamp.invalid(clock)
 		"The time at which the control term was issued"
 		self.sensor_timeout = timedelta(0)
 		"Gets the sensor timeout value"
+
+		self.reset()
 	
 	def reset(self):
 		"Resets filter to its unintialized state"
-		...
+		self.is_initialized = False
+
+		# Clear the state and predicted state
+		self.state[:] = 0
+		self.predicted_state[:] = 0
+		self.control_acceleration[:] = False
+
+		# Prepare the invariant parts of the transfer
+		# function
+		self.transfer_function[:] = np.eye(self.state_size)
+
+		# Clear the Jacobian
+		self.transfer_function_jacobian[:] = 0
+
+		# Set the estimate error covariance. We want our measurements
+		# to be accepted rapidly when the filter starts, so we should
+		# initialize the state's covariance with large values.
+		self.estimate_error_covariance[:] = np.eye(self.state_size) * 1e-9
+
+		# Set the epsilon matrix to be a matrix with small values on the diagonal
+		# It is used to maintain the positive-definite property of the covariance
+		self.covariance_epsilon[:] = np.eye(self.state_size) * 0.001
+
+		# Assume 30Hz from sensor data (configurable)
+		self.sensor_timeout = timedelta(seconds=0.033333333)
+
+		# Initialize our last update and measurement times
+		self.last_measurement_ts = Timestamp.invalid(self.clock)
+
+		# These can be overridden via the launch parameters,
+		# but we need default values.
+		self.process_noise_covariance[:] = 0
+		self.process_noise_covariance[StateMembers.X.idx(), StateMembers.X.idx()] = 0.05
+		self.process_noise_covariance[StateMembers.Y.idx(), StateMembers.Y.idx()] = 0.05
+		self.process_noise_covariance[StateMembers.Z.idx(), StateMembers.Z.idx()] = 0.06
+		self.process_noise_covariance[StateMembers.Roll.idx(), StateMembers.Roll.idx()] = 0.03
+		self.process_noise_covariance[StateMembers.Pitch.idx(), StateMembers.Pitch.idx()] = 0.03
+		self.process_noise_covariance[StateMembers.Yaw.idx(), StateMembers.Yaw.idx()] = 0.06
+		self.process_noise_covariance[StateMembers.Vx.idx(), StateMembers.Vx.idx()] = 0.025
+		self.process_noise_covariance[StateMembers.Vy.idx(), StateMembers.Vy.idx()] = 0.025
+		self.process_noise_covariance[StateMembers.Vz.idx(), StateMembers.Vz.idx()] = 0.04
+		self.process_noise_covariance[StateMembers.Vroll.idx(), StateMembers.Vroll.idx()] = 0.01
+		self.process_noise_covariance[StateMembers.Vpitch.idx(), StateMembers.Vpitch.idx()] = 0.01
+		self.process_noise_covariance[StateMembers.Vyaw.idx(), StateMembers.Vyaw.idx()] = 0.02
+		self.process_noise_covariance[StateMembers.Ax.idx(), StateMembers.Ax.idx()] = 0.01
+		self.process_noise_covariance[StateMembers.Ay.idx(), StateMembers.Ay.idx()] = 0.01
+		self.process_noise_covariance[StateMembers.Az.idx(), StateMembers.Az.idx()] = 0.015
+
+		self.dynamic_process_noise_covariance[:] = self.process_noise_covariance
+
+	def snapshot(self) -> S:
+		pass
+	def restore(self, state: S):
+		pass
+
+	def differentiate(self, now: Timestamp):
+		dt = now - self.last_diff_time
+		state = self.state[:]
+		new_state_twist_rot = state[(
+			StateMembers.Vroll.idx(),
+			StateMembers.Vpitch.idx(),
+			StateMembers.Vyaw.idx(),
+		)]
+		self.angular_acceleration = (new_state_twist_rot - self.last_state_twist_rot) / dt
+		cov = self.estimate_error_covariance
+		ORIENTATION_SIZE = len(StateMembers.POS_LIN)
+		for i in range(ORIENTATION_SIZE):
+			for j in range(ORIENTATION_SIZE):
+				self.angular_acceleration_cov[i, j] = cov[i + ORIENTATION_V_OFFSET, j + ORIENTATION_V_OFFSE] * 2. / ( dt * dt )
+		self.last_state_twist_rot = new_state_twist_rot
+		self.last_diff_time = now
+
+	def validate_delta(self, delta: timedelta):
+		"Ensures a given time delta is valid (helps with bag file playback"
+		pass
+
+	@abstractmethod
+	def predict(self, now: Timestamp, delta: timedelta):
+		"""
+		Carries out the predict step in the predict/update cycle.
+
+		Projects the state and error matrices forward using a model of the
+		vehicle's motion. This method must be implemented by subclasses.
+
+		@param[in] reference_time - The time at which the prediction is being made
+		@param[in] delta - The time step over which to predict.
+		"""
+		pass
+
+	def process_measurement(self, measurement: M):
+		pass
 
 	def computeDynamicProcessNoiseCovariance(self, state: np.ndarray[float, S]):
 		"""
@@ -196,6 +302,7 @@ class FilterBase:
 	
 	def debug_method(self, *args):
 		pass
+
 	def correct(self, measurement: Measurement):
 		"""
 		Carries out the correct step in the predict/update cycle. This
@@ -210,16 +317,14 @@ class FilterBase:
 		...
 	
 	@abstractproperty
-	def control_time(self) -> Timestamp:
-		
+	def control_ts(self) -> Timestamp:
 		...
+
+	def snapshot(self):
+		pass
 
 	def getState(self) -> np.ndarray[float, S]:
 		"Gets the filter state"
-		pass
-
-	def validateDelta(self, delta: timedelta):
-		"Ensures a given time delta is valid (helps with bag file playback"
 		pass
 
 	def checkMahalanobisThreshold(self, innovation, innovation_covariance, n_sigmas: float) -> bool:
@@ -234,20 +339,7 @@ class FilterBase:
 			return False
 		return True
 
-	@abstractmethod
-	def predict(self, reference_time: Timestamp, delta: timedelta):
-		"""
-		Carries out the predict step in the predict/update cycle.
-
-		Projects the state and error matrices forward using a model of the
-		vehicle's motion. This method must be implemented by subclasses.
-
-		@param[in] reference_time - The time at which the prediction is being made
-		@param[in] delta - The time step over which to predict.
-		"""
-		pass
-
-	def processMeasurement(self, measurement: Measurement):
+	def process_measurement(self, measurement: Measurement):
 		"""
 		Does some final preprocessing, carries out the predict/update cycle
 		@param[in] measurement - The measurement object to fuse into the filter
@@ -260,16 +352,16 @@ class FilterBase:
 			# from this measurement.
 			if self.is_initialized:
 				# Determine how much time has passed since our last measurement
-				delta = measurement.stamp - self.last_measurement_time
+				delta = measurement.ts - self.last_measurement_ts
 
 				self.log.debug("Filter is already initialized. Carrying out predict/correct loop...")
-				self.log.debug("Measurement time is %s, last measurement time is %s, delta is %s", measurement.stamp.as_seconds(), self.last_measurement_time.as_seconds(), delta.total_seconds())
+				self.log.debug("Measurement time is %s, last measurement time is %s, delta is %s", measurement.ts.as_seconds(), self.last_measurement_ts.as_seconds(), delta.total_seconds())
 
 				# Only want to carry out a prediction if it's
 				# forward in time. Otherwise, just correct.
 				if delta.total_seconds() > 0:
 					self.validateDelta(delta)
-					self.predict(measurement.stamp, delta)
+					self.predict(measurement.ts, delta)
 
 					# Return this to the user
 					self.predicted_state = np.copy(self.state)
@@ -302,7 +394,7 @@ class FilterBase:
 				# determine if we have a sensor timeout, whereas the
 				# measurement time is used to calculate time deltas for
 				# prediction and correction.
-				self.last_measurement_time = measurement.stamp
+				self.last_measurement_ts = measurement.ts
 
 	def set_control(self, control: np.ndarray[float, S], control_time: Timestamp):
 		"""
@@ -311,7 +403,7 @@ class FilterBase:
 		@param[in] control_time - The time at which the control in question was
 		"""
 		self.control = control
-		self.control_time = control_time
+		self.control_ts = control_time
 
 	def setControlParams(
 		self,

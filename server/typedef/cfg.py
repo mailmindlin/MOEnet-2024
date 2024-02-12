@@ -45,6 +45,14 @@ class WebConfig(BaseModel):
     cert_file: Optional[Path] = Field(None, description="SSL certificate file (for HTTPS)")
     key_file: Optional[Path] = Field(None, description="SSL key file (for HTTPS)")
 
+class NetworkTablesDirection(enum.Enum):
+    "Which direction to send data?"
+    SUBSCRIBE = 'sub'
+    "Subscribe to topic"
+    PUBLISH = 'pub'
+    "Publish topic"
+    DISABLED = False
+    "Do not publish or subscribe"
 
 class NetworkTablesConfig(BaseModel):
     "Configure NetworkTables. Must be provided locally"
@@ -61,9 +69,11 @@ class NetworkTablesConfig(BaseModel):
     log_level: str = Field("error", description="Minimum level to send logs")
     log_lines: int = Field(10, description="Number of log lines to retain")
 
+    # Subscriptions
     subscribeSleep: bool = Field(True, description="Should we listen for sleep control at `/moenet/rio_request_sleep`?")
     subscribeConfig: bool = Field(True, description="Should we listen for config updates at `/moenet/rio_dynamic_config`?")
 
+    # Utility publications
     publishLog: bool = Field(True, description="Should we publish logs to `/moenet/client_log`?")
     publishPing: bool = Field(True, description="Should we publish ping updates to `/moenet/client_ping`?")
     publishErrors: bool = Field(True, description="Should we publish errors updates to `/moenet/client_error`?")
@@ -71,9 +81,11 @@ class NetworkTablesConfig(BaseModel):
     publishConfig: bool = Field(True, description="Should we publish this config to `/moenet/client_config`?")
     publishSystemInfo: bool = Field(True, description="Should we publish system info to `/moenet/client_telemetry`?")
     publishDetections: bool = Field(True, description="Publish object detections to `/moenet/client_detections`")
-    tfFieldToRobot: Literal["sub", "pub", False] = Field("pub", description="field -> robot transform (absolute pose)")
-    tfFieldToOdom: Literal["sub", "pub", False] = Field("pub", description="field -> odom transform (odometry estimate)")
-    tfOodomToRobot: Literal["sub", "pub", False] = Field("pub", description="odom->robot transform (odometry correction)")
+
+    # Transforms
+    tfFieldToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> robot transform (absolute pose)")
+    tfFieldToOdom: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> odom transform (odometry estimate)")
+    tfOodomToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="odom->robot transform (odometry correction)")
     subscribePoseOverride: bool = Field(True, description="Allow the Rio to override poses")
     publishField2dF2O: bool = Field(False, description="Publish Field2d widget (field->odom)")
     publishField2dF2R: bool = Field(False, description="Publish Field2d widget (field->robot)")

@@ -10,7 +10,7 @@ except ImportError:
 
 from util.timestamp import Timestamp
 from util.log import child_logger
-from typedef.cfg import LocalConfig
+from typedef.cfg import LocalConfig, NetworkTablesDirection
 from typedef.geom import Pose3d, Transform3d
 from typedef import net
 from wpi_compat.nt import DynamicPublisher, DynamicSubscriber, ProtobufTopic
@@ -65,23 +65,24 @@ class Comms:
 		self._pub_status = DynamicPublisher(lambda: self.table.getIntegerTopic("client_status"), PubSubOptions(sendAll=True))
 		self._pub_config = DynamicPublisher(lambda: self.table.getStringTopic("client_config"), PubSubOptions(sendAll=True, periodic=1))
 		"Publish config"
-		self._pub_telem_cpu  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("cpu"), PubSubOptions(periodic=0.5))
-		self._pub_telem_ram  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("ram"), PubSubOptions(periodic=0.5))
+		self._pub_telem_cpu  = DynamicPublisher(self.table.getSubTable('client_telemetry').getDoubleTopic("cpu"), PubSubOptions(periodic=0.5))
+		self._pub_telem_ram  = DynamicPublisher(self.table.getSubTable('client_telemetry').getDoubleTopic("ram"), PubSubOptions(periodic=0.5))
 		self._pub_tf_field_odom: DynamicPublisher[Pose3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d), PubSubOptions(periodic=0.01))
 		self._pub_tf_field_robot: DynamicPublisher[Pose3d] = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d), PubSubOptions(periodic=0.01))
 		self._pub_tf_field_robot2: DynamicPublisher[list[float]] = DynamicPublisher(lambda: self.nt.getDoubleArrayTopic(self.table.getPath() + "/tf_field_robot2"), PubSubOptions(periodic=0.01))
 		self._pub_tf_odom_robot: DynamicPublisher[Transform3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d), PubSubOptions(periodic=0.1))
 
-		self._pub_detections_full = DynamicPublisher(lambda: ProtobufTopic.wrap(self.table, "client_detections_full", net.ObjectDetections), PubSubOptions(periodic=0.05))
-		self._pub_detections = DynamicPublisher(lambda: self.nt.getStructArrayTopic("client_detections", SimpleObjectDetection), PubSubOptions(periodic=0.05))
+		self._pub_detections_full = DynamicPublisher(ProtobufTopic.wrap(self.table, "client_detections_full", net.ObjectDetections), PubSubOptions(periodic=0.05))
+		self._pub_detections = DynamicPublisher(self.nt.getStructArrayTopic("client_detections", SimpleObjectDetection), PubSubOptions(periodic=0.05))
 
-		self._sub_tf_field_odom: DynamicSubscriber[Pose3d]  = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_field_robot: DynamicSubscriber[Pose3d] = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d).subscribe(PubSubOptions(periodic=0.01, disableLocal=True)))
-		self._sub_tf_odom_robot: DynamicSubscriber[Transform3d] = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d).subscribe(PubSubOptions(periodic=0.1, disableLocal=True)))
-		self._sub_pose_override: DynamicSubscriber[Pose3d] = DynamicSubscriber(lambda: self.nt.getStructTopic(self.table.getPath() + "/rio_pose_override", Pose3d).subscribe(PubSubOptions(keepDuplicates=True, periodic=0.01)))
+		tf_sub_options = PubSubOptions(periodic=0.01, disableLocal=True)
+		self._sub_tf_field_odom = DynamicSubscriber.create_struct(self.table, 'tf_field_odom', Pose3d, Pose3d(), tf_sub_options)
+		self._sub_tf_field_robot = DynamicSubscriber.create_struct(self.table, 'tf_field_robot', Pose3d, Pose3d(), tf_sub_options)
+		self._sub_tf_odom_robot = DynamicSubscriber.create_struct(self.table, 'tf_odom_robot', Transform3d, Transform3d(), tf_sub_options)
+		self._sub_pose_override = DynamicSubscriber.create_struct(self.table, 'rio_pose_override', Pose3d, Pose3d(), PubSubOptions(keepDuplicates=True))
 
-		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config").subscribe("", PubSubOptions()))
-		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep").subscribe(False, PubSubOptions()))
+		self._sub_config = DynamicSubscriber(self.table.getStringTopic("rio_config"), "")
+		self._sub_sleep  = DynamicSubscriber.create(self.table, "rio_sleep", bool, False)
 
 		# Field2d
 		self._pub_f2d_type = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getStringTopic(".type"))
@@ -127,23 +128,24 @@ class Comms:
 			return
 		
 		ntc = self.config.nt
-		self._pub_ping.enabled = ntc.publishPing
-		self._pub_error.enabled = ntc.publishErrors
-		self._pub_log.enabled = ntc.publishLog
+		self._pub_ping.enabled   = ntc.publishPing
+		self._pub_error.enabled  = ntc.publishErrors
+		self._pub_log.enabled    = ntc.publishLog
 		self._pub_status.enabled = ntc.publishStatus
 		self._pub_config.enabled = ntc.publishConfig
 		self._pub_telem_cpu.enabled = ntc.publishSystemInfo
 		self._pub_telem_ram.enabled = ntc.publishSystemInfo
-		self._pub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'pub'
-		self._pub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'pub'
-		self._pub_tf_field_robot2.enabled = ntc.tfFieldToRobot == 'pub'
-		self._pub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'pub'
-		self._pub_detections.enabled = ntc.publishDetections
+		self._pub_tf_field_odom.enabled   = (ntc.tfFieldToOdom  == NetworkTablesDirection.PUBLISH)
+		self._pub_tf_field_robot.enabled  = (ntc.tfFieldToRobot == NetworkTablesDirection.PUBLISH)
+		self._pub_tf_field_robot2.enabled = (ntc.tfFieldToRobot == NetworkTablesDirection.PUBLISH)
+		self._pub_tf_odom_robot.enabled   = (ntc.tfOodomToRobot == NetworkTablesDirection.PUBLISH)
+
+		self._pub_detections.enabled      = ntc.publishDetections
 		self._pub_detections_full.enabled = ntc.publishDetections
 
-		self._sub_tf_field_odom.enabled = ntc.tfFieldToOdom == 'sub'
-		self._sub_tf_field_robot.enabled = ntc.tfFieldToRobot == 'sub'
-		self._sub_tf_odom_robot.enabled = ntc.tfOodomToRobot == 'sub'
+		self._sub_tf_field_odom.enabled = (ntc.tfFieldToOdom == NetworkTablesDirection.SUBSCRIBE)
+		self._sub_tf_field_robot.enabled = (ntc.tfFieldToRobot == NetworkTablesDirection.SUBSCRIBE)
+		self._sub_tf_odom_robot.enabled = (ntc.tfOodomToRobot == NetworkTablesDirection.SUBSCRIBE)
 		self._sub_pose_override.enabled = ntc.subscribePoseOverride
 
 		self._pub_f2d_type.enabled = (ntc.publishField2dF2R or ntc.publishField2dF2O or ntc.publishField2dDets)

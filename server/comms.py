@@ -65,24 +65,24 @@ class Comms:
 		self._pub_status = DynamicPublisher(lambda: self.table.getIntegerTopic("client_status"), PubSubOptions(sendAll=True))
 		self._pub_config = DynamicPublisher(lambda: self.table.getStringTopic("client_config"), PubSubOptions(sendAll=True, periodic=1))
 		"Publish config"
-		self._pub_telem_cpu  = DynamicPublisher(self.table.getSubTable('client_telemetry').getDoubleTopic("cpu"), PubSubOptions(periodic=0.5))
-		self._pub_telem_ram  = DynamicPublisher(self.table.getSubTable('client_telemetry').getDoubleTopic("ram"), PubSubOptions(periodic=0.5))
+		self._pub_telem_cpu  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("cpu"), PubSubOptions(periodic=0.5))
+		self._pub_telem_ram  = DynamicPublisher(lambda: self.table.getSubTable('client_telemetry').getDoubleTopic("ram"), PubSubOptions(periodic=0.5))
 		self._pub_tf_field_odom: DynamicPublisher[Pose3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_odom", Pose3d), PubSubOptions(periodic=0.01))
 		self._pub_tf_field_robot: DynamicPublisher[Pose3d] = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_field_robot", Pose3d), PubSubOptions(periodic=0.01))
 		self._pub_tf_field_robot2: DynamicPublisher[list[float]] = DynamicPublisher(lambda: self.nt.getDoubleArrayTopic(self.table.getPath() + "/tf_field_robot2"), PubSubOptions(periodic=0.01))
 		self._pub_tf_odom_robot: DynamicPublisher[Transform3d]  = DynamicPublisher(lambda: self.nt.getStructTopic(self.table.getPath() + "/tf_odom_robot", Transform3d), PubSubOptions(periodic=0.1))
 
-		self._pub_detections_full = DynamicPublisher(ProtobufTopic.wrap(self.table, "client_detections_full", net.ObjectDetections), PubSubOptions(periodic=0.05))
-		self._pub_detections = DynamicPublisher(self.nt.getStructArrayTopic("client_detections", SimpleObjectDetection), PubSubOptions(periodic=0.05))
+		self._pub_detections_full = DynamicPublisher(lambda: ProtobufTopic.wrap(self.table, "client_detections_full", net.ObjectDetections), PubSubOptions(periodic=0.05))
+		self._pub_detections = DynamicPublisher(lambda: self.table.getStructArrayTopic("client_detections", SimpleObjectDetection), PubSubOptions(periodic=0.05))
 
 		tf_sub_options = PubSubOptions(periodic=0.01, disableLocal=True)
-		self._sub_tf_field_odom = DynamicSubscriber.create_struct(self.table, 'tf_field_odom', Pose3d, Pose3d(), tf_sub_options)
-		self._sub_tf_field_robot = DynamicSubscriber.create_struct(self.table, 'tf_field_robot', Pose3d, Pose3d(), tf_sub_options)
-		self._sub_tf_odom_robot = DynamicSubscriber.create_struct(self.table, 'tf_odom_robot', Transform3d, Transform3d(), tf_sub_options)
-		self._sub_pose_override = DynamicSubscriber.create_struct(self.table, 'rio_pose_override', Pose3d, Pose3d(), PubSubOptions(keepDuplicates=True))
+		self._sub_tf_field_odom = DynamicSubscriber(lambda: self.table.getStructTopic('tf_field_odom', Pose3d), Pose3d(), tf_sub_options)
+		self._sub_tf_field_robot = DynamicSubscriber(lambda: self.table.getStructTopic('tf_field_robot', Pose3d), Pose3d(), tf_sub_options)
+		self._sub_tf_odom_robot = DynamicSubscriber(lambda: self.table.getStructTopic('tf_odom_robot', Transform3d), Transform3d(), tf_sub_options)
+		self._sub_pose_override = DynamicSubscriber(lambda: self.table.getStructTopic('rio_pose_override', Pose3d), Pose3d(), PubSubOptions(keepDuplicates=True))
 
-		self._sub_config = DynamicSubscriber(self.table.getStringTopic("rio_config"), "")
-		self._sub_sleep  = DynamicSubscriber.create(self.table, "rio_sleep", bool, False)
+		self._sub_config = DynamicSubscriber(lambda: self.table.getStringTopic("rio_config"), "")
+		self._sub_sleep  = DynamicSubscriber(lambda: self.table.getBooleanTopic("rio_sleep"), False)
 
 		# Field2d
 		self._pub_f2d_type = DynamicPublisher(lambda: self.nt.getTable("SmartDashboard/MoeNet").getStringTopic(".type"))

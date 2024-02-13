@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 	from .pipeline import MoeNetPipeline
 
 
+class WorkerRetry(Exception):
+	pass
+
 class WorkerStop(Exception):
 	pass
 
@@ -230,7 +233,7 @@ class CameraWorker:
 			else:
 				self.log.error("Unable to find OAK")
 				self.state = WorkerState.FAILED
-				raise
+				raise WorkerRetry() from None
 		else:
 			mxid = self.device.getMxId()
 			self.log.info("Attached to OAK (mxid=%s)", mxid)
@@ -314,32 +317,35 @@ def main(config: WorkerInitConfig, data_queue: Queue[WorkerMsg], command_queue: 
 	def handle_sigint(*args):
 		print("Child SIGINT")
 	
-	with (CameraWorker(config, data_queue, command_queue, video_queue) as worker, InterruptHandler(handle_sigint)):
-		while True:
-			with Watchdog('worker', min=min_loop_duration, max=0.5, log=worker.log) as w:
-				try:
+	try:
+		with (CameraWorker(config, data_queue, command_queue, video_queue) as worker, InterruptHandler(handle_sigint)):
+			while True:
+				with Watchdog('worker', min=min_loop_duration, max=0.5, log=worker.log) as w:
 					try:
-						if worker.is_paused:
-							# We're paused, so we might as well block
-							command = command_queue.get()
-							w.ignore_exceeded = True
+						try:
+							if worker.is_paused:
+								# We're paused, so we might as well block
+								command = command_queue.get()
+								w.ignore_exceeded = True
+							else:
+								command = command_queue.get_nowait()
+						except Empty:
+							pass
 						else:
-							command = command_queue.get_nowait()
-					except Empty:
-						pass
-					else:
-						worker.process_command(command)
-					
-					if worker.state == WorkerState.RUNNING:
-						worker.poll()
-				except WorkerStop:
-					worker.log.info("Stopping gracefully")
-					break
-				except:
-					# msg = format_exception(e)
-					worker.log.exception("Error in loop")
-					worker.state = WorkerState.FAILED
-					raise
+							worker.process_command(command)
+						
+						if worker.state == WorkerState.RUNNING:
+							worker.poll()
+					except WorkerStop:
+						worker.log.info("Stopping gracefully")
+						break
+					except:
+						# msg = format_exception(e)
+						worker.log.exception("Error in loop")
+						worker.state = WorkerState.FAILED
+						raise
+	except WorkerRetry:
+		exit(0)
 
 
 if __name__ == '__main__':

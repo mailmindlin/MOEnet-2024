@@ -13,9 +13,11 @@ from comms import Comms
 from web.web_srv import RemoteWebServer
 from worker.controller import WorkerManager
 from estimator import DataFusion
+from estimator.pose2 import SensorMode
 from util.watchdog import Watchdog
 from util.interrupt import InterruptHandler
 from util.clock import WallClock
+from util.timestamp import Timestamp, Stamped
 from util.timemap import IdentityTimeMapper
 
 class MoeNet:
@@ -132,9 +134,10 @@ class MoeNet:
 			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
 	
-	def pose_override(self, pose: 'Pose3d'):
-		"Update all the "
+	def pose_override(self, timestamp: Timestamp, pose: 'Pose3d'):
 		self.log.info('Pose override %s', pose)
+		self.estimator.pose_estimator.set_pose(Stamped(pose, timestamp))
+
 		if self.camera_workers is not None:
 			cmd = wmsg.CmdPoseOverride(pose=pose)
 			for worker in self.camera_workers:
@@ -149,6 +152,7 @@ class MoeNet:
 	
 	def build_cameras(self):
 		if self.camera_workers is not None:
+			# Don't build twice
 			return
 		
 		try:
@@ -176,44 +180,64 @@ class MoeNet:
 	
 	def poll(self):
 		# self.log.debug("Tick start")
-		self.nt.update()
-		self.web.poll()
+		with Watchdog('main', min=1/100, max=1/10, log=self.log) as w: # Cap at 100Hz
+			self.nt.update()
+			for msg in self.web.poll():
+				print("web message:", msg)
 
-		if self.sleeping:
-			# Transition to sleeping
-			if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY, Status.ERROR):
+			if self.sleeping:
+				# Transition to sleeping
+				if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY, Status.ERROR):
+					for worker in self.camera_workers:
+						worker.send(wmsg.CmdChangeState(target=wmsg.WorkerState.PAUSED))
+					self.status = Status.SLEEPING
+			else:
+				if self.status in (Status.SLEEPING, Status.INITIALIZING, Status.NOT_READY):
+					self.status = Status.READY
+
+			# Process packets from cameras
+			active = True
+			while active and w.has_remaining():
+				active = False
 				for worker in self.camera_workers:
-					worker.send(wmsg.CmdChangeState(target=wmsg.WorkerState.PAUSED))
-				self.status = Status.SLEEPING
-		else:
-			if self.status in (Status.SLEEPING, Status.INITIALIZING, Status.NOT_READY):
-				self.status = Status.READY
-
-		# Process packets from cameras
-		active = True
-		while active:
-			active = False
-			for worker in self.camera_workers:
-				for packet in worker.poll():
-					if isinstance(packet, wmsg.MsgPose):
-						self.estimator.record_f2r(worker.robot_to_camera, packet)
-					elif isinstance(packet, wmsg.MsgDetections):
-						self.estimator.record_detections(worker.robot_to_camera, packet)
-					elif isinstance(packet, wmsg.MsgAprilTagPoses):
-						self.estimator.record_apriltag(worker.robot_to_camera, packet)
-					active = True
-		
-		# Write transforms to NT
-		if f2r := self.estimator.field_to_robot(fresh=True):
-			self.log.debug("Update pose")
-			self.nt.tx_pose(f2r)
-		if o2r := self.estimator.odom_to_robot(fresh=True):
-			self.log.debug("Update correction")
-			self.nt.tx_correction(o2r)
-		
-		# Write detections to NT
-		if dets := self.estimator.get_detections(self.loc_to_net, fresh=True):
-			self.nt.tx_detections(dets)
+					for packet in worker.poll():
+						self.log.info("Process packet %s", repr(packet))
+						timestamp = Timestamp(packet.timestamp, WallClock())
+						if isinstance(packet, wmsg.MsgPose):
+							# Observe pose
+							if worker._pose_handle is None:
+								worker._pose_handle = self.estimator.pose_estimator.make_pose(worker.name + '/pose', worker.robot_to_camera, None, None)
+							worker._pose_handle.measure(Stamped(
+								packet.pose,
+								timestamp,
+							))
+						elif isinstance(packet, wmsg.MsgDetections):
+							# Update object detections
+							self.estimator.record_detections(worker.robot_to_camera, packet)
+						elif isinstance(packet, wmsg.MsgAprilTagPoses):
+							# Observe AprilTag
+							self.estimator.record_apriltag(worker.robot_to_camera, packet)
+							if est := self.estimator.pose_estimator2:
+								frame = est.get_frame(worker.name + '/at', worker.robot_to_camera, SensorMode.ABSOLUTE)
+								frame.observe(timestamp, pose=packet.mean, twist=packet.twist.mean)
+						elif isinstance(packet, wmsg.MsgOdom):
+							if est := self.estimator.pose_estimator2:
+								frame = est.get_frame(worker.name + '/slam', worker.robot_to_camera, SensorMode.RELATIVE)
+								frame.observe(timestamp, pose=packet.pose.mean, twist=packet.twist.mean)
+						
+						active = True
+			
+			# Write transforms to NT
+			if f2r := self.estimator.field_to_robot(fresh=True):
+				self.log.debug("Update pose %s", f2r)
+				self.nt.tx_pose(f2r)
+			if o2r := self.estimator.odom_to_robot(fresh=True):
+				self.log.debug("Update correction %s", o2r)
+				self.nt.tx_correction(o2r)
+			
+			# Write detections to NT
+			if dets := self.estimator.get_detections(self.loc_to_net, fresh=True):
+				self.nt.tx_detections(dets)
 	
 	def run(self):
 		self.reset(True)
@@ -226,10 +250,7 @@ class MoeNet:
 
 		with InterruptHandler(handle_interrupt):
 			while not interrupt:
-				with Watchdog('main', min=1/100, max=1/10, log=self.log) as w: # Cap at 100Hz
-					if self.poll():
-						w.skip()
-						continue
+				self.poll()
 		self.log.info(f"Done running int={interrupt}")
 	
 	def cleanup(self):

@@ -41,6 +41,10 @@ def rot3_to_mat6(rotation: Rotation3d) -> np.ndarray[float, tuple[Literal[6], Li
 	rot6d[3:,3:] = rmat
 	return rot6d
 
+def rot3_flatten(rotation: Rotation3d) -> Rotation3d:
+	yaw = rotation.Z()
+	return Rotation3d(0, 0, yaw)
+
 
 T = TypeVar('T')
 N = TypeVar('N', bound=int)
@@ -55,6 +59,9 @@ class Covariant(Generic[N]):
 			cov = np.zeros((self.STATE_LEN, self.STATE_LEN), dtype=float)
 		assert cov.shape == (self.STATE_LEN, self.STATE_LEN)
 		self.cov = cov
+	
+	def isfinite(self):
+		return np.isfinite(self.mean_vec()) and np.isfinite(self.cov)
 	
 	def mean_vec(self) -> np.ndarray[float, N]:
 		"Get mean, as numpy array"
@@ -219,19 +226,20 @@ class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 			self.mean.transformBy(tf),
 			cov_rotated
 		)
-
-
-@dataclass
-class LinearAcceleration3d:
-	x: wpistruct.double = 0
-	y: wpistruct.double = 0
-	z: wpistruct.double = 0
-
-@dataclass
-class AngularAcceleration3d:
-	ax: wpistruct.double = 0
-	ay: wpistruct.double = 0
-	az: wpistruct.double = 0
+	
+	def transformCov(self, tf: Rotation3d | Transform3d) -> 'Pose3dCov':
+		if isinstance(tf, Transform3d):
+			rot = tf.rotation()
+		else:
+			rot = tf
+		rot6d = rot3_to_mat6(rot)
+		return Pose3dCov(
+			self.mean,
+			rot6d @ self.cov @ rot6d.T
+		)
+	
+	def log(self, end: 'Pose3dCov') -> 'Twist3dCov':
+		pass
 
 class Twist3dCov(CovariantWrapper[Twist3d, Literal[6]]):
 	STATE_LEN = 6
@@ -263,6 +271,40 @@ class Twist3dCov(CovariantWrapper[Twist3d, Literal[6]]):
 			dst_cov
 		)
 
+@dataclass
+class LinearAcceleration3d:
+	x: wpistruct.double = 0
+	y: wpistruct.double = 0
+	z: wpistruct.double = 0
+
+@dataclass
+class AngularAcceleration3d:
+	ax: wpistruct.double = 0
+	ay: wpistruct.double = 0
+	az: wpistruct.double = 0
+
+class LinearAcceleration3dCov(CovariantWrapper[LinearAcceleration3d, Literal[3]]):
+	STATE_LEN = 3
+
+	@classmethod
+	def parse_numpy(cls, mean: LinearAcceleration3d | np.ndarray[float, Literal[3]]) -> Pose3d:
+		"Parse numpy array as datatype"
+		if isinstance(mean, LinearAcceleration3d):
+			return mean
+		assert np.shape(mean) == (3,)
+		return LinearAcceleration3d(
+			mean[0],
+			mean[1],
+			mean[2],
+		)
+	
+	def mean_vec(self) -> np.ndarray[float, Literal[3]]:
+		return np.array([
+			self.mean.x,
+			self.mean.y,
+			self.mean.z,
+		])
+
 class Acceleration3d:
 	linear: LinearAcceleration3d
 	angular: AngularAcceleration3d
@@ -271,11 +313,44 @@ class Acceleration3d:
 		self.linear = linear or LinearAcceleration3d()
 		self.angular = angular or AngularAcceleration3d()
 
-class Acceleration3dCov(Acceleration3d):
-	covariance: list
+class Acceleration3dCov(CovariantWrapper[Acceleration3d, Literal[6]]):
+	STATE_LEN = 6
+
+	@classmethod
+	def parse_numpy(cls, mean: Acceleration3d | np.ndarray[float, Literal[6]]) -> Pose3d:
+		"Parse numpy array as datatype"
+		if isinstance(mean, LinearAcceleration3d):
+			return mean
+		assert np.shape(mean) == (6,)
+		return Acceleration3d(
+			LinearAcceleration3d(
+				mean[0],
+				mean[1],
+				mean[2],
+			),
+			AngularAcceleration3d(
+				mean[3],
+				mean[4],
+				mean[5],
+			)
+		)
+	
+	def mean_vec(self) -> np.ndarray[float, Literal[3]]:
+		return np.array([
+			self.mean.linear.x,
+			self.mean.linear.y,
+			self.mean.linear.z,
+			self.mean.angular.ax,
+			self.mean.angular.ay,
+			self.mean.angular.az,
+		])
+
 
 @dataclass
 class Odometry:
 	stamp: Timestamp
 	pose: Pose3dCov
 	twist: Twist3dCov
+
+	def isfinite(self):
+		return self.pose.isfinite() and self.twist.isfinite()

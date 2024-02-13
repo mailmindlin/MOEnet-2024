@@ -25,7 +25,7 @@ S = TypeVar('S', bound=cfg.PipelineStageWorker)
 class MoeNetPipeline:
 	"Pipeline builder"
 	def __init__(self, config: list[cfg.PipelineStageWorker], log: 'logging.Logger'):
-		self.log = log
+		self.log = log.getChild('pipeline')
 		self.config = config
 		self.stages: dict[str, NodeBuilder[cfg.PipelineStageWorker]] = dict()
 		self.runtimes: dict[str, NodeRuntime] = dict()
@@ -155,7 +155,7 @@ class MoeNetPipeline:
 			if optional:
 				self.log.warning("Optional stage %s failed", config.name, exc_info=True)
 			else:
-				self.log.exception("Stage %s failed")
+				self.log.exception("Stage %s failed", config.name)
 				raise
 	def build(self):
 		"Build DepthAI pipeline"

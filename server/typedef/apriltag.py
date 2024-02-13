@@ -187,7 +187,7 @@ class _AprilTagField(BaseModel):
             target_format = None
         if need_store and (target_format is not None) and (self.format != target_format):
             need_load = True
-        print(f"Src={type(self).__name__}, dst={target.__name__}, need_load={need_load}, need_store={need_store}, target_format={target_format}")
+        # print(f"Src={type(self).__name__}, dst={target.__name__}, need_load={need_load}, need_store={need_store}, target_format={target_format}")
 
         current = self
         if need_load:

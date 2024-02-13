@@ -37,7 +37,7 @@ class IPCTrack(VideoStreamTrack):
 		try:
 			self._queue.put_nowait(frame)
 		except (asyncio.QueueFull, asyncio.TimeoutError):
-			pass
+			print("Local queue drop frame")
 	
 	def get_raw(self):
 		return self._queue.get()
@@ -189,6 +189,8 @@ class WebServer:
 			
 			if handler:
 				self._loop.run_until_complete(handler.provide_frame(frame))
+			else:
+				print(f"No handler for stream {frame.worker}.{frame.stream}")
 	
 	async def web_enumerate_cameras(self, req: web.Request):
 		"Enumerate connected cameras"

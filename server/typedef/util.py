@@ -6,6 +6,7 @@ from typing_extensions import TypeAliasType
 
 T = TypeVar('T')
 def wrap_dai_enum(dai_enum: Type[T]) -> Type[T]:
+	"Wrap DepthAI enum as Pydantic type"
 	members: dict[str, T] = dai_enum.__members__
 	def validate_from_str(value: str) -> T:
 		return members[value]

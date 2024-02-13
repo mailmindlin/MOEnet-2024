@@ -24,3 +24,4 @@ protobuf>=4.25.2
 aiohttp
 aiortc
 matplotlib
+psutil

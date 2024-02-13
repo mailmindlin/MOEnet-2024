@@ -23,7 +23,7 @@ class PoseEstimator:
 		self.config = config
 
 		if self.datalog is not None:
-			self.logFieldToRobot = StructLogEntry(datalog, 'raw/fieldToRobot', Pose3d)
+			self.logFieldToRobot = DoubleArrayLogEntry(datalog, 'raw/fieldToRobot')
 			self.logFieldToOdom = StructLogEntry(datalog, 'raw/fieldToOdom', Pose3d)
 
 		self.clock = clock
@@ -94,7 +94,8 @@ class PoseEstimator:
 		field_to_robot = field_to_camera.transformBy(robot_to_camera.inverse())
 
 		if self.datalog is not None:
-			self.logFieldToRobot.append(field_to_robot, timestamp.as_wpi())
+			q = field_to_robot.rotation().getQuaternion()
+			self.logFieldToRobot.append([field_to_robot.x, field_to_robot.y, field_to_robot.z, q.W(), q.X(), q.Y(), q.Z()], timestamp.as_wpi())
 		
 		self.buf_field_to_robot.addSample(timestamp.as_seconds(), field_to_robot)
 

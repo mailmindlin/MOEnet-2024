@@ -2,7 +2,7 @@ from datetime import timedelta
 import numpy as np
 from typing import Literal, TypeVar
 
-from server.util.timestamp import Timestamp
+from util.timestamp import Timestamp
 from .base import FilterBase, Measurement, StateMembers, ControlMembers
 from . import angles
 
@@ -14,30 +14,18 @@ def sample_cov(cov: np.ndarray, idxs: list[int]) -> np.ndarray:
 
 class EKF(FilterBase):
 	def correct(self, measurement: Measurement):
-		#     FB_DEBUG(
-		# "---------------------- Ekf::correct ----------------------\n" <<
-		#   "State is:\n" <<
-		#   state_ <<
-		#   "\n"
-		#   "Topic is:\n" <<
-		#   measurement.topic_name_ <<
-		#   "\n"
-		#   "Measurement is:\n" <<
-		#   measurement.measurement_ <<
-		#   "\n"
-		#   "Measurement topic name is:\n" <<
-		#   measurement.topic_name_ <<
-		#   "\n\n"
-		#   "Measurement covariance is:\n" <<
-		#   measurement.covariance_ << "\n");
-		
+		self.log.debug("---------------------- Ekf::correct ----------------------")
+		self.log.debug("State is: %s", self.state)
+		self.log.debug("Topic is: %s", measurement.source.name)
+		self.log.debug("Measurement is: %s", measurement.measurement)
+		self.log.debug("Measurement covariance is: %s", measurement.covariance)
 
 		# We don't want to update everything, so we need to build matrices that only
 		# update the measured parts of our state vector. Throughout prediction and
 		# correction, we attempt to maximize efficiency in Eigen.
 
 		# First, determine how many state vector values we're updating
-		update_idxs: np.ndarray[int, M] = np.array(list(measurement.update_vector), dtype=int)
+		update_idxs = measurement.update_vector.as_numpy()
 		# Handle NaN and inf
 		valid = np.isfinite(measurement.measurement[update_idxs])
 		if not np.all(valid):
@@ -100,7 +88,7 @@ class EKF(FilterBase):
 		innovation_subset = (measurement_subset - state_subset)
 
 		# Wrap angles in the innovation
-		_, angles_idxs, _ = np.intersect1d(update_idxs, np.array(list(StateMembers.VEL_ANG), dtype=int), assume_unique=True, return_indices=True)
+		_, angles_idxs, _ = np.intersect1d(update_idxs, StateMembers.VEL_ANG.as_numpy(), assume_unique=True, return_indices=True)
 		if len(angles_idxs) > 0:
 			innovation_subset[angles_idxs] = angles.normalize_angle(innovation_subset[angles_idxs])
 
@@ -296,11 +284,11 @@ class EKF(FilterBase):
 		# 	process_noise_covariance_ << "\nCurrent state is:\n" <<
 		# 	state_ << "\n");
 
-		process_noise_covariance = np.copy(self.process_noise_covariance)
+		process_noise_covariance = self.process_noise_covariance
 
 		if self.use_dynamic_process_noise_covariance:
 			self.computeDynamicProcessNoiseCovariance(self.state)
-			process_noise_covariance = np.copy(self.dynamic_process_noise_covariance)
+			process_noise_covariance = self.dynamic_process_noise_covariance
 
 		# (1) Apply control terms, which are actually accelerations
 		self.state[StateMembers.VEL_ANG.idxs()] += self.control_acceleration[ControlMembers.VEL_ANG.idxs()] * delta_sec
@@ -317,13 +305,11 @@ class EKF(FilterBase):
 		# Handle wrapping
 		self.wrapStateAngles()
 
-		# FB_DEBUG(
-		# 	"Predicted state is:\n" <<
-		# 	state_ << "\nCurrent estimate error covariance is:\n" <<
-		# 	estimate_error_covariance_ << "\n");
+		self.log.debug("Predicted state is: %s", self.state)
+		self.log.debug("Current estimate error covariance is: %s", self.estimate_error_covariance)
 
 		# (3) Project the error forward: P = J * P * J' + Q
 		self.estimate_error_covariance = self.transfer_function_jacobian @ self.estimate_error_covariance @ self.transfer_function_jacobian.transpose()
-		self.estimate_error_covariance += delta_sec * self.process_noise_covariance
+		self.estimate_error_covariance += delta_sec * process_noise_covariance
 
 		self.log.debug("Predicted estimate error covariance is:%s", self.estimate_error_covariance)

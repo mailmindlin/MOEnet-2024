@@ -1,13 +1,16 @@
-from typing import Literal, Tuple, overload, TypeVar, TYPE_CHECKING
+from typing import Literal, overload, TypeVar, TYPE_CHECKING, Any
 from numpy.typing import NDArray, ArrayLike
-import numpy as np
-from util.timestamp import Timestamp
-from datetime import timedelta
-from util.clock import Clock
-from dataclasses import dataclass
-from enum import IntFlag, auto, Flag
-from abc import ABC, abstractmethod, abstractproperty
 import logging
+from datetime import timedelta
+from dataclasses import dataclass
+from enum import IntFlag, auto, Flag, Enum
+from abc import abstractmethod
+
+import numpy as np
+
+from typedef.geom_cov import Pose3dCov, Twist3dCov
+from util.timestamp import Timestamp, Stamped
+from util.clock import Clock
 from . import angles
 from ..util.replay import GenericFilter
 
@@ -35,6 +38,53 @@ def block(arg0: np.ndarray[T] | ArrayLike | list[int] | IntFlag, arg1 = None) ->
 		return base[idxs, :][:, idxs]
 	raise NotImplemented
 	# return base[idxs, :][:, idxs]
+
+class StateMember(Enum):
+	NONE = 0
+	X = 1
+	Y = 2
+	Z = 3
+	Roll = 4
+	Pitch = 5
+	Yaw = 6
+	Vx = 7
+	Vy = 8
+	Vz = 9
+	Vroll = 10
+	Vpitch = 11
+	Vyaw = 12
+	Ax = 13
+	Ay = 14
+	Az = 15
+
+	def __or__(self, __value: Any):
+		if isinstance(__value, StateMember):
+			return StateMembers(self, __value)
+		if isinstance(__value, StateMembers):
+			return StateMembers(self, *__value)
+		return super().__or__(__value)
+
+class StateMembersList:
+	def __init__(self, *members: StateMember, flag: int = 0) -> None:
+		self.flag = flag
+		for member in members:
+			self.flag |= (1 << member.value)
+	def __bool__(self):
+		return self.flag != 0
+	def __len__(self):
+		return self.flag.bit_count()
+	def __iter__(self):
+		for i in range(15):
+			if (self.flag & (1 << i)) != 0:
+				yield StateMember(i)
+	def __and__(self, v: Any):
+		pass
+	def __or__(self, __value: Any):
+		if isinstance(__value, StateMembers):
+			return StateMembers(flag=self.flag | __value.flag)
+		if isinstance(__value, StateMember):
+			return StateMembers(flag=self.flag | 1 << __value.value)
+		return super().__or__(__value)
 
 class StateMembers(IntFlag):
 	_ignore_ = { 'POS_LIN', 'POS_ANG', 'POSE', 'VEL_LIN', 'VEL_ANG', 'TWIST', 'ACC_LIN', 'idxs'}
@@ -68,7 +118,10 @@ class StateMembers(IntFlag):
 		return np.log2(np.array(list(self), dtype=int))
 	
 	def idx(self) -> int:
-		return np.log2(int(self))
+		return int(np.log2(int(self)))
+	
+	def as_numpy(self) -> np.ndarray[int]:
+		return np.asarray(list(self), dtype=int)
 
 StateMembers.POS_LIN = StateMembers.X | StateMembers.Y | StateMembers.Z
 StateMembers.POS_ANG = StateMembers.Roll | StateMembers.Pitch | StateMembers.Yaw
@@ -116,6 +169,19 @@ class Measurement:
 		self.covariance = np.zeros((15, 15), dtype=float)
 		self.mahalanobis_threshold = None
 
+	def update(self, data: Pose3dCov | Twist3dCov):
+		if isinstance(data, Pose3dCov):
+			self.measure(StateMember.X, data.mean.X())
+			self.measure(StateMember.Y, data.mean.Y())
+			self.measure(StateMember.Z, data.mean.Z())
+			# The filter needs roll, pitch, and yaw values instead of quaternions
+			self.measure(StateMember.Roll,  data.mean.rotation().X())
+			self.measure(StateMember.Pitch, data.mean.rotation().Y())
+			self.measure(StateMember.Yaw,   data.mean.rotation().Z())
+
+			self.copy_covariance(StateMembers.POSE, data.cov)
+		elif isinstance(data, Twist3dCov):
+			pass
 	def measure(self, idxs: StateMembers, value: float | np.ndarray[float], cov: float | np.ndarray[float] | None = None):
 		self.measurement[idxs.idxs()] = value
 		if cov is not None:
@@ -132,8 +198,16 @@ class Measurement:
 	def covariance_dense(self):
 		return self.covariance
 
+@dataclass
 class FilterSnapshot:
-	ts: Timestamp
+	state: np.ndarray
+	estimate_error_covariance: np.ndarray
+	last_measurement_ts: Timestamp
+
+	@property
+	def ts(self):
+		return self.last_measurement_ts
+
 
 S = Literal[15]
 
@@ -158,8 +232,11 @@ class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 		TWIST_SIZE = len(StateMembers.TWIST)
 		self.control_update_vector = (TWIST_SIZE, 0)
 		self.control_acceleration = np.zeros(TWIST_SIZE, dtype=bool)
-		self.latest_control = np.zeros(TWIST_SIZE, dtype=np.float32)
-		self.predicted_state = np.zeros()
+		self.latest_control = Stamped(
+			np.zeros(TWIST_SIZE, dtype=np.float32),
+			Timestamp.invalid(clock),
+		)
+		self.predicted_state = np.zeros(state_size, dtype=np.float32)
 		"The filter's predicted state, i.e., the state estimate before correct() is called."
 		self.state = np.zeros((state_size), dtype=float)
 		self.covariance_epsilon = np.zeros((state_size, state_size), dtype=np.float32)
@@ -216,6 +293,7 @@ class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 		# These can be overridden via the launch parameters,
 		# but we need default values.
 		self.process_noise_covariance[:] = 0
+		print(StateMembers.X.idx())
 		self.process_noise_covariance[StateMembers.X.idx(), StateMembers.X.idx()] = 0.05
 		self.process_noise_covariance[StateMembers.Y.idx(), StateMembers.Y.idx()] = 0.05
 		self.process_noise_covariance[StateMembers.Z.idx(), StateMembers.Z.idx()] = 0.06
@@ -234,10 +312,16 @@ class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 
 		self.dynamic_process_noise_covariance[:] = self.process_noise_covariance
 
-	def snapshot(self) -> S:
-		pass
-	def restore(self, state: S):
-		pass
+	def snapshot(self) -> FilterSnapshot:
+		return FilterSnapshot(
+			np.copy(self.state),
+			np.copy(self.estimate_error_covariance),
+			self.last_measurement_ts,
+		)
+	def restore(self, snapshot: FilterSnapshot):
+		self.state = snapshot.state
+		self.estimate_error_covariance = snapshot.estimate_error_covariance
+		self.last_measurement_ts = snapshot.last_measurement_ts
 
 	def differentiate(self, now: Timestamp):
 		dt = now - self.last_diff_time
@@ -273,7 +357,8 @@ class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 		"""
 		pass
 
-	def process_measurement(self, measurement: M):
+	@abstractmethod
+	def process_measurement(self, measurement: Measurement):
 		pass
 
 	def computeDynamicProcessNoiseCovariance(self, state: np.ndarray[float, S]):
@@ -311,14 +396,10 @@ class FilterBase(GenericFilter[Measurement, FilterSnapshot]):
 		"""
 		pass
 
-	@abstractproperty
-	def control(self) -> np.floating[T]:
+	@property
+	def control(self) -> Stamped[np.floating[T]]:
 		"The control vector currently being used"
-		...
-	
-	@abstractproperty
-	def control_ts(self) -> Timestamp:
-		...
+		return self.latest_control
 
 	def snapshot(self):
 		pass

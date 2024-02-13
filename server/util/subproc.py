@@ -102,10 +102,11 @@ class Subprocess(Generic[M, C, R], ABC):
 	def start(self):
 		"Start subprocess"
 		if self.proc is not None:
-			# self.log.warning('Started twice!')
+			self.log.warning('Started twice!')
 			return False
 		
 		if not self.enabled:
+			self.log.warning("Start called, but worker is disabled")
 			return
 		
 		self.proc = self._make_process()

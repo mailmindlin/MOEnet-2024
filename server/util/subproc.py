@@ -152,6 +152,11 @@ class Subprocess(Generic[M, C, R], ABC):
 				except Empty:
 					finished_queue = True
 					break
+				except ValueError:
+					# Queue was closed
+					finished_queue = True
+					is_alive = False
+					break
 				else:
 					if res := self._handle(msg):
 						yield from res
@@ -205,3 +210,7 @@ class Subprocess(Generic[M, C, R], ABC):
 		
 		self.proc = None
 		self.log.info("Stopped")
+
+	def close(self):
+		self.stop()
+		self.close_queues()

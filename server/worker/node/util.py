@@ -25,7 +25,7 @@ class TelemetryStage(XOutNode[dai.SystemInformation, cfg.TelemetryStage]):
 	def handle(self, packet: dai.SystemInformation):
 		yield
 
-class ImageOutConfig(cfg.stage_base('xout', implicit=True)):
+class ImageOutConfig(cfg._stage_base('xout', implicit=True)):
 	target: Literal["left", "right", "rgb", "depth"]
 	@property
 	def name(self):

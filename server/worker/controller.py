@@ -1,248 +1,24 @@
 from __future__ import annotations
 from multiprocessing.context import BaseContext
 from multiprocessing.queues import Queue
-from typing import TYPE_CHECKING, Optional, Union, cast
-import logging, os.path
+from typing import TYPE_CHECKING, Optional, Union
+import logging
 from multiprocessing import Process, get_context
 from queue import Empty
 from pathlib import Path
 from logging import Logger
-from dataclasses import dataclass
 
 from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
 
 from . import msg as worker
-from typedef import apriltag
-from typedef.pipeline import (
-    PipelineConfig, PipelineConfigWorker, PipelineStageWorker,
-	ApriltagStage, ApriltagStageWorker,
-	SlamStage, SlamStageWorker,
-	ObjectDetectionStage, NNConfig
-)
-from typedef.common import OakSelector
-from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig
+from .resolver import WorkerConfigResolver
+from typedef.cfg import LocalConfig
 from util.subproc import Subprocess
 from util.log import child_logger
 
 if TYPE_CHECKING:
 	from multiprocessing.context import BaseContext
 	from queue import Queue
-
-
-class CameraId:
-	"Helper to print out camera IDs"
-	def __init__(self, idx: int, name: Optional[str] = None) -> None:
-		self.idx = idx
-		self.name = name
-	
-	def __str__(self):
-		if self.name is None:
-			return f'#{self.idx}'
-		else:
-			return f'#{self.idx} (name {self.name})'
-
-
-@dataclass
-class ResolvedApriltag:
-	wpi: apriltag.WpiInlineAprilTagField
-	sai: apriltag.SaiAprilTagFieldRef
-
-
-class WorkerConfigResolver:
-	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None):
-		self.log = log.getChild('config')
-		self.config = config
-		self.config_path = config_path
-		self.pipelines: dict[str, PipelineDefinition] = dict()
-		self.at_cache: dict[str, ResolvedApriltag] = dict()
-		"Cache for AprilTag config resolutions"
-		self._tempdir = None
-
-		# Resolve presets
-		for pipeline in self.config.pipelines:
-			self.pipelines[pipeline.id] = self._resolve_pipeline(None, pipeline.stages)
-	
-	def _resolve_path(self, relpart: str | Path) -> Path:
-		"Resolve a path relative to the config directory"
-		return (Path(self.config_path).parent / os.path.expanduser(relpart)).resolve()
-	def _basepath(self):
-		return Path(self.config_path).parent
-	
-	def _resolve_nn(self, cid: CameraId, nn_stage: ObjectDetectionStage) -> Optional[ObjectDetectionStage]:
-		"Resolve a pipeline ID into a config"
-		if nn_stage is None:
-			return None
-		
-		self.log.debug("Resolving nn for camera %s", cid)
-
-		# Resolve blobPath relative to config file
-		blobPath = self._resolve_path(nn_stage.blobPath)
-		self.log.info("Resolved NN blob path '%s' -> '%s'", nn_stage.blobPath, str(blobPath))
-		if not blobPath.exists():
-			self.log.error("Camera %s requested object detection stage with a blob at '%s', but that file doesn't exist", cid, blobPath)
-			return None
-		
-		if isinstance(nn_stage.config, (str, Path)):
-			# Load pipeline from file
-			configPath = self._resolve_path(nn_stage.config)
-			if not configPath.exists():
-				self.log.error("Camera %s requested object detection stage with a config at '%s', but that file doesn't exist", cid, configPath)
-				return None
-			try:
-				with open(configPath, 'r') as f:
-					configRaw = f.read()
-				config = NNConfig.model_validate_json(configRaw)
-			except:
-				self.log.exception("Camera %s requested object detection stage with a config at %s but that file doesn't exist", cid, configPath)
-		else:
-			# Inline config
-			config = nn_stage.config
-		
-		return ObjectDetectionStage(
-			**dict(
-				nn_stage,
-				config=config,
-				blobPath=blobPath,
-			),
-		)
-	
-	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> OakSelector:
-		"Resolve an OakSelector, possibly by name"
-		if isinstance(raw_selector, str):
-			for selector in self.config.camera_selectors:
-				if selector.id == raw_selector:
-					return selector
-		else:
-			return raw_selector
-
-	def _resolve_pipeline(self, cid: CameraId | None, pipeline: str | PipelineConfig | None) -> PipelineConfigWorker | None:
-		if pipeline is None:
-			return None
-		if isinstance(pipeline, str):
-			self.log.info("Looking up pipeline %s", pipeline)
-			self.log.info("Pipelines: %s", self.pipelines)
-			try:
-				res = self.pipelines[pipeline]
-				self.log.info('Resolved pipeline %s: %s', pipeline, res)
-				return res
-			except KeyError:
-				self.log.warning("Camera %s requested preset pipeline %s, but that preset doesn't exist", cid, pipeline)
-				return None
-		
-		stages: list[PipelineStageWorker] = list()
-		for i, stage in enumerate(pipeline.root):
-			try:
-				match stage.stage:
-					# We need to map some stages
-					case 'inherit':
-						if (parent := self._resolve_pipeline(cid, stage.id)) is not None:
-							stages.extend(parent)
-						else:
-							e = RuntimeError(f"Unable to inherit from pipeline '{stage.id}', as id doesn't exist")
-							if self.config.pipelines:
-								for pipeline in self.config.pipelines:
-									e.add_note(f"Valid pipeline: {pipeline.id}")
-							else:
-								e.add_note("There are no registered pipelines")
-							raise e
-					case 'apriltag':
-						stages.append(ApriltagStageWorker(
-							**dict(
-								stage,
-								apriltags=cast(ApriltagStage, stage).apriltags.load(self._basepath()).to_wpi_inline(),
-							)
-						))
-					case 'slam':
-						stages.append(SlamStageWorker(dict(
-							**stage,
-							apriltags=cast(SlamStage, stage).apriltags \
-								.load(self._basepath()) \
-								.to_sai_inline() \
-								.store(self._basepath())
-						)))
-					case 'nn':
-						if stage := self._resolve_nn(cid, stage):
-							stages.append(stage)
-						else:
-							self.log.warning('Camera %s unable to resolve object detection stage %d', cid, i)
-					case _:
-						# Passthrough
-						stages.append(stage)
-			except:
-				if stage.optional:
-					self.log.warning("Camera %s had error in stage %d", cid, i, exc_info=True)
-					continue
-				else:
-					self.log.exception("Camera %s had error in stage %d", cid, i)
-					raise
-		return stages
-	
-	def _resolve_slam(self, cid: CameraId, raw_slam: str | PipelineConfig | None) -> Optional[PipelineConfig]:
-		"Resolve SLAM configuration. We use global SLAM config for when `raw_slam=True`"
-		if raw_slam is None:
-			return None
-		elif isinstance(raw_slam, str):
-			# Lookup global
-			for preset in self.config.presets:
-				if preset.id == raw_slam:
-					slam_cfg = preset
-					break
-			else:
-				self.log.warning("Camera %s requested preset %s, but no config exists", cid, raw_slam)
-				return None
-		else:
-			slam_cfg = raw_slam
-		slam_cfg: PipelineConfig
-
-		object_detection = self._resolve_nn(cid, slam_cfg.object_detection)
-		
-		try:
-			apriltagPath = self._resolve_apriltag(cid, slam_cfg.apriltag)
-			return worker.WorkerPipelineConfig(
-				backend=slam_cfg.backend,
-				syncNN=slam_cfg.syncNN,
-				slam=slam_cfg.slam,
-				vio=slam_cfg.vio,
-				streams=slam_cfg.streams,
-				slam_save=slam_cfg.slam_save,
-				slam_load=slam_cfg.slam_load,
-				telemetry=slam_cfg.telemetry,
-				apriltag_explicit=slam_cfg.apriltag_explicit,
-				apriltagPath=str(apriltagPath) if (apriltagPath is not None) else None,
-				object_detection=object_detection,
-			)
-		except:
-			self.log.exception("Error resolving SLAM config for camera %s", cid)
-			return None
-	
-	def process_one(self, camera: CameraConfig, idx: int = 0) -> worker.WorkerInitConfig:
-		"Resolve the config for a single camera"
-		cid = CameraId(idx, camera.id)
-		selector = self._resolve_selector(cid, camera.selector)
-		pipeline = self._resolve_pipeline(cid, camera.pipeline)
-
-		if pipeline is None:
-			pipeline = []
-
-		return worker.WorkerInitConfig(
-			id=camera.id or str(cid),
-			selector=selector,
-			max_usb=camera.max_usb,
-			retry=camera.retry,
-			robot_to_camera=camera.pose,
-			pipeline=pipeline,
-		)
-
-	def cleanup(self):
-		if self._tempdir is not None:
-			self._tempdir.cleanup()
-	
-	def __iter__(self):
-		for i, camera in enumerate(self.config.cameras):
-			init_cfg = self.process_one(camera, i)
-			yield init_cfg
-
-
 
 class WorkerManager:
 	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None) -> None:
@@ -265,11 +41,15 @@ class WorkerManager:
 		"Stop camera subprocesses"
 		self.log.info("Sending stop command to workers")
 		for child in self._workers:
-			child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+			try:
+				child.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
+			except ValueError:
+				# Command queue was closed
+				pass
 		
 		self.log.info("Stopping workers")
 		for child in self._workers:
-			child.stop()
+			child.close()
 		self.log.info("Workers stopped")
 		self._workers.clear()
 
@@ -285,6 +65,7 @@ class WorkerManager:
 	def __iter__(self):
 		"Iterate through camera handles"
 		return self._workers.__iter__()
+
 
 class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: logging.Logger | None = None, ctx: BaseContext | None = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None):
@@ -314,6 +95,12 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 		self._last_flush_id = 0
 		self._restarts = 0
 		self.robot_to_camera = config.robot_to_camera
+		self.child_state = None
+		self._child_state_recv = None
+		self._source_pose = None
+		self._source_apriltag = None
+		self._source_imu = None
+		self._source_odom = None
 		self.add_handler(worker.MsgLog, self._handle_log)
 		self.add_handler(worker.MsgFlush, self._handle_flush)
 		self.add_handler(worker.MsgChangeState, self._handle_changestate)
@@ -352,6 +139,7 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 	
 	def _handle_changestate(self, packet: worker.MsgChangeState):
 		self.child_state = packet.current
+		self._child_state_recv = packet.current
 		if self.datalog is not None:
 			self.logStatus.append(int(self.child_state))
 	
@@ -366,181 +154,26 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 	def handle_dead(self):
 		optional = self.config.retry.optional
 		self._restarts += 1
-		can_retry = self._restarts < self.config.retry.restart_tries
-
+		restart_tries = self.config.retry.restart_tries
+		can_retry = (restart_tries == -1) or (self._restarts < self.config.retry.restart_tries)
+		expected = self._child_state_recv in (worker.WorkerState.STOPPED, worker.WorkerState.FAILED)
 		if optional:
-			self.log.warning('Unexpectedly exited')
+			self.log.warning("Exited" if expected else 'Unexpectedly exited')
 			self.child_state = worker.WorkerState.STOPPING
 		else:
-			self.log.error('Unexpectedly exited')
+			self.log.error("Exited" if expected else 'Unexpectedly exited')
 		# Cleanup process
 		self.stop(ask=False)
+		self._child_state_recv = None
+
 		if can_retry:
 			self.child_state = worker.WorkerState.STOPPED
-			self.log.info("Restarting (%d of %d)", self._restarts, self.config.retry.restart_tries - 1)
+			self.log.info("Restarting (%d of %s)", self._restarts, restart_tries - 1 if restart_tries >= 0 else '?')
 			# TODO: honor connection_delay?
 			self.start()
+			self.log.info("Restarted")
 		elif optional:
 			self.child_state = worker.WorkerState.STOPPED
 		else:
 			self.child_state = worker.WorkerState.FAILED
 			raise RuntimeError(f'Camera {self.name} unexpectedly exited')
-		
-class WorkerHandle0:
-	"Manage a single camera worker"
-	
-	proc: Process
-	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: Optional[logging.Logger] = None, ctx: Optional['BaseContext'] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None):
-		if ctx is None:
-			ctx = get_context('spawn')
-		self._ctx = ctx
-		
-		self.name = name
-		self.child_state = None
-		self.log = log.getChild(name) if (log is not None) else logging.getLogger(name)
-		self.datalog = datalog
-		if datalog is not None:
-			logConfig = StringLogEntry(self.datalog, f'worker/{name}/config')
-			logConfig.append(config.model_dump_json())
-			logConfig.finish()
-			del logConfig
-
-			self.logStatus = IntegerLogEntry(self.datalog, f'worker/{name}/status')
-			self.logLog = StringLogEntry(self.datalog, f'worker/{name}/log')
-		
-		self.config = config
-		# self.log.info("Start with config %s", config.model_dump_json())
-		self.proc = None
-		self._restarts = 0
-		self.robot_to_camera = config.robot_to_camera
-		self.cmd_queue = ctx.Queue()
-		self.data_queue = ctx.Queue()
-		self.video_queue = vidq
-		self._require_flush_id = 0
-		self._last_flush_id = 0
-	
-	def start(self):
-		if self.proc is not None:
-			self.log.warning('Started twice!')
-			return
-		
-		from worker.worker import main as worker_main
-		self.proc = self._ctx.Process(
-			target=worker_main,
-			args=[self.config, self.data_queue, self.cmd_queue, self.video_queue],
-			daemon=True,
-			name=f'moenet_{self.name}'
-		)
-		self.proc.start()
-
-	def stop(self, send_command: bool = True):
-		if self.proc is None:
-			return
-		try:
-			# Try stopping nicely
-			try:
-				self.log.info("Stopping...")
-				if send_command:
-					self.cmd_queue.put(worker.CmdChangeState(target=worker.WorkerState.STOPPED), block=True, timeout=1.0)
-				self.proc.join(1.0)
-			except:
-				self.log.exception("Error on join")
-			
-			if self.proc.is_alive():
-				self.proc.kill()
-			
-			try:
-				self.proc.join()
-			except:
-				self.log.exception('Exception on join')
-		finally:
-			self.log.debug("close")
-			self.proc.close()
-		self.proc = None
-		self.log.info("Stopped")
-	
-	def enable_stream(self, stream: str, enable: bool):
-		self.send(worker.CmdEnableStream(stream=stream, enable=enable))
-	
-	def send(self, command: Union[worker.CmdChangeState, worker.CmdPoseOverride, worker.CmdFlush, worker.CmdEnableStream]):
-		self.cmd_queue.put(command, block=True, timeout=1.0)
-	
-	def flush(self):
-		self._require_flush_id += 1
-		self.send(worker.CmdFlush(id=self._require_flush_id))
-	
-	def _handle_dead(self):
-		optional = self.config.retry.optional
-		self._restarts += 1
-		can_retry = self._restarts < self.config.retry.restart_tries
-
-		if optional:
-			self.log.warning('Unexpectedly exited')
-			self.child_state = worker.WorkerState.STOPPING
-		else:
-			self.log.error('Unexpectedly exited')
-		# Cleanup process
-		self.stop(False)
-		if can_retry:
-			self.child_state = worker.WorkerState.STOPPED
-			self.log.info("Restarting (%d of %d)", self._restarts, self.config.retry.restart_tries - 1)
-			# TODO: honor connection_delay?
-			self.start()
-		elif optional:
-			self.child_state = worker.WorkerState.STOPPED
-		else:
-			self.child_state = worker.WorkerState.FAILED
-			raise RuntimeError(f'Camera {self.name} unexpectedly exited')
-
-	def poll(self):
-		"Process messages from worker"
-		if self.proc is None:
-			return
-		
-		is_alive = True
-		while True:
-			is_alive = is_alive and self.proc.is_alive()
-			try:
-				# We want to process any remaining packets even if the process died
-				# but we know we don't need to block on the queue then
-				packet: worker.AnyMsg = self.data_queue.get(block=is_alive, timeout=0.01)
-			except Empty:
-				break
-			else:
-				if isinstance(packet, worker.MsgChangeState):
-					self.child_state = packet.current
-					if self.datalog is not None:
-						self.logStatus.append(int(self.child_state))
-				elif isinstance(packet, worker.MsgFlush):
-					self.log.debug('Finished flush %d', packet.id)
-					self._last_flush_id = max(self._last_flush_id, packet.id)
-					continue # We don't need to forward this
-				elif isinstance(packet, worker.MsgLog):
-					child_logger = self.log.getChild(packet.name) if packet.name != 'root' else self.log
-					child_logger.log(packet.level, packet.msg)
-					if self.datalog is not None:
-						self.logLog.append(f'[{logging.getLevelName(packet.level)}]{packet.msg}')
-					continue
-
-				if self._last_flush_id < self._require_flush_id:
-					# Packets are invalidated by a flush
-					self.log.info("Skipping packet (flushed)")
-					continue
-
-				yield packet
-		
-		if not is_alive:
-			self._handle_dead()
-	
-	def close(self):
-		try:
-			self.stop(False)
-		finally:
-			# Cleanup datalog
-			if self.datalog is not None:
-				self.logLog.finish()
-				del self.logLog
-				self.logStatus.finish()
-				del self.logStatus
-				self.data_queue.close()
-				self.cmd_queue.close()

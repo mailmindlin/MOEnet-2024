@@ -1,30 +1,70 @@
-from typing import Literal, Annotated, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Annotated, Union, TypeVar, Callable
 from pydantic import RootModel, BaseModel, Field, Discriminator, Tag
 from pathlib import Path
+import enum, abc
 # Import for conversions
 import numpy as np
 from scipy.spatial.transform import Rotation
+import tempfile
 try:
-    from . import geom
+    from . import geom, common
 except ImportError:
-    import geom
+    import geom, common
 if TYPE_CHECKING:
     import robotpy_apriltag
+    import depthai as dai
 
 FLIP_SAI = True
 "We're supposed to flip SAI coordinates, but idk"
 
-Vec4 = RootModel[tuple[float, float, float, float]]
-Mat44 = RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]
+class AprilTagFamily(enum.StrEnum):
+    TAG_16H5 = 'tag16h5'
+    TAG_25H9 = 'tag25h9'
+    TAG_36H10 = 'tag36h10'
+    TAG_36H11 = 'tag36h11'
+    TAG_CIR21H7 = 'tagCircle21h7'
+    TAG_STAND41H12 = 'tagStandard41h12'
 
-AprilTagFamily = Literal['tag16h5', 'tag25h9', 'tag36h11']
+    def as_dai(self) -> 'dai.AprilTagConfig.Family':
+        match self:
+            case AprilTagFamily.TAG_16H5:
+                return dai.AprilTagConfig.Family.TAG_16H5
+            case AprilTagFamily.TAG_25H9:
+                return dai.AprilTagConfig.Family.TAG_25H9
+            case AprilTagFamily.TAG_36H10:
+                return dai.AprilTagConfig.Family.TAG_36H10
+            case AprilTagFamily.TAG_36H11:
+                return dai.AprilTagConfig.Family.TAG_36H11
+            case AprilTagFamily.TAG_CIR21H7:
+                return dai.AprilTagConfig.Family.TAG_CIR21H7
+            case AprilTagFamily.TAG_STAND41H12:
+                return dai.AprilTagConfig.Family.TAG_STAND41H12
+            case _:
+                raise ValueError(f'Unknown AprilTag family {self}')
 
-class SaiAprilTag(BaseModel):
+class AprilTagBase(abc.ABC):
+    id: int
+
+    def to_wpilib(self) -> 'robotpy_apriltag.AprilTag':
+        pass
+    @abc.abstractmethod
+    def to_wpi(self) -> 'AprilTagWpi':
+        assert isinstance(self, AprilTagWpi)
+        return self
+    @abc.abstractmethod
+    def to_sai(self, tagFamily: AprilTagFamily, tagSize: float) -> 'AprilTagSai':
+        "Convert to SpectacularAI format"
+        assert isinstance(self, AprilTagSai)
+        return self
+
+class AprilTagSai(BaseModel, AprilTagBase):
     id: int = Field(description="AprilTag id", ge=0)
-    size: float = Field(description="Tag size (meters)")
+    size: float = Field(description="Tag size (meters)", ge=0, allow_inf_nan=False)
     family: AprilTagFamily = Field(description="Tag family")
-    tagToWorld: Mat44
-    def to_wpi(self) -> 'WpiFieldTag':
+    tagToWorld: common.Mat44
+    def get_sai_matrix(self) -> np.ndarray:
+        return np.asarray(self.tagToWorld)
+    def to_wpi(self) -> 'AprilTagWpi':
         matrix = np.asarray(self.tagToWorld, dtype=float)
 
         r_matrix = matrix[:3, :3]
@@ -38,21 +78,23 @@ class SaiAprilTag(BaseModel):
 
         tagToField = geom.Transform3d(position, rotation)
         fieldToTag = tagToField.inverse() if FLIP_SAI else fieldToTag
-        return WpiFieldTag(
+        return AprilTagWpi(
             ID=self.id,
             pose=geom.Pose3d(fieldToTag.translation(), fieldToTag.rotation())
         )
 
-    def to_sai(self, tagFamily: AprilTagFamily, tagSize: float) -> 'SaiAprilTag':
+    def to_sai(self, tagFamily: AprilTagFamily, tagSize: float) -> 'AprilTagSai':
         return self
 
-SaiAprilTagList = RootModel[list[SaiAprilTag]]
+AprilTagJsonSai = RootModel[list[AprilTagSai]]
 
 class FieldLayout(BaseModel):
     length: float = Field(description="Field length (meters)")
     width: float = Field(description="Field width (meters)")
 
-class WpiFieldTag(BaseModel):
+class AprilTagWpi(BaseModel):
+    "A single AprilTag definition (WPI format)"
+    
     ID: int = Field(description="AprilTag id", ge=0)
     pose: geom.Pose3d = Field(description="AprilTag pose, in field-space (field->tag)")
     def to_wpilib(self) -> 'robotpy_apriltag.AprilTag':
@@ -62,9 +104,9 @@ class WpiFieldTag(BaseModel):
         res.pose = self.pose
         return res
     
-    def to_wpi(self) -> 'WpiFieldTag':
+    def to_wpi(self) -> 'AprilTagWpi':
         return self
-    def to_sai(self, tagFamily: AprilTagFamily, tagSize: float) -> SaiAprilTag:
+    def to_sai(self, tagFamily: AprilTagFamily, tagSize: float) -> AprilTagSai:
         fieldToTag = geom.Transform3d(self.pose.translation(), self.pose.rotation())
         tagToField = fieldToTag.inverse() if FLIP_SAI else fieldToTag
         position = tagToField.translation()
@@ -80,52 +122,181 @@ class WpiFieldTag(BaseModel):
         matrix = np.eye(4) # 4x4 identity matrix
         matrix[:3, :3] = r_matrix # first 3 in rows and columns
         matrix[:3, 3] = [x, y, z] # first 3 in rows, last in columns
-        return SaiAprilTag(
+        return AprilTagSai(
             id=self.ID,
             size=tagSize,
             family=tagFamily,
             tagToWorld=matrix
         )
 
-class WpiAprilTagField(BaseModel):
+class AprilTagJsonWpi(BaseModel):
     "Format of WPIlib AprilTag JSON files"
     field: FieldLayout
-    tags: list[WpiFieldTag]
+    tags: list[AprilTagWpi]
 
-class AprilTagFieldBase(BaseModel):
+
+class _AprilTagField(BaseModel):
     format: Literal["wpi", "sai"]
 
-    def load(self, base: Path | None = None) -> 'InlineAprilTagField':
+    def _resolve_path(self, base: Path | None, relpart: Path) -> Path:
+        if relpart.is_absolute():
+            return relpart
+        import os.path
+        relpart = Path(os.path.expanduser(relpart))
+        if relpart.is_absolute():
+            return relpart
+        elif base is None:
+            raise ValueError(f'Unable to resolve relative path {relpart}')
+        else:
+            return (base / relpart).resolve()
+    
+    def resolve(self, base: Path | None = None) -> '_AprilTagField':
+        "Resolve path references (if any) relative to a base folder"
+        return self
+    
+    # def as_inline_sai(self, base: Path | None = None) -> 'AprilTagFieldInlineSai':
+    #     return self.load(base).as_inline_sai()
+    
+    # def as_inline_wpi(self, base: Path | None = None) -> 'AprilTagFieldInlineWpi':
+    #     return self.load(base).as_inline_wpi()
+
+    def validate(self, base: Path | None):
+        "Validate that this has valid field data"
+        self.model_validate(self)
+    
+    def convert(self, target: 'F', base: Path, tempdir: Callable[[], Path]) -> 'F':
+        "Convert to another AprilTagField type"
+        if isinstance(self, target):
+            return self
+        
+        # Which transforms do we need to do?
+        need_load = False
+        need_store = False
+        if issubclass(target, _AprilTagFieldInline):
+            need_load = True
+        if issubclass(target, _AprilTagFieldRef):
+            need_store = True
+        
+        # Get target format
+        if issubclass(target, _AprilTagFieldSai):
+            target_format = 'sai'
+        elif issubclass(target, _AprilTagFieldWpi):
+            target_format = 'wpi'
+        else:
+            # If not specified, don't convert
+            target_format = None
+        if need_store and (target_format is not None) and (self.format != target_format):
+            need_load = True
+        print(f"Src={type(self).__name__}, dst={target.__name__}, need_load={need_load}, need_store={need_store}, target_format={target_format}")
+
+        current = self
+        if need_load:
+            current = self.load(base)
+        
+        # Convert type
+        if target_format in (current.format, None):
+            # No conversion needed
+            pass
+        elif target_format == 'sai':
+            current = current.as_inline_sai()
+        elif target_format == 'wpi':
+            current = current.as_inline_wpi()
+        else:
+            raise ValueError()
+        
+        if need_store:
+            current = current.store(tempdir)
+        
+        return current
+    
+    @abc.abstractmethod
+    def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRef':
+        pass
+
+    def load(self, base: Path | None = None) -> 'AprilTagFieldInline':
         raise NotImplementedError()
 
-class InlineAprilTagFieldBase(AprilTagFieldBase):
-    field: FieldLayout = Field(description="Field size")
-    def load(self, base: Path | None = None) -> 'InlineAprilTagField':
-        return self
+class _AprilTagFieldWpi(_AprilTagField, abc.ABC):
+    "WPI-format AprilTag data"
+    format: Literal["wpi"] = Field(default_factory=lambda: 'wpi')
 
-class WpiInlineAprilTagField(InlineAprilTagFieldBase):
+class _AprilTagFieldSai(_AprilTagField, abc.ABC):
+    "SpectacularAI-format AprilTag data"
+    format: Literal["sai"] = Field(default_factory=lambda: 'sai')
+
+class _AprilTagFieldInline(_AprilTagField, abc.ABC):
+    "Inline AprilTag info"
+    field: FieldLayout = Field(description="Field size")
+    def load(self, base: Path | None = None) -> 'AprilTagFieldInline':
+        return self
+    
+    def to_wpilib(self) -> 'robotpy_apriltag.AprilTagFieldLayout':
+        return self.as_inline_wpi().to_wpilib()
+
+class _AprilTagFieldRef(_AprilTagField, abc.ABC):
+    "Reference to an AprilTag JSON file"
+    path: Path = Field(description="Path to AprilTag configuration")
+
+    def validate(self, base: Path | None):
+        super().validate(base)
+        self._load_data(base)
+    
+    def store(self, tempdir: Callable[[], Path]) -> '_AprilTagFieldRef':
+        return self
+    
+    def resolve(self, base: Path | None = None) -> '_AprilTagFieldRef':
+        return self.model_copy(
+            update=dict(
+                path=self._resolve_path(base, self.path)
+            )
+        )
+    
+    def _load_raw(self, base: Path | None = None) -> str:
+        "Load raw JSON"
+        res_path = self._resolve_path(base, self.path)
+        with open(res_path, 'r') as f:
+            return f.read()
+    
+    @abc.abstractmethod
+    def _load_data(self, base: Path | None = None):
+        pass
+
+
+class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
     "Inline AprilTag config (WPI format)"
-    format: Literal["wpi"]
-    tags: list[WpiFieldTag] = Field(description="AprilTags (WPI format)")
+    format: Literal["wpi"] = Field(default_factory=lambda: 'wpi')
+    tags: list[AprilTagWpi] = Field(description="AprilTags (WPI format)")
     tagFamily: AprilTagFamily = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
-    def to_sai_inline(self) -> 'SaiInlineAprilTagField':
-        return SaiInlineAprilTagField(
-            format='sai',
+    def as_inline_sai(self, path: Path | None = None) -> 'AprilTagFieldInlineSai':
+        return AprilTagFieldInlineSai(
             field=self.field,
             tags=[
                 tag.to_sai(self.tagFamily, self.tagSize)
                 for tag in self.tags
             ]
         )
-    def to_wpi_inline(self) -> 'WpiInlineAprilTagField':
+    def as_inline_wpi(self, path: Path | None = None) -> 'AprilTagFieldInlineWpi':
         return self
     
-    def store(self, base: Path) -> 'WpiAprilTagFieldRef':
-        pass
+    def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRefWpi':
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            dir=tempdir(),
+            delete=False,
+            prefix='apriltag_',
+            suffix='.json',
+        ) as f:
+            path = Path(f.name)
+            pass
+        return AprilTagFieldRefWpi(
+            path=path,
+            tagFamily=self.tagFamily,
+            tagSize=self.tagSize,
+        )
 
     def to_wpilib(self) -> 'robotpy_apriltag.AprilTagFieldLayout':
-        from robotpy_apriltag import AprilTag, AprilTagFieldLayout
+        from robotpy_apriltag import AprilTagFieldLayout
         return AprilTagFieldLayout(
             [
                 tag.to_wpilib()
@@ -136,72 +307,100 @@ class WpiInlineAprilTagField(InlineAprilTagFieldBase):
         )
 
 
-class SaiInlineAprilTagField(InlineAprilTagFieldBase):
+class AprilTagFieldInlineSai(_AprilTagFieldInline, _AprilTagFieldSai):
     "Inline AprilTag config (SAI format)"
-    format: Literal["sai"]
-    tags: SaiAprilTagList = Field(description="AprilTags (SAI format)")
-    def to_sai_inline(self):
+    format: Literal["sai"] = Field(default_factory=lambda: 'sai')
+    tags: list[AprilTagSai] = Field(description="AprilTags (SAI format)")
+    def as_inline_sai(self, path: Path | None = None):
         return self
 
-    def to_wpi_inline(self) -> 'WpiInlineAprilTagField':
-        return self
+    def as_inline_wpi(self, path: Path | None = None) -> 'AprilTagFieldInlineWpi':
+        if len(self.tags) == 0:
+            family = AprilTagFamily.TAG_16H5
+            size = 1.0
+        else:
+            family = self.tags[0].family
+            size = self.tags[0].size
+        tags = list()
+        for tag in self.tags:
+            assert tag.family == family
+            assert (tag.size - size) < 1e-6
+            tags.append(tag.to_wpi())
+        
+        return AprilTagFieldInlineWpi(
+            field=self.field,
+            tags=tags,
+            tagFamily=family,
+            tagSize=size,
+        )
     
-    def store(self, base: Path) -> 'SaiAprilTagFieldRef':
+    def store(self, base) -> 'AprilTagFieldRefSai':
         pass
 
-InlineAprilTagField = Annotated[
-    Union[
-        Annotated[WpiInlineAprilTagField, Tag("wpi")],
-        Annotated[SaiInlineAprilTagField, Tag("sai")],
-    ],
-    Discriminator("format")
-]
 
-class AprilTagFieldRefBase(AprilTagFieldBase):
-    "Reference to an AprilTag JSON file"
-    path: Path = Field(description="Path to AprilTag configuration")
-    def load_raw(self, base: Path | None = None) -> str:
-        res_path = self.path if (base is None) else (base / self.path)
-        res_path = res_path.resolve()
-        with open(res_path, 'r') as f:
-            return f.read()
-    
-
-class WpiAprilTagFieldRef(AprilTagFieldRefBase):
+class AprilTagFieldRefWpi(_AprilTagFieldRef, _AprilTagFieldWpi):
     "Reference to an AprilTag JSON file (in WPIlib format)"
-    format: Literal["wpi"]
+    format: Literal["wpi"] = Field(default_factory=lambda: 'wpi')
     tagFamily: AprilTagFamily = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
-    def load(self, base: Path | None = None) -> InlineAprilTagField:
-        text = self.load_raw(base)
-        data = WpiAprilTagField.model_validate_json(text)
-        return WpiInlineAprilTagField(
+
+    def load(self, base: Path | None = None) -> AprilTagFieldInlineWpi:
+        data = self._load_data(base)
+        return AprilTagFieldInlineWpi(
             format='wpi',
             field=data.field,
             tags=data.tags,
             tagFamily=self.tagFamily,
             tagSize=self.tagSize,
         )
+    
+    def _load_data(self, base: Path | None = None):
+        text = self._load_raw(base)
+        data = AprilTagJsonWpi.model_validate_json(text)
+        return data
 
-class SaiAprilTagFieldRef(AprilTagFieldRefBase):
+class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
     "Reference to an AprilTag JSON file (in SpectacularAI format)"
-    format: Literal["sai"]
+    format: Literal["sai"] = Field(default_factory=lambda: 'sai')
     field: FieldLayout
 
-    def load(self, base: Path | None = None) -> InlineAprilTagField:
-        text = self.load_raw(base)
-        data = SaiAprilTagList.model_validate_json(text)
-        return SaiInlineAprilTagField(
-            format='sai',
+    def load(self, base: Path | None = None) -> 'AprilTagFieldInlineSai':
+        data = self._load_data(base)
+        return AprilTagFieldInlineSai(
             field=self.field,
-            tags=data
+            tags=data,
         )
+    
+    def _load_data(self, base: Path | None = None):
+        text = self._load_raw(base)
+        data = AprilTagJsonSai.model_validate_json(text)
+        return data
 
 
-AprilTagFieldRef = Annotated[
+# ===== Annotated types =====
+
+AprilTagFieldInline = Annotated[
     Union[
-        Annotated[WpiAprilTagFieldRef, Tag("frc")],
-        Annotated[SaiAprilTagFieldRef, Tag("sai")],
+        Annotated[AprilTagFieldInlineWpi, Tag("wpi")],
+        Annotated[AprilTagFieldInlineSai, Tag("sai")],
     ],
     Discriminator("format")
 ]
+# AprilTagFieldInline = AprilTagFieldInlineWpi
+# AprilTagFieldRef = AprilTagFieldRefWpi
+
+AprilTagFieldRef = Annotated[
+    Union[
+        Annotated[AprilTagFieldRefWpi, Tag("frc")],
+        Annotated[AprilTagFieldRefSai, Tag("sai")],
+    ],
+    Discriminator("format")
+]
+
+AprilTagField = Union[
+    AprilTagFieldRef,
+    AprilTagFieldInline,
+]
+"Any AprilTag field data"
+
+F = TypeVar('F', AprilTagFieldRefWpi, AprilTagFieldInlineWpi, AprilTagFieldInlineWpi, AprilTagFieldInlineSai)

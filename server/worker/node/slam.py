@@ -40,7 +40,7 @@ class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
 			sai_config.mapLoadPath = str(mapLoadPath)
 		if mapSavePath := config.map_save:
 			sai_config.mapSavePath = str(mapSavePath)
-		self.vio_pipeline = sai.depthai.Pipeline(pipeline.pipeline, sai_config)
+		self.vio_pipeline = sai.depthai.Pipeline(pipeline, sai_config)
 	
 	def start(self, device: dai.Device, *args, **kwargs) -> 'SlamRuntime':
 		self.vio_session = self.vio_pipeline.startSession(device)

@@ -51,8 +51,6 @@ class MoeNetPipeline:
 		register('web',       WebStreamNode, cfg.WebStreamStage)
 		register('show',      ShowNode, cfg.ShowStage)
 		
-		self.build()
-	
 	@contextmanager
 	def optional_stage(self, stage: S, optional: Optional[bool] = None):
 		if optional is None:

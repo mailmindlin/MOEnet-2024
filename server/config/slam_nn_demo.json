@@ -10,21 +10,31 @@
 	"pipelines": [
 		{
 			"id": "moenet-2023-v1",
-			"blobPath": "./moenet-2023-v1/nn.blob",
-			"configPath": "./moenet-2023-v1/pipeline.json"
+			"stages": [
+				{
+					"stage": "nn",
+					"blobPath": "./moenet-2023-v1/nn.blob",
+					"config": "./moenet-2023-v1/pipeline.json"
+				}
+			]
+		},
+		{
+			"id": "slam",
+			"stages": [
+				{
+					"stage": "slam",
+					"apriltags": {
+						"format": "wpi",
+						"path": "./apriltag/2023-chargedup.json",
+						"tagFamily": "tag25h9",
+						"tagSize": 0.1524
+					},
+					"slam": true,
+					"vio": true
+				}
+			]
 		}
 	],
-	"slam": {
-		"backend": "sai",
-		"apriltag": {
-			"format": "frc",
-			"path": "./apriltag/2023-chargedup.json",
-			"tagFamily": "tag25h9",
-			"tagSize": 0.1524
-		},
-		"slam": true,
-		"vio": true
-	},
 	"cameras": [
 		{
 			"id": "S2",
@@ -44,9 +54,16 @@
 					}
 				}
 			},
-			"object_detection0": "moenet-2023-v1",
-			"object_detection": null,
-			"slam": true
+			"pipeline": [
+				{
+					"stage": "inherit",
+					"id": "moenet-2023-v1"
+				},
+				{
+					"stage": "inherit",
+					"id": "slam"
+				}
+			]
 		}
 	]
 }

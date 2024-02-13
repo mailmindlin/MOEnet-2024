@@ -88,7 +88,6 @@ class AprilTagRuntimeBase(NodeRuntime):
 	
 	def _filter_detection(self, det: Union['WpiAprilTagDetection', AprilTagDetection]) -> bool:
 		"Check if an AprilTag detection matches the config filters"
-		det.getDecisionMargin
 		if det.getDecisionMargin() < self.config.decisionMargin:
 			return False
 		if det.getHamming() > self.config.hammingDist:
@@ -240,7 +239,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 							camToTag=estimate_wpi,
 							fieldToCam=None if (fieldToTag is None) else fieldToTag.transformBy(estimate_wpi.inverse()),
 						))
-						self.log.debug("Single tag estimate: %s", estimate)
+						self.log.info("Single tag estimate: %s", estimate)
 				elif fieldToTag is not None:
 					# If single-tag estimation was not done, this is a multi-target tag from the layout
 					# compute this tag's camera-to-tag transform using the multitag result
@@ -442,6 +441,7 @@ class AprilTagHostRuntime(AprilTagRuntimeBase):
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
 		
 		dets = self.detector.detect(img)
+		self.log.debug("raw ats %s", dets)
 		good_dets = list()
 		for detection in dets:
 			if not self._filter_detection(detection):

@@ -1,15 +1,18 @@
 from typing import Literal, Optional, TYPE_CHECKING
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 from datetime import timedelta
 if TYPE_CHECKING:
 	import depthai as dai
 
+Vec4 = RootModel[tuple[float, float, float, float]]
+Mat44 = RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]
+
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"
 	optional: bool = Field(False, description="Is it an error if this camera is not detected?")
-	connection_tries: int = 1
-	connection_delay: timedelta = timedelta(seconds=1)
-	restart_tries: int = 2
+	connection_tries: int = Field(1)
+	connection_delay: timedelta = Field(timedelta(seconds=1))
+	restart_tries: int = Field(2)
 
 
 class OakSelector(BaseModel):

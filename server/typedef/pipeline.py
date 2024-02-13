@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, TypeVar, Generic, ClassVar
 from pydantic import BaseModel, Field, Tag, Discriminator, RootModel
 from pathlib import Path
-from enum import Enum
+from enum import StrEnum
 import depthai as dai
 
 try:
@@ -40,11 +40,12 @@ class StageBase(BaseModel, Generic[S]):
 			return f'{self.stage}.{target}'
 		return self.stage
 
-def stage_base(name: S, *, merge: bool = False, implicit: bool = False):
+def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
 	_merge = merge
-	S1 = S
+	S1: S = S
 	if not TYPE_CHECKING:
 		S1 = Literal[name]
+	
 	class StageBaseSpec(StageBase[S]):
 		merge: ClassVar[bool] = _merge
 		infer: ClassVar[bool] = implicit
@@ -52,24 +53,24 @@ def stage_base(name: S, *, merge: bool = False, implicit: bool = False):
 	
 	return StageBaseSpec
 
-class InheritStage(stage_base('inherit')):
+class InheritStage(_stage_base('inherit')):
 	"Include another defined pipeline"
 	id: str
 
 RgbSensorResolution = util.wrap_dai_enum(dai.ColorCameraProperties.SensorResolution)
-class RgbConfigStage(stage_base('rgb', merge=True, implicit=True)):
+class RgbConfigStage(_stage_base('rgb', merge=True, implicit=True)):
 	resolution: RgbSensorResolution | None = Field(default=None, description="Camera sensor resolution")
 
 
 MonoSensorResolution = util.wrap_dai_enum(dai.MonoCameraProperties.SensorResolution)
-class MonoConfigStage(stage_base('mono', implicit=True)):
+class MonoConfigStage(_stage_base('mono', implicit=True)):
 	"Configure mono camera"
 	target: Literal["left", "right"]
 	resolution: MonoSensorResolution | None = Field(default=None, description='Camera sensor resolution')
 	fps: float | None = Field(default=None, description='Max FPS')
 	
 
-class DepthConfigStage(stage_base('depth')):
+class DepthConfigStage(_stage_base('depth')):
 	"Configure stereo depth"
 	checkLeftRight: bool | None = Field(default=None, description="Enable Left-Right check")
 	extendedDisparity: bool | None = Field(default=None, description="Enable extended disparity mode")
@@ -80,28 +81,38 @@ class DepthConfigStage(stage_base('depth')):
 	] = Field(default=None, description='Set preset profile')
 
 
-class ObjectDetectionStage(stage_base("nn")):
+class ObjectDetectionStage(_stage_base("nn")):
 	config: Union[NNConfig, Path]
 	blobPath: Path
 
-class WebStreamStage(stage_base("web")):
+class VideoDisplayTarget(StrEnum):
+	"Name of video stream for user consumption"
+	LEFT = 'left'
+	"Left monocular camera"
+	RIGHT = 'right'
+	"Right monocular camera"
+	RGB = 'rgb'
+	"Color camera"
+	DEPTH = 'depth'
+
+class WebStreamStage(_stage_base("web")):
 	"Stream data to web"
-	target: Literal["left", "right", "rgb", "depth"]
+	target: VideoDisplayTarget
 	maxFramerate: Optional[int] = Field(None, gt=0, description="Maximum framerate for stream")
 	@property
 	def name(self):
 		return f'{self.stage}.{self.target}'
 
-class SaveStage(stage_base("save")):
+class SaveStage(_stage_base("save")):
 	"Save images to file"
-	target: Literal["left", "right", "rgb", "depth"]
+	target: VideoDisplayTarget
 	path: Path
-	maxFramerate: Optional[int] = Field(default=None, gt=0, description="Maximum framerate for stream")
+	maxFramerate: Optional[float] = Field(default=None, gt=0, description="Maximum framerate for stream")
 
-class ShowStage(stage_base('show')):
-	target: Literal["left", "right", "rgb", "depth"]
+class ShowStage(_stage_base('show')):
+	target: VideoDisplayTarget
 
-class ApriltagBase(stage_base('apriltag')):
+class ApriltagBase(_stage_base('apriltag')):
 	runtime: Literal["device", "host"] = Field("host")
 	camera: Literal["left", "right", "rgb"] = Field("left")
 
@@ -120,30 +131,33 @@ class ApriltagBase(stage_base('apriltag')):
 
 	# Pose
 	numIterations: int = Field(40)
-	undistort: bool = Field(False)
+	undistort: bool = Field(False, description="Should we try to undistort the camera lens?")
 	solvePNP: bool = Field(True)
 	doMultiTarget: bool = Field(False)
 	doSingleTargetAlways: bool = Field(False)
 
 class ApriltagStage(ApriltagBase):
-	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.InlineAprilTagField]
+	apriltags: apriltag.AprilTagField
 
 class ApriltagStageWorker(ApriltagBase):
-	apriltags: apriltag.WpiInlineAprilTagField
+	apriltags: apriltag.AprilTagFieldInlineWpi
 
 
-class SlamStage(stage_base('slam')):
+class SlamStage(_stage_base('slam')):
 	"SAI slam"
 	slam: bool = Field(default=True)
 	vio: bool = Field(default=False, description="Enable VIO")
 	map_save: Optional[Path] = Field(default=None)
 	map_load: Optional[Path] = Field(default=None)
-	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.InlineAprilTagField, None] = Field(None)
+	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.AprilTagFieldInline, None] = Field(None)
 
 class SlamStageWorker(SlamStage):
-	apriltags: Optional[apriltag.SaiAprilTagFieldRef]
+	apriltags: Optional[apriltag.AprilTagFieldRefSai]
 
-class TelemetryStage(stage_base('telemetry')):
+class TelemetryStage(_stage_base('telemetry')):
+	pass
+
+class ImuStage(_stage_base('imu')):
 	pass
 
 PipelineStage = Annotated[
@@ -158,6 +172,7 @@ PipelineStage = Annotated[
 		Annotated[WebStreamStage, Tag("web")],
 		Annotated[SaveStage, Tag("save")],
 		Annotated[ShowStage, Tag("show")],
+		Annotated[ImuStage, Tag("imu")],
 	],
 	Discriminator("stage")
 ]
@@ -174,6 +189,7 @@ PipelineStageWorker = Annotated[
 		Annotated[WebStreamStage, Tag("web")],
 		Annotated[SaveStage, Tag("save")],
 		Annotated[ShowStage, Tag("show")],
+		Annotated[ImuStage, Tag("imu")],
 	],
 	Discriminator("stage")
 ]

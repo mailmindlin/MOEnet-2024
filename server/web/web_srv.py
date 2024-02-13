@@ -53,8 +53,12 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
         return self.moenet.config.web.enabled
     
     def _get_args(self):
+        config = ty.AppConfig(
+            **dict(self.moenet.config.web),
+            logs=self.moenet.config.datalog,
+        )
         return [
-            self.moenet.config.web,
+            config,
             self.msg_queue,
             self.cmd_queue,
             self.vid_queue,

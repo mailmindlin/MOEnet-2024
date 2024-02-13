@@ -102,10 +102,11 @@ class Subprocess(Generic[M, C, R], ABC):
 	def start(self):
 		"Start subprocess"
 		if self.proc is not None:
-			# self.log.warning('Started twice!')
+			self.log.warning('Started twice!')
 			return False
 		
 		if not self.enabled:
+			self.log.warning("Start called, but worker is disabled")
 			return
 		
 		self.proc = self._make_process()
@@ -150,6 +151,11 @@ class Subprocess(Generic[M, C, R], ABC):
 						msg = self.msg_queue.get(**w.block_args())
 				except Empty:
 					finished_queue = True
+					break
+				except ValueError:
+					# Queue was closed
+					finished_queue = True
+					is_alive = False
 					break
 				else:
 					if res := self._handle(msg):
@@ -200,7 +206,10 @@ class Subprocess(Generic[M, C, R], ABC):
 		finally:
 			self.log.debug("close")
 			self.proc.close()
-			self.close_queues()
 		
 		self.proc = None
 		self.log.info("Stopped")
+
+	def close(self):
+		self.stop()
+		self.close_queues()

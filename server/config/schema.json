@@ -1,5 +1,188 @@
 {
 	"$defs": {
+		"AprilTagFamily": {
+			"enum": [
+				"tag16h5",
+				"tag25h9",
+				"tag36h10",
+				"tag36h11",
+				"tagCircle21h7",
+				"tagStandard41h12"
+			],
+			"title": "AprilTagFamily",
+			"type": "string"
+		},
+		"AprilTagFieldInlineSai": {
+			"description": "Inline AprilTag config (SAI format)",
+			"properties": {
+				"format": {
+					"const": "sai",
+					"title": "Format"
+				},
+				"field": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/FieldLayout"
+						}
+					],
+					"description": "Field size"
+				},
+				"tags": {
+					"description": "AprilTags (SAI format)",
+					"items": {
+						"$ref": "#/$defs/AprilTagSai"
+					},
+					"title": "Tags",
+					"type": "array"
+				}
+			},
+			"required": [
+				"field",
+				"tags"
+			],
+			"title": "AprilTagFieldInlineSai",
+			"type": "object"
+		},
+		"AprilTagFieldInlineWpi": {
+			"description": "Inline AprilTag config (WPI format)",
+			"properties": {
+				"format": {
+					"const": "wpi",
+					"title": "Format"
+				},
+				"field": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/FieldLayout"
+						}
+					],
+					"description": "Field size"
+				},
+				"tags": {
+					"description": "AprilTags (WPI format)",
+					"items": {
+						"$ref": "#/$defs/AprilTagWpi"
+					},
+					"title": "Tags",
+					"type": "array"
+				},
+				"tagFamily": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/AprilTagFamily"
+						}
+					],
+					"description": "AprilTag family"
+				},
+				"tagSize": {
+					"description": "AprilTag side length, in meters",
+					"title": "Tagsize",
+					"type": "number"
+				}
+			},
+			"required": [
+				"field",
+				"tags",
+				"tagFamily",
+				"tagSize"
+			],
+			"title": "AprilTagFieldInlineWpi",
+			"type": "object"
+		},
+		"AprilTagFieldRefSai": {
+			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
+			"properties": {
+				"format": {
+					"const": "sai",
+					"title": "Format"
+				},
+				"path": {
+					"description": "Path to AprilTag configuration",
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				},
+				"field": {
+					"$ref": "#/$defs/FieldLayout"
+				}
+			},
+			"required": [
+				"path",
+				"field"
+			],
+			"title": "AprilTagFieldRefSai",
+			"type": "object"
+		},
+		"AprilTagFieldRefWpi": {
+			"description": "Reference to an AprilTag JSON file (in WPIlib format)",
+			"properties": {
+				"format": {
+					"const": "wpi",
+					"title": "Format"
+				},
+				"path": {
+					"description": "Path to AprilTag configuration",
+					"format": "path",
+					"title": "Path",
+					"type": "string"
+				},
+				"tagFamily": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/AprilTagFamily"
+						}
+					],
+					"description": "AprilTag family"
+				},
+				"tagSize": {
+					"description": "AprilTag side length, in meters",
+					"title": "Tagsize",
+					"type": "number"
+				}
+			},
+			"required": [
+				"path",
+				"tagFamily",
+				"tagSize"
+			],
+			"title": "AprilTagFieldRefWpi",
+			"type": "object"
+		},
+		"AprilTagSai": {
+			"properties": {
+				"id": {
+					"description": "AprilTag id",
+					"minimum": 0,
+					"title": "Id",
+					"type": "integer"
+				},
+				"size": {
+					"description": "Tag size (meters)",
+					"minimum": 0.0,
+					"title": "Size",
+					"type": "number"
+				},
+				"family": {
+					"allOf": [
+						{
+							"$ref": "#/$defs/AprilTagFamily"
+						}
+					],
+					"description": "Tag family"
+				},
+				"tagToWorld": {
+					"$ref": "#/$defs/RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____"
+				}
+			},
+			"required": [
+				"id",
+				"size",
+				"family",
+				"tagToWorld"
+			],
+			"title": "AprilTagSai",
+			"type": "object"
+		},
 		"AprilTagStrategy": {
 			"enum": [
 				"lowest_ambiguity",
@@ -8,6 +191,94 @@
 			],
 			"title": "AprilTagStrategy",
 			"type": "string"
+		},
+		"AprilTagWpi": {
+			"description": "A single AprilTag definition (WPI format)",
+			"properties": {
+				"ID": {
+					"description": "AprilTag id",
+					"minimum": 0,
+					"title": "Id",
+					"type": "integer"
+				},
+				"pose": {
+					"description": "AprilTag pose, in field-space (field->tag)",
+					"properties": {
+						"translation": {
+							"properties": {
+								"x": {
+									"title": "X",
+									"type": "number"
+								},
+								"y": {
+									"title": "Y",
+									"type": "number"
+								},
+								"z": {
+									"title": "Z",
+									"type": "number"
+								}
+							},
+							"required": [
+								"x",
+								"y",
+								"z"
+							],
+							"title": "Translation",
+							"type": "object"
+						},
+						"rotation": {
+							"properties": {
+								"quaternion": {
+									"properties": {
+										"W": {
+											"title": "W",
+											"type": "number"
+										},
+										"X": {
+											"title": "X",
+											"type": "number"
+										},
+										"Y": {
+											"title": "Y",
+											"type": "number"
+										},
+										"Z": {
+											"title": "Z",
+											"type": "number"
+										}
+									},
+									"required": [
+										"W",
+										"X",
+										"Y",
+										"Z"
+									],
+									"title": "Quaternion",
+									"type": "object"
+								}
+							},
+							"required": [
+								"quaternion"
+							],
+							"title": "Rotation",
+							"type": "object"
+						}
+					},
+					"required": [
+						"translation",
+						"rotation"
+					],
+					"title": "Pose",
+					"type": "object"
+				}
+			},
+			"required": [
+				"ID",
+				"pose"
+			],
+			"title": "AprilTagWpi",
+			"type": "object"
 		},
 		"ApriltagStage": {
 			"properties": {
@@ -116,6 +387,7 @@
 				},
 				"undistort": {
 					"default": false,
+					"description": "Should we try to undistort the camera lens?",
 					"title": "Undistort",
 					"type": "boolean"
 				},
@@ -139,34 +411,34 @@
 						{
 							"discriminator": {
 								"mapping": {
-									"sai": "#/$defs/SaiAprilTagFieldRef",
-									"wpi": "#/$defs/WpiAprilTagFieldRef"
+									"sai": "#/$defs/AprilTagFieldRefSai",
+									"wpi": "#/$defs/AprilTagFieldRefWpi"
 								},
 								"propertyName": "format"
 							},
 							"oneOf": [
 								{
-									"$ref": "#/$defs/WpiAprilTagFieldRef"
+									"$ref": "#/$defs/AprilTagFieldRefWpi"
 								},
 								{
-									"$ref": "#/$defs/SaiAprilTagFieldRef"
+									"$ref": "#/$defs/AprilTagFieldRefSai"
 								}
 							]
 						},
 						{
 							"discriminator": {
 								"mapping": {
-									"sai": "#/$defs/SaiInlineAprilTagField",
-									"wpi": "#/$defs/WpiInlineAprilTagField"
+									"sai": "#/$defs/AprilTagFieldInlineSai",
+									"wpi": "#/$defs/AprilTagFieldInlineWpi"
 								},
 								"propertyName": "format"
 							},
 							"oneOf": [
 								{
-									"$ref": "#/$defs/WpiInlineAprilTagField"
+									"$ref": "#/$defs/AprilTagFieldInlineWpi"
 								},
 								{
-									"$ref": "#/$defs/SaiInlineAprilTagField"
+									"$ref": "#/$defs/AprilTagFieldInlineSai"
 								}
 							]
 						}
@@ -311,7 +583,7 @@
 				"pipeline": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___"
+							"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___"
 						},
 						{
 							"type": "string"
@@ -332,7 +604,8 @@
 			"title": "CameraConfig",
 			"type": "object"
 		},
-		"CameraSelectorConfig": {
+		"CameraSelectorDefinition": {
+			"description": "Define a camera selector",
 			"properties": {
 				"ordinal": {
 					"anyOf": [
@@ -479,13 +752,14 @@
 						}
 					],
 					"default": null,
+					"description": "Robot-to-camera transform",
 					"title": "Pose"
 				}
 			},
 			"required": [
 				"id"
 			],
-			"title": "CameraSelectorConfig",
+			"title": "CameraSelectorDefinition",
 			"type": "object"
 		},
 		"ColorCameraProperties_SensorResolution": {
@@ -518,6 +792,7 @@
 				"folder": {
 					"anyOf": [
 						{
+							"format": "path",
 							"type": "string"
 						},
 						{
@@ -526,6 +801,44 @@
 					],
 					"default": null,
 					"title": "Folder"
+				},
+				"mkdir": {
+					"default": false,
+					"description": "Make log folder if it doesn't exist?",
+					"title": "Mkdir",
+					"type": "boolean"
+				},
+				"cleanup": {
+					"default": false,
+					"description": "Should we clean up old log files? (see free_space and max_logs)",
+					"title": "Cleanup",
+					"type": "boolean"
+				},
+				"free_space": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Minimum free size before we don't make more logs/clean up old ones",
+					"title": "Free Space"
+				},
+				"max_logs": {
+					"anyOf": [
+						{
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Maximum number of log files to retain (requires cleanup)",
+					"title": "Max Logs"
 				}
 			},
 			"title": "DataLogConfig",
@@ -621,6 +934,29 @@
 				"width"
 			],
 			"title": "FieldLayout",
+			"type": "object"
+		},
+		"ImuStage": {
+			"properties": {
+				"stage": {
+					"const": "imu",
+					"description": "Stage name",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"description": "Is this stage enabled?",
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
+					"title": "Optional",
+					"type": "boolean"
+				}
+			},
+			"title": "ImuStage",
 			"type": "object"
 		},
 		"InheritStage": {
@@ -959,34 +1295,31 @@
 					"type": "boolean"
 				},
 				"tfFieldToRobot": {
-					"default": "pub",
-					"description": "field -> robot transform (absolute pose)",
-					"enum": [
-						"sub",
-						"pub",
-						false
+					"allOf": [
+						{
+							"$ref": "#/$defs/NetworkTablesDirection"
+						}
 					],
-					"title": "Tffieldtorobot"
+					"default": "pub",
+					"description": "field -> robot transform (absolute pose)"
 				},
 				"tfFieldToOdom": {
-					"default": "pub",
-					"description": "field -> odom transform (odometry estimate)",
-					"enum": [
-						"sub",
-						"pub",
-						false
+					"allOf": [
+						{
+							"$ref": "#/$defs/NetworkTablesDirection"
+						}
 					],
-					"title": "Tffieldtoodom"
+					"default": "pub",
+					"description": "field -> odom transform (odometry estimate)"
 				},
 				"tfOodomToRobot": {
-					"default": "pub",
-					"description": "odom->robot transform (odometry correction)",
-					"enum": [
-						"sub",
-						"pub",
-						false
+					"allOf": [
+						{
+							"$ref": "#/$defs/NetworkTablesDirection"
+						}
 					],
-					"title": "Tfoodomtorobot"
+					"default": "pub",
+					"description": "odom->robot transform (odometry correction)"
 				},
 				"subscribePoseOverride": {
 					"default": true,
@@ -1015,6 +1348,15 @@
 			},
 			"title": "NetworkTablesConfig",
 			"type": "object"
+		},
+		"NetworkTablesDirection": {
+			"description": "Which direction to send data?",
+			"enum": [
+				"sub",
+				"pub",
+				false
+			],
+			"title": "NetworkTablesDirection"
 		},
 		"OakSelector": {
 			"properties": {
@@ -1186,7 +1528,7 @@
 					"type": "string"
 				},
 				"stages": {
-					"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___"
+					"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___"
 				}
 			},
 			"required": [
@@ -1284,7 +1626,7 @@
 			"title": "RgbConfigStage",
 			"type": "object"
 		},
-		"RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag____Discriminator___": {
+		"RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___": {
 			"items": {
 				"anyOf": [
 					{
@@ -1316,17 +1658,13 @@
 					},
 					{
 						"$ref": "#/$defs/ShowStage"
+					},
+					{
+						"$ref": "#/$defs/ImuStage"
 					}
 				]
 			},
-			"title": "RootModel[list[Annotated[Union[Annotated[InheritStage, Tag], Annotated[RgbConfigStage, Tag], Annotated[MonoConfigStage, Tag], Annotated[DepthConfigStage, Tag], Annotated[ObjectDetectionStage, Tag], Annotated[ApriltagStage, Tag], Annotated[SlamStage, Tag], Annotated[WebStreamStage, Tag], Annotated[SaveStage, Tag], Annotated[ShowStage, Tag]], Discriminator]]]",
-			"type": "array"
-		},
-		"RootModel_list_SaiAprilTag__": {
-			"items": {
-				"$ref": "#/$defs/SaiAprilTag"
-			},
-			"title": "RootModel[list[SaiAprilTag]]",
+			"title": "RootModel[list[Annotated[Union[Annotated[InheritStage, Tag], Annotated[RgbConfigStage, Tag], Annotated[MonoConfigStage, Tag], Annotated[DepthConfigStage, Tag], Annotated[ObjectDetectionStage, Tag], Annotated[ApriltagStage, Tag], Annotated[SlamStage, Tag], Annotated[WebStreamStage, Tag], Annotated[SaveStage, Tag], Annotated[ShowStage, Tag], Annotated[ImuStage, Tag]], Discriminator]]]",
 			"type": "array"
 		},
 		"RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____": {
@@ -1369,99 +1707,6 @@
 			"title": "RootModel[tuple[float, float, float, float]]",
 			"type": "array"
 		},
-		"SaiAprilTag": {
-			"properties": {
-				"id": {
-					"description": "AprilTag id",
-					"minimum": 0,
-					"title": "Id",
-					"type": "integer"
-				},
-				"size": {
-					"description": "Tag size (meters)",
-					"title": "Size",
-					"type": "number"
-				},
-				"family": {
-					"description": "Tag family",
-					"enum": [
-						"tag16h5",
-						"tag25h9",
-						"tag36h11"
-					],
-					"title": "Family",
-					"type": "string"
-				},
-				"tagToWorld": {
-					"$ref": "#/$defs/RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____"
-				}
-			},
-			"required": [
-				"id",
-				"size",
-				"family",
-				"tagToWorld"
-			],
-			"title": "SaiAprilTag",
-			"type": "object"
-		},
-		"SaiAprilTagFieldRef": {
-			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
-			"properties": {
-				"format": {
-					"const": "sai",
-					"title": "Format"
-				},
-				"path": {
-					"description": "Path to AprilTag configuration",
-					"format": "path",
-					"title": "Path",
-					"type": "string"
-				},
-				"field": {
-					"$ref": "#/$defs/FieldLayout"
-				}
-			},
-			"required": [
-				"format",
-				"path",
-				"field"
-			],
-			"title": "SaiAprilTagFieldRef",
-			"type": "object"
-		},
-		"SaiInlineAprilTagField": {
-			"description": "Inline AprilTag config (SAI format)",
-			"properties": {
-				"format": {
-					"const": "sai",
-					"title": "Format"
-				},
-				"field": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/FieldLayout"
-						}
-					],
-					"description": "Field size"
-				},
-				"tags": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/RootModel_list_SaiAprilTag__"
-						}
-					],
-					"description": "AprilTags (SAI format)"
-				}
-			},
-			"required": [
-				"format",
-				"field",
-				"tags"
-			],
-			"title": "SaiInlineAprilTagField",
-			"type": "object"
-		},
 		"SaveStage": {
 			"description": "Save images to file",
 			"properties": {
@@ -1483,14 +1728,7 @@
 					"type": "boolean"
 				},
 				"target": {
-					"enum": [
-						"left",
-						"right",
-						"rgb",
-						"depth"
-					],
-					"title": "Target",
-					"type": "string"
+					"$ref": "#/$defs/VideoDisplayTarget"
 				},
 				"path": {
 					"format": "path",
@@ -1500,8 +1738,8 @@
 				"maxFramerate": {
 					"anyOf": [
 						{
-							"exclusiveMinimum": 0,
-							"type": "integer"
+							"exclusiveMinimum": 0.0,
+							"type": "number"
 						},
 						{
 							"type": "null"
@@ -1539,14 +1777,7 @@
 					"type": "boolean"
 				},
 				"target": {
-					"enum": [
-						"left",
-						"right",
-						"rgb",
-						"depth"
-					],
-					"title": "Target",
-					"type": "string"
+					"$ref": "#/$defs/VideoDisplayTarget"
 				}
 			},
 			"required": [
@@ -1617,34 +1848,34 @@
 						{
 							"discriminator": {
 								"mapping": {
-									"sai": "#/$defs/SaiAprilTagFieldRef",
-									"wpi": "#/$defs/WpiAprilTagFieldRef"
+									"sai": "#/$defs/AprilTagFieldRefSai",
+									"wpi": "#/$defs/AprilTagFieldRefWpi"
 								},
 								"propertyName": "format"
 							},
 							"oneOf": [
 								{
-									"$ref": "#/$defs/WpiAprilTagFieldRef"
+									"$ref": "#/$defs/AprilTagFieldRefWpi"
 								},
 								{
-									"$ref": "#/$defs/SaiAprilTagFieldRef"
+									"$ref": "#/$defs/AprilTagFieldRefSai"
 								}
 							]
 						},
 						{
 							"discriminator": {
 								"mapping": {
-									"sai": "#/$defs/SaiInlineAprilTagField",
-									"wpi": "#/$defs/WpiInlineAprilTagField"
+									"sai": "#/$defs/AprilTagFieldInlineSai",
+									"wpi": "#/$defs/AprilTagFieldInlineWpi"
 								},
 								"propertyName": "format"
 							},
 							"oneOf": [
 								{
-									"$ref": "#/$defs/WpiInlineAprilTagField"
+									"$ref": "#/$defs/AprilTagFieldInlineWpi"
 								},
 								{
-									"$ref": "#/$defs/SaiInlineAprilTagField"
+									"$ref": "#/$defs/AprilTagFieldInlineSai"
 								}
 							]
 						},
@@ -1658,6 +1889,17 @@
 			},
 			"title": "SlamStage",
 			"type": "object"
+		},
+		"VideoDisplayTarget": {
+			"description": "Name of video stream for user consumption",
+			"enum": [
+				"left",
+				"right",
+				"rgb",
+				"depth"
+			],
+			"title": "VideoDisplayTarget",
+			"type": "string"
 		},
 		"WebConfig": {
 			"description": "Configure webserver",
@@ -1760,14 +2002,7 @@
 					"type": "boolean"
 				},
 				"target": {
-					"enum": [
-						"left",
-						"right",
-						"rgb",
-						"depth"
-					],
-					"title": "Target",
-					"type": "string"
+					"$ref": "#/$defs/VideoDisplayTarget"
 				},
 				"maxFramerate": {
 					"anyOf": [
@@ -1788,180 +2023,6 @@
 				"target"
 			],
 			"title": "WebStreamStage",
-			"type": "object"
-		},
-		"WpiAprilTagFieldRef": {
-			"description": "Reference to an AprilTag JSON file (in WPIlib format)",
-			"properties": {
-				"format": {
-					"const": "wpi",
-					"title": "Format"
-				},
-				"path": {
-					"description": "Path to AprilTag configuration",
-					"format": "path",
-					"title": "Path",
-					"type": "string"
-				},
-				"tagFamily": {
-					"description": "AprilTag family",
-					"enum": [
-						"tag16h5",
-						"tag25h9",
-						"tag36h11"
-					],
-					"title": "Tagfamily",
-					"type": "string"
-				},
-				"tagSize": {
-					"description": "AprilTag side length, in meters",
-					"title": "Tagsize",
-					"type": "number"
-				}
-			},
-			"required": [
-				"format",
-				"path",
-				"tagFamily",
-				"tagSize"
-			],
-			"title": "WpiAprilTagFieldRef",
-			"type": "object"
-		},
-		"WpiFieldTag": {
-			"properties": {
-				"ID": {
-					"description": "AprilTag id",
-					"minimum": 0,
-					"title": "Id",
-					"type": "integer"
-				},
-				"pose": {
-					"description": "AprilTag pose, in field-space (field->tag)",
-					"properties": {
-						"translation": {
-							"properties": {
-								"x": {
-									"title": "X",
-									"type": "number"
-								},
-								"y": {
-									"title": "Y",
-									"type": "number"
-								},
-								"z": {
-									"title": "Z",
-									"type": "number"
-								}
-							},
-							"required": [
-								"x",
-								"y",
-								"z"
-							],
-							"title": "Translation",
-							"type": "object"
-						},
-						"rotation": {
-							"properties": {
-								"quaternion": {
-									"properties": {
-										"W": {
-											"title": "W",
-											"type": "number"
-										},
-										"X": {
-											"title": "X",
-											"type": "number"
-										},
-										"Y": {
-											"title": "Y",
-											"type": "number"
-										},
-										"Z": {
-											"title": "Z",
-											"type": "number"
-										}
-									},
-									"required": [
-										"W",
-										"X",
-										"Y",
-										"Z"
-									],
-									"title": "Quaternion",
-									"type": "object"
-								}
-							},
-							"required": [
-								"quaternion"
-							],
-							"title": "Rotation",
-							"type": "object"
-						}
-					},
-					"required": [
-						"translation",
-						"rotation"
-					],
-					"title": "Pose",
-					"type": "object"
-				}
-			},
-			"required": [
-				"ID",
-				"pose"
-			],
-			"title": "WpiFieldTag",
-			"type": "object"
-		},
-		"WpiInlineAprilTagField": {
-			"description": "Inline AprilTag config (WPI format)",
-			"properties": {
-				"format": {
-					"const": "wpi",
-					"title": "Format"
-				},
-				"field": {
-					"allOf": [
-						{
-							"$ref": "#/$defs/FieldLayout"
-						}
-					],
-					"description": "Field size"
-				},
-				"tags": {
-					"description": "AprilTags (WPI format)",
-					"items": {
-						"$ref": "#/$defs/WpiFieldTag"
-					},
-					"title": "Tags",
-					"type": "array"
-				},
-				"tagFamily": {
-					"description": "AprilTag family",
-					"enum": [
-						"tag16h5",
-						"tag25h9",
-						"tag36h11"
-					],
-					"title": "Tagfamily",
-					"type": "string"
-				},
-				"tagSize": {
-					"description": "AprilTag side length, in meters",
-					"title": "Tagsize",
-					"type": "number"
-				}
-			},
-			"required": [
-				"format",
-				"field",
-				"tags",
-				"tagFamily",
-				"tagSize"
-			],
-			"title": "WpiInlineAprilTagField",
 			"type": "object"
 		}
 	},
@@ -2006,7 +2067,7 @@
 		},
 		"camera_selectors": {
 			"items": {
-				"$ref": "#/$defs/CameraSelectorConfig"
+				"$ref": "#/$defs/CameraSelectorDefinition"
 			},
 			"title": "Camera Selectors",
 			"type": "array"

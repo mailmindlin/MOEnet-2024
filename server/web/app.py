@@ -23,9 +23,6 @@ from aiortc.rtcrtpsender import RTCRtpSender
 from dataclasses import dataclass
 from av.video.frame import VideoFrame
 
-if TYPE_CHECKING:
-	from ..typedef.cfg import LocalConfig
-
 ROOT = os.path.dirname(__file__)
 
 T = TypeVar('T')
@@ -40,7 +37,7 @@ class IPCTrack(VideoStreamTrack):
 		try:
 			self._queue.put_nowait(frame)
 		except (asyncio.QueueFull, asyncio.TimeoutError):
-			pass
+			print("Local queue drop frame")
 	
 	def get_raw(self):
 		return self._queue.get()
@@ -164,7 +161,7 @@ class ResponseDispatcher:
 					handler.set_result(cmd.payload)
 
 class WebServer:
-	def __init__(self, config: ty.WebConfig, msgq: Queue, cmdq: Queue, vidq: Queue[ty.MsgFrame]) -> None:
+	def __init__(self, config: ty.AppConfig, msgq: Queue, cmdq: Queue, vidq: Queue[ty.MsgFrame]) -> None:
 		self.config = config
 		self.msgq = msgq
 		self.cmdq = cmdq
@@ -192,26 +189,39 @@ class WebServer:
 			
 			if handler:
 				self._loop.run_until_complete(handler.provide_frame(frame))
+			else:
+				print(f"No handler for stream {frame.worker}.{frame.stream}")
 	
 	async def web_enumerate_cameras(self, req: web.Request):
-		import depthai as dai
+		"Enumerate connected cameras"
+		try:
+			import depthai as dai
+		except ImportError:
+			return web.Response(
+				content_type="application/json",
+				status=500,
+				text=json.dumps({
+					'error': 'DepthAI not installed',
+				})
+			)
 
-		result = []
-		for device in dai.Device.getAllConnectedDevices():
-			result.append({
+		result = [
+			{
 				'name': device.name,
 				'mxid': device.mxid,
 				'state': device.state.name,
 				'status': device.status.name,
 				'platform': device.platform.name,
 				'protocol': device.protocol.name
-			})
+			}
+			for device in dai.Device.getAllConnectedDevices()
+		]
 		
 		return web.Response(
 			content_type="application/json",
 			text=json.dumps(result)
 		)
-		
+	
 	async def send_msg(self, msg):
 		loop = asyncio.get_event_loop()
 		return await loop.run_in_executor(self.dispatch._executor, self.msgq.put, msg)
@@ -253,6 +263,7 @@ class WebServer:
 		return self.request(ty.WMsgRequestStreams())
 
 	async def web_list_streams(self, request: web.Request):
+		"List available video streams"
 		try:
 			rsp = await self.get_streams()
 		except asyncio.TimeoutError:
@@ -267,6 +278,7 @@ class WebServer:
 		)
 	
 	async def get_stream(self, worker: str, name: str) -> StreamInfo:
+		"Get video stream info. Start it if necessary."
 		with self.si_lock:
 			prev = self.stream_info.get((worker, name), None)
 		if prev:
@@ -344,6 +356,7 @@ class WebServer:
 			web.get('/api/config', self.web_get_config),
 			web.get('/api/streams', self.web_list_streams),
 			web.get('/api/cameras', self.web_enumerate_cameras),
+			# web.get('/api/datalogs', self.web_list_datalogs),
 		])
 		self.dispatch.start()
 		self._vid_thread.start()

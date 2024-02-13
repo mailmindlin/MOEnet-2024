@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, cast, Iterable
 
 import depthai as dai
 import numpy as np
@@ -6,10 +6,12 @@ import numpy as np
 from .builder import NodeBuilder, StageSkip, NodeRuntime
 from typedef import pipeline as cfg
 from typedef.geom import Pose3d, Translation3d, Rotation3d, Quaternion, Twist3d
-from ..msg import WorkerMsg, AnyCmd, CmdFlush, MsgPose
+from typedef.geom_cov import Pose3dCov, Twist3dCov
+from ..msg import WorkerMsg, AnyCmd, CmdFlush, MsgOdom
 if TYPE_CHECKING:
-	from datetime import timedelta
-	from typedef.sai_types import Pipeline as SaiPipeline, VioSession
+	from typedef.sai_types import Pipeline as SaiPipeline, VioSession, Configuration as SaiConfig, CameraPose
+else:
+	SaiConfig = None
 
 class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
 	vio_pipeline: 'SaiPipeline'
@@ -21,7 +23,7 @@ class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
 			raise StageSkip()
 		
 		import spectacularAI as sai
-		sai_config = sai.depthai.Configuration()
+		sai_config = cast(SaiConfig, sai.depthai.Configuration())
 		if config.slam and (apriltags := config.apriltags):
 			sai_config.aprilTagPath = str(apriltags.path)
 		sai_config.internalParameters = {
@@ -34,12 +36,33 @@ class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
 		sai_config.useFeatureTracker = True
 		sai_config.useVioAutoExposure = True
 		sai_config.inputResolution = '800p'
+		if mapLoadPath := config.map_load:
+			sai_config.mapLoadPath = str(mapLoadPath)
+		if mapSavePath := config.map_save:
+			sai_config.mapSavePath = str(mapSavePath)
 		self.vio_pipeline = sai.depthai.Pipeline(pipeline.pipeline, sai_config)
 	
 	def start(self, device: dai.Device, *args, **kwargs) -> 'SlamRuntime':
 		self.vio_session = self.vio_pipeline.startSession(device)
 		
 		return True
+
+def sai_camera_pose(cam: 'CameraPose') -> Pose3d:
+	pose_cv2 = Pose3d(
+		translation=Translation3d(
+			x = cam.pose.position.x,
+			y = cam.pose.position.y,
+			z = cam.pose.position.z,
+		),
+		rotation=Rotation3d(Quaternion(
+			w = cam.pose.orientation.w,
+			x = cam.pose.orientation.x,
+			y = cam.pose.orientation.y,
+			z = cam.pose.orientation.z,
+		))
+	)
+	return pose_cv2
+	
 
 class SlamRuntime(NodeRuntime):
 	do_poll = True
@@ -52,10 +75,9 @@ class SlamRuntime(NodeRuntime):
 	
 	def handle_command(self, cmd: AnyCmd):
 		if isinstance(cmd, CmdFlush):
-			dai_ts: 'timedelta' = dai.Clock.now()
 			self._vio_require_tag += 1
-			dev_ts = dai_ts.total_seconds() - self._offset_dev_to_dai
-			self.vio_session.addTrigger(dev_ts, self._vio_require_tag)
+			dev_ts = self.context.tsyn.dev_clock.now()
+			self.vio_session.addTrigger(dev_ts.as_seconds(), self._vio_require_tag)
 			return True
 		return super().handle_command(cmd)
 	
@@ -66,53 +88,39 @@ class SlamRuntime(NodeRuntime):
 		vio_out = self.vio_session.getOutput()
 
 		if vio_out.tag > 0:
+			self.log.info("Got tagged output %s", vio_out.tag)
 			self._vio_last_tag = vio_out.tag
 		
 		# Ensure we've completed all VIO flushes
 		if self._vio_last_tag < self._vio_require_tag:
 			self.log.info("Skipped vio frame")
 			return
-
-		pc = np.asarray(vio_out.positionCovariance)
-		vc = np.asarray(vio_out.velocityCovariance)
-
+		
 		# SAI uses device-time, so we have to do some conversion
-		latency = dai.Clock.now() - timedelta(seconds=vio_out.pose.time)
-		timestamp = int(vio_out.pose.time * 1e9)
+		timestamp = self.context.tsyn.device_to_wall(vio_out.pose.time)
+		self.log.info("Pose trail: %d %s %s", len(vio_out.poseTrail), vio_out.poseTrail[0].time if vio_out.poseTrail else -1, self.context.tsyn.dev_clock.now().as_seconds())
+		self.context.tsyn.dev_clock
 
 		# Why is orientation covariance 1e-4?
 		# Because I said so
 		ROTATION_COV = 1e-4
 		ANG_VEL_COV = 1e-3
 
-		yield MsgPose(
-			timestamp=timestamp,
-			# Not sure if we need this property
-			view_mat=vio_out.pose.asMatrix(),
-			# I wish there was a better way to do this, but spectacularAI types are native wrappers,
-			# and they can't be nicely shared between processes
-			pose=Pose3d(
-				translation=Translation3d(
-					x = vio_out.pose.position.x,
-					y = vio_out.pose.position.y,
-					z = vio_out.pose.position.z,
-				),
-				rotation=Rotation3d(Quaternion(
-					w = vio_out.pose.orientation.w,
-					x = vio_out.pose.orientation.x,
-					y = vio_out.pose.orientation.y,
-					z = vio_out.pose.orientation.z,
-				))
-			),
-			poseCovariance=np.asarray([
-				[pc[0, 0], pc[0, 1], pc[0, 2], 0, 0, 0],
-				[pc[1, 0], pc[1, 1], pc[1, 2], 0, 0, 0],
-				[pc[2, 0], pc[2, 1], pc[2, 2], 0, 0, 0],
-				[0, 0, 0, ROTATION_COV, 0, 0],
-				[0, 0, 0, 0, ROTATION_COV, 0],
-				[0, 0, 0, 0, 0, ROTATION_COV],
-			], dtype=np.float32),
-			twist=Twist3d(
+		# I wish there was a better way to do this, but spectacularAI types are native wrappers,
+		# and they can't be nicely shared between processes
+		pose_cov = np.zeros((6, 6), dtype=np.float32)
+		pose_cov[:3,:3] = np.asarray(vio_out.positionCovariance)
+		pose_cov[3:,3:] = np.eye(3) * ROTATION_COV
+		pose = Pose3dCov(
+			sai_camera_pose(self.vio_session.getRgbCameraPose(vio_out)),
+			pose_cov
+		)
+
+		twist_cov = np.zeros((6, 6), dtype=np.float32)
+		twist_cov[:3,:3] = np.asarray(vio_out.velocityCovariance)
+		twist_cov[3:,3:] = np.eye(3) * ANG_VEL_COV
+		twist = Twist3dCov(
+			Twist3d(
 				dx = vio_out.velocity.x,
 				dy = vio_out.velocity.y,
 				dz = vio_out.velocity.z,
@@ -120,12 +128,11 @@ class SlamRuntime(NodeRuntime):
 				ry = vio_out.angularVelocity.y,
 				rz = vio_out.angularVelocity.z,
 			),
-			twistCovariance=np.asarray([
-				[vc[0, 0], vc[0, 1], vc[0, 2], 0, 0, 0],
-				[vc[1, 0], vc[1, 1], vc[1, 2], 0, 0, 0],
-				[vc[2, 0], vc[2, 1], vc[2, 2], 0, 0, 0],
-				[0, 0, 0, ANG_VEL_COV, 0, 0],
-				[0, 0, 0, 0, ANG_VEL_COV, 0],
-				[0, 0, 0, 0, 0, ANG_VEL_COV],
-			], dtype=np.float32),
+			twist_cov
+		)
+
+		yield MsgOdom(
+			timestamp=timestamp,
+			pose=pose,
+			twist=twist,
 		)

@@ -1,7 +1,8 @@
+from typing import overload
 import numpy as np
 from wpimath.geometry import CoordinateSystem
 
-from typedef.geom import Rotation3d, Transform3d
+from typedef.geom import Rotation3d, Transform3d, Pose3d, Twist3d
 
 
 APRILTAG_BASE_ROTATION = Rotation3d([0,1,0], np.deg2rad(180))
@@ -41,5 +42,13 @@ def cv2_to_apriltag(tf_cv2: Transform3d) -> Transform3d:
 def wpi_to_cv2(tf_wpi: Transform3d) -> Transform3d:
 	return CoordinateSystem.convert(tf_wpi, CoordinateSystem.NWU(), CoordinateSystem.EDN())
 
-def cv2_to_wpi(tf_cv2: Transform3d):
-	return CoordinateSystem.convert(tf_cv2, CoordinateSystem.EDN(), CoordinateSystem.NWU())
+@overload
+def cv2_to_wpi(tf_cv2: Transform3d) -> Transform3d: ...
+@overload
+def cv2_to_wpi(tf_cv2: Pose3d) -> Pose3d: ...
+@overload
+def cv2_to_wpi(tf_cv2: Twist3d) -> Twist3d: ...
+@overload
+def cv2_to_wpi(tf_cv2: Rotation3d) -> Rotation3d: ...
+def cv2_to_wpi(arg0: Transform3d | Pose3d | Twist3d | Rotation3d):
+	return CoordinateSystem.convert(arg0, CoordinateSystem.EDN(), CoordinateSystem.NWU())

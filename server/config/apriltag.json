@@ -3,7 +3,7 @@
 	"description": "Detect AprilTags",
 	"timer": "system",
 	"log": {
-		"level": "DEBUG"
+		"level": "INFO"
 	},
 	"datalog": {
 		"enabled": false,
@@ -188,8 +188,7 @@
 				}
 			],
 			"retry": {
-				"connection_tries": 0,
-				"restart_tries": 0
+				"connection_tries": 0
 			}
 		}
 	]

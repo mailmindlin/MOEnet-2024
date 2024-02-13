@@ -206,7 +206,6 @@ class Subprocess(Generic[M, C, R], ABC):
 		finally:
 			self.log.debug("close")
 			self.proc.close()
-			self.close_queues()
 		
 		self.proc = None
 		self.log.info("Stopped")

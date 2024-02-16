@@ -77,7 +77,17 @@ class WorkerConfigResolver:
 		return Path(self._tempdir.name)
 	
 	def _resolve_slam(self, src: SlamStage) -> SlamStageWorker:
-		apriltags = src.apriltags.convert(apriltag.AprilTagFieldRefSai, self._basepath(), self.make_tempdir)
+		"Resolve 'slam' pipeline stage"
+		# Convert to SAI format
+		apriltags = src.apriltags
+		if apriltags is not None:
+			apriltags = apriltags.convert(apriltag.AprilTagFieldRefSai, self._basepath(), self._make_tempdir)
+		map_save = src.map_save
+		if map_save is not None:
+			map_save = self._resolve_path(map_save)
+		map_load = src.map_load
+		if map_load is not None:
+			map_load = self._resolve_path(map_load)
 		return SlamStageWorker(**dict(
 			src,
 			apriltags=apriltags,

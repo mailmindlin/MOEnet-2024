@@ -149,11 +149,12 @@ class PipelineDefinition(BaseModel):
 
 
 class CameraConfig(BaseModel):
-	id: Optional[str] = Field(None, description="Human-readable name")
+	name: Optional[str] = Field(None, description="Human-readable name")
 	selector: Union[str, common.OakSelector] = Field(description="Which camera are we referencing?")
 	max_usb: Optional[Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN"]] = Field(None)
 	retry: common.RetryConfig = Field(default_factory=common.RetryConfig)
 	pose: Optional[geom.Transform3d] = Field(description="Camera pose (in robot-space)")
+	dynamic_pose: Optional[str] = Field(None, description="If this camera can move, this is it's network name")
 	pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
 class LogConfig(BaseModel):
@@ -161,7 +162,7 @@ class LogConfig(BaseModel):
 	Configuration for logging output
 	"""
 	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
-	file: Optional[str] = Field(None)
+	file: Optional[Path] = Field(None)
 
 
 class DataLogConfig(BaseModel):
@@ -176,8 +177,11 @@ class DataLogConfig(BaseModel):
 
 class CameraSelectorDefinition(common.OakSelector):
 	"Define a camera selector"
-	id: str = Field(description="Human-readable ID")
+	id: str = Field(description="ID to reference this definition by")
+	name: Optional[str] = Field(None)
 	pose: Optional[geom.Transform3d] = Field(None, description="Robot-to-camera transform")
+	dynamic_pose: Optional[str] = Field(None, description="If this camera can move, this is it's network name")
+
 
 class LocalConfig(BaseModel):
 	"Local config data"
@@ -203,8 +207,10 @@ class LocalConfig(BaseModel):
 		#             raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
 		#     result.cameras = update.cameras
 
+
 class RemoteConfig(BaseModel):
 	cameras: list[CameraConfig]
+
 
 if __name__ == '__main__':
 	import argparse, sys, typing
@@ -222,12 +228,13 @@ if __name__ == '__main__':
 
 	def dump(stream: typing.TextIO):
 		dump_type: BaseModel = types[args.type]
-		if args.format == 'json':
-			import json
-			json.dump(dump_type.model_json_schema(), stream, indent='\t')
-		elif args.format == 'proto':
-			dump_type.model_dump()
-			pass
+		match args.format:
+			case 'json':
+				import json
+				json.dump(dump_type.model_json_schema(), stream, indent='\t')
+			case 'proto':
+				dump_type.model_dump()
+				raise NotImplementedError()#TODO
 	
 	if args.out == '-':
 		dump(sys.stdout)

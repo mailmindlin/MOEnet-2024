@@ -67,7 +67,7 @@ class WorkerConfigResolver:
 	def _basepath(self):
 		return Path(self.config_path).parent
 	
-	def make_tempdir(self) -> Path:
+	def _make_tempdir(self) -> Path:
 		"Make the tempdir (if it doesn't exist)"
 		if self._tempdir is None:
 			import tempfile
@@ -96,7 +96,7 @@ class WorkerConfigResolver:
 	def _resolve_apriltag(self, src: ApriltagStage) -> ApriltagStageWorker:
 		return ApriltagStageWorker(**dict(
 			src,
-			apriltags=src.apriltags.convert(apriltag.AprilTagFieldInlineWpi, self._basepath(), self.make_tempdir),
+			apriltags=src.apriltags.convert(apriltag.AprilTagFieldInlineWpi, self._basepath(), self._make_tempdir),
 		))
 
 	def _resolve_nn(self, cid: CameraId, nn_stage: ObjectDetectionStage) -> Optional[ObjectDetectionStage]:

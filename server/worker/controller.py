@@ -32,7 +32,7 @@ class WorkerManager:
 	def start(self):
 		"Start all camera processes"
 		for i, cfg in enumerate(self.config):
-			name = cfg.id if cfg.id is not None else f'cam_{i}'
+			name = cfg.name if cfg.name is not None else f'cam_{i}'
 			wh = WorkerHandle(name, cfg, log=self.log, datalog=self.datalog, ctx=self.ctx, vidq=self.video_queue)
 			self._workers.append(wh)
 			wh.start()
@@ -57,7 +57,7 @@ class WorkerManager:
 	
 	def enable_stream(self, worker_name: str, stream: str, enable: bool):
 		for worker in self._workers:
-			if worker.config.id == worker_name:
+			if worker.config.name == worker_name:
 				worker.enable_stream(stream, enable)
 				return True
 		return False

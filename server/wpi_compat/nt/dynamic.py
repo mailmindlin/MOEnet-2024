@@ -159,9 +159,9 @@ class DynamicSubscriber(Generic[P]):
 	"NetworkTables subscriber that can easily be enabled/disabled"
 
 	@classmethod
-	def create(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None) -> 'DynamicSubscriber[T]':
+	def create(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None, enabled: bool = False) -> 'DynamicSubscriber[T]':
 		topic = _make_topic(base, path, type)
-		return cls(topic, defaultValue, options)
+		return cls(topic, defaultValue, options, enabled=enabled)
 	
 	@classmethod
 	def create_struct(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None) -> 'DynamicSubscriber[T]':
@@ -181,8 +181,9 @@ class DynamicSubscriber(Generic[P]):
 		"Options to use when subscribing"
 		self._raw_subscriber = None
 		"Handle to real subscriber"
-		self._fresh_time = None
-		"Track last fresh timestamp for [get_fresh]"
+		self._read_queue: list[GenericTsValue[T]] = list()
+		self._read_queue_truncated = False
+		self._fresh_data: Optional[GenericTsValue[T]] = None
 
 		# Enable on start?
 		if enabled:
@@ -214,6 +215,7 @@ class DynamicSubscriber(Generic[P]):
 		if self._topic is None:
 			self._topic = self._builder()
 		
+		assert self._raw_subscriber is None
 		self._raw_subscriber = self._topic.subscribe(self._default_value, self._options)
 	
 	def stop(self):
@@ -229,9 +231,31 @@ class DynamicSubscriber(Generic[P]):
 			self._topic.close()
 			self._topic = None
 		
-		self._fresh_time = None
+		self._read_queue.clear()
+		self._fresh_data = None
 	
 	close = stop
+
+	def _pull_queue(self):
+		if self._raw_subscriber is None:
+			return
+		# Cap queue cache length
+		if len(self._read_queue) > 256:
+			self._read_queue = self._read_queue[-256:]
+			self._read_queue_truncated = True
+		qv = self._raw_subscriber.readQueue()
+		self._read_queue.extend(qv)
+		if len(qv) > 0:
+			self._fresh_data = qv[-1]
+
+	def readQueue(self) -> list[GenericTsValue[P]]:
+		self._pull_queue()
+		res = self._read_queue
+		self._read_queue.clear()
+		if self._read_queue_truncated:
+			import warnings
+			warnings.warn(f"read queue for NT topic {self._topic.getName()} was truncated", RuntimeWarning)
+		return res
 	
 	def getAtomic(self) -> Optional[GenericTsValue[P]]:
 		if self._raw_subscriber is None:
@@ -239,6 +263,7 @@ class DynamicSubscriber(Generic[P]):
 		else:
 			res = self._raw_subscriber.getAtomic()
 			if res.time == 0:
+				# No data
 				return None
 			return res
 	
@@ -256,18 +281,18 @@ class DynamicSubscriber(Generic[P]):
 	def get_fresh(self) -> Optional[P]: ...
 	@overload
 	def get_fresh(self, default: T) -> Union[P, T]: ...
-	def get_fresh(self, default: Optional[T] = None) -> Union[P, T]:
+	def get_fresh(self, default: Optional[T] = None) -> Union[P, T, None]:
 		"Get a value, but only if it's new"
-		if v := self.getAtomic():
-			if v.serverTime != self._fresh_time:
-				self._fresh_time = v.serverTime
-				return v.value
-		return default
+		if (v := self.get_fresh_ts()) is not None:
+			return v.value
+		else:
+			return default
 	
-	def get_fresh_ts(self) -> Optional[Tuple[P, int]]:
+	def get_fresh_ts(self) -> Optional[GenericTsValue[P]]:
 		"Like [get_fresh], but returns a timestamp too"
-		if v := self.getAtomic():
-			if v.serverTime != self._fresh_time:
-				self._fresh_time = v.serverTime
-				return (v.value, v.time)
+		self._pull_queue() # update _fresh_data
+		res = self._fresh_data
+		if res is not None:
+			self._fresh_data = None
+			return res
 		return None

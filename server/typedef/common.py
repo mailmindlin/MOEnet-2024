@@ -16,9 +16,9 @@ class RetryConfig(BaseModel):
 
 
 class OakSelector(BaseModel):
-	ordinal: Optional[int] = Field(None, description="Pick the nth camera found (unstable, starts at 1)", ge=1)
+	ordinal: Optional[int] = Field(None, description="Pick the n-th camera found (unstable, starts at 1)", ge=1)
 	mxid: Optional[str] = Field(None, description="Filter camera by mxid")
-	name: Optional[str] = Field(None, description="Device name")
+	devname: Optional[str] = Field(None, description="Filter camera by device name")
 	platform: Literal["X_LINK_ANY_PLATFORM", "X_LINK_MYRIAD_2", "X_LINK_MYRIAD_X", None] = Field(None)
 	protocol: Literal["X_LINK_ANY_PROTOCOL", "X_LINK_IPC", "X_LINK_NMB_OF_PROTOCOLS", "X_LINK_PCIE", "X_LINK_TCP_IP", "X_LINK_USB_CDC", "X_LINK_USB_VSC", None] = Field(None)
 

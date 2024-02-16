@@ -4,14 +4,15 @@ import depthai as dai
 import numpy as np
 import cv2
 
+from typedef import apriltag
 from typedef import pipeline as cfg
 from typedef.geom import Pose3d, Translation3d, Transform3d, Rotation3d
-from .builder import NodeBuilder, NodeRuntime, XOutRuntime, XLinkOut
+from .builder import NodeBuilder, NodeRuntime, XOutRuntime, XLinkOut, Dependency
 from ..msg import AprilTagDetection, MsgAprilTagPoses, AprilTagPose
 from . import coords
 
 if TYPE_CHECKING:
-	from .video import VideoBuilder, RgbBuilder, MonoBuilder
+	from .video import VideoNode, ColorCameraNode, MonoCameraNode
 	from util.timestamp import Timestamp
 	from .util import ImageOutStage
 	from robotpy_apriltag import AprilTagDetection as WpiAprilTagDetection, AprilTagDetector
@@ -46,7 +47,7 @@ class AprilTagPoseList:
 		return repr(self.poses)
 
 class AprilTagRuntimeBase(NodeRuntime):
-	def __init__(self, config: cfg.ApriltagStageWorker, src: 'VideoBuilder', *args, **kwargs) -> None:
+	def __init__(self, config: cfg.ApriltagStageWorker, src: 'VideoNode', *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.config = config
 
@@ -465,7 +466,7 @@ class AprilTagHostRuntime(AprilTagRuntimeBase):
 		return self._process_dets(ts, good_dets)
 
 class AprilTagDeviceRuntime(XOutRuntime[dai.AprilTags], AprilTagRuntimeBase):
-	def __init__(self, context: NodeRuntime.Context, config: cfg.ApriltagStageWorker, src: 'VideoBuilder', xout: XLinkOut[dai.AprilTags]) -> None:
+	def __init__(self, context: NodeRuntime.Context, config: cfg.ApriltagStageWorker, src: 'VideoNode', xout: XLinkOut[dai.AprilTags]) -> None:
 		super().__init__(context=context, config=config, src=src, xout=xout)
 	
 	def _get_homography(self, det: dai.AprilTag):
@@ -499,19 +500,19 @@ class AprilTagDeviceRuntime(XOutRuntime[dai.AprilTags], AprilTagRuntimeBase):
 		self.log.info("Got raw dets %s", dets)
 		return self._process_dets(ts, dets)
 
-def map_family(family: str) -> dai.AprilTagConfig.Family:
+def map_family(family: str | apriltag.AprilTagFamily) -> dai.AprilTagConfig.Family:
 	match family:
-		case 'tag16h5':
+		case 'tag16h5' | apriltag.AprilTagFamily.TAG_16H5:
 			return dai.AprilTagConfig.Family.TAG_16H5
-		case 'tag25h9':
+		case 'tag25h9' | apriltag.AprilTagFamily.TAG_25H9:
 			return dai.AprilTagConfig.Family.TAG_25H9
-		case 'tag36h10':
+		case 'tag36h10' | apriltag.AprilTagFamily.TAG_36H10:
 			return dai.AprilTagConfig.Family.TAG_36H10
-		case 'tag36h11':
+		case 'tag36h11' | apriltag.AprilTagFamily.TAG_36H11:
 			return dai.AprilTagConfig.Family.TAG_36H11
-		case 'tagCircle21h7':
+		case 'tagCircle21h7' | apriltag.AprilTagFamily.TAG_CIR21H7:
 			return dai.AprilTagConfig.Family.TAG_CIR21H7
-		case 'tagStandard41h12':
+		case 'tagStandard41h12' | apriltag.AprilTagFamily.TAG_STAND41H12:
 			return dai.AprilTagConfig.Family.TAG_STAND41H12
 		case _:
 			raise ValueError(f'Unknown AprilTag family {family}')
@@ -521,19 +522,17 @@ class AprilTagBuilder(NodeBuilder[cfg.ApriltagStageWorker]):
 	def requires(self):
 		match self.config.runtime:
 			case 'host':
-				return [
-					(f'xout.{self.config.camera}', False)
-				]
+				return [Dependency(f'xout.{self.config.camera}')]
 			case 'device':
 				match self.config.camera:
 					case 'rgb':
-						return [('rgb', False)]
+						return [Dependency('rgb')]
 					case 'left':
-						return [('mono.left', False)]
+						return [Dependency('mono.left')]
 					case 'right':
-						return [('mono.right', False)]
+						return [Dependency('mono.right')]
 	
-	def build_device(self, pipeline: dai.Pipeline, src: Union['RgbBuilder', 'MonoBuilder']):
+	def build_device(self, pipeline: dai.Pipeline, src: Union['ColorCameraNode', 'MonoCameraNode']):
 		apriltag = pipeline.createAprilTag()
 
 		atConfig = apriltag.initialConfig.get()
@@ -569,7 +568,7 @@ class AprilTagBuilder(NodeBuilder[cfg.ApriltagStageWorker]):
 	def build_host(self, pipeline: dai.Pipeline, src: 'ImageOutStage'):
 		return
 	
-	def build(self, pipeline: dai.Pipeline, src: Union['RgbBuilder', 'MonoBuilder', 'ImageOutStage'], *args, **kwargs):
+	def build(self, pipeline: dai.Pipeline, src: Union['ColorCameraNode', 'MonoCameraNode', 'ImageOutStage'], *args, **kwargs):
 		self.field = self.config.apriltags.to_wpilib()
 
 		if self.config.runtime == 'device':
@@ -577,7 +576,7 @@ class AprilTagBuilder(NodeBuilder[cfg.ApriltagStageWorker]):
 		elif self.config.runtime == 'host':
 			return self.build_host(pipeline, src)
 
-	def start(self, context: NodeRuntime.Context, src: Union['RgbBuilder', 'MonoBuilder', 'ImageOutStage'], *args, **kwargs):
+	def start(self, context: NodeRuntime.Context, src: Union['ColorCameraNode', 'MonoCameraNode', 'ImageOutStage'], *args, **kwargs):
 		match self.config.runtime:
 			case 'device':
 				return AprilTagDeviceRuntime(

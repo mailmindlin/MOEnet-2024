@@ -18,6 +18,7 @@ def _ignore_error(exception):
             getattr(exception, 'winerror', None) in _IGNORED_WINERRORS)
 
 class DataLogManager:
+    "Helper for data logs"
     def __init__(self, config: DataLogConfig) -> None:
         self.config = config
     
@@ -40,6 +41,9 @@ class DataLogManager:
                 # Non-encodable path
                 return None
         return None
+    
+    def free_space(self):
+        return 0
     
     def enabled(self):
         if not self.config.enabled:
@@ -66,49 +70,15 @@ class DataLogManager:
         return res
     
     def start(self):
+        # This is inefficient, but should only be called once
         while self.should_cleanup():
             # Delete oldest FRC_*.wpilog files (ignore FRC_TBD_*.wpilog as we just created one)
             prev_files = self.log_files(include_current=False)
             prev_files.sort(key=os.path.getmtime)
-            for file in prev_files:
-                
-                
-        long freeSpace = logDir.getFreeSpace();
-        if (freeSpace < kFreeSpaceThreshold) {
-            // 
-            File[] files =
-                logDir.listFiles(
-                    (dir, name) ->
-                        name.startsWith("FRC_")
-                            && name.endsWith(".wpilog")
-                            && !name.startsWith("FRC_TBD_"));
-            if (files != null) {
-            Arrays.sort(files, Comparator.comparingLong(File::lastModified));
-            int count = files.length;
-            for (File file : files) {
-                --count;
-                if (count < kFileCountThreshold) {
-                break;
-                }
-                long length = file.length();
-                if (file.delete()) {
-                DriverStation.reportWarning("DataLogManager: Deleted " + file.getName(), false);
-                freeSpace += length;
-                if (freeSpace >= kFreeSpaceThreshold) {
-                    break;
-                }
-                } else {
-                System.err.println("DataLogManager: could not delete " + file);
-                }
-            }
-            }
-        } else if (freeSpace < 2 * kFreeSpaceThreshold) {
-            DriverStation.reportWarning(
-                "DataLogManager: Log storage device has "
-                    + freeSpace / 1000000
-                    + " MB of free space remaining! Logs will get deleted below "
-                    + kFreeSpaceThreshold / 1000000
-                    + " MB of free space."
-                    + "Consider deleting logs off the storage device.",
-                false);
-        }
+            print(f"Deleting file {prev_files[0]}")
+            prev_files[0].unlink()
+        
+        if (free_space_req := self.config.free_space) is not None:
+            free_space = self.free_space()
+            if free_space < 2 * free_space_req:
+                print("Warning: Device has {free_space} remaining!")

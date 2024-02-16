@@ -1,9 +1,10 @@
 "Pipeline stage configuration"
 
-from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, TypeVar, Generic, ClassVar
-from pydantic import BaseModel, Field, Tag, Discriminator, RootModel
+from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, TypeVar, Generic, ClassVar, TypeAlias
+from pydantic import BaseModel, Field, Tag, Discriminator, RootModel, create_model
 from pathlib import Path
 from enum import StrEnum
+from abc import ABC
 import depthai as dai
 
 try:
@@ -11,6 +12,13 @@ try:
 except ImportError:
 	import apriltag, util
 
+# Helper for DAI types
+if TYPE_CHECKING:
+	RgbSensorResolution = dai.ColorCameraProperties.SensorResolution
+	MonoSensorResolution = dai.MonoCameraProperties.SensorResolution
+else:
+	RgbSensorResolution = util.wrap_dai_enum(dai.ColorCameraProperties.SensorResolution)
+	MonoSensorResolution = util.wrap_dai_enum(dai.MonoCameraProperties.SensorResolution)
 
 class NNConfig(BaseModel):
 	"Base config for NN"
@@ -24,9 +32,8 @@ class NNConfig(BaseModel):
 	anchors: list[float]
 	anchor_masks: dict[str, list[int]]
 
-
 S = TypeVar('S', bound=str)
-class StageBase(BaseModel, Generic[S]):
+class StageBase(BaseModel, Generic[S], ABC):
 	infer: ClassVar[bool] = False
 	merge: ClassVar[bool] = False
 
@@ -42,27 +49,27 @@ class StageBase(BaseModel, Generic[S]):
 
 def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
 	_merge = merge
-	S1: S = S
+	_S: S = S
 	if not TYPE_CHECKING:
-		S1 = Literal[name]
+		_S = Literal[name]
 	
-	class StageBaseSpec(StageBase[S]):
+	class _ModelHelper(StageBase[S], ABC):
 		merge: ClassVar[bool] = _merge
 		infer: ClassVar[bool] = implicit
-		stage: S1 = Field(description="Stage name", default_factory=lambda: name)
+		# Use default_factory to exclude default JSON
+		stage: _S = Field(description="Stage name", default_factory=lambda: name)
 	
-	return StageBaseSpec
+	return _ModelHelper
 
 class InheritStage(_stage_base('inherit')):
 	"Include another defined pipeline"
 	id: str
 
-RgbSensorResolution = util.wrap_dai_enum(dai.ColorCameraProperties.SensorResolution)
 class RgbConfigStage(_stage_base('rgb', merge=True, implicit=True)):
 	resolution: RgbSensorResolution | None = Field(default=None, description="Camera sensor resolution")
+	fps: float | None = Field(default=None, description='Max FPS')
 
 
-MonoSensorResolution = util.wrap_dai_enum(dai.MonoCameraProperties.SensorResolution)
 class MonoConfigStage(_stage_base('mono', implicit=True)):
 	"Configure mono camera"
 	target: Literal["left", "right"]
@@ -110,6 +117,7 @@ class SaveStage(_stage_base("save")):
 	maxFramerate: Optional[float] = Field(default=None, gt=0, description="Maximum framerate for stream")
 
 class ShowStage(_stage_base('show')):
+	"Show video stream as GUI"
 	target: VideoDisplayTarget
 
 class ApriltagBase(_stage_base('apriltag')):

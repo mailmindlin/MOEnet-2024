@@ -99,7 +99,7 @@ class MatplotlibVisualization:
         return True
 
     def start_in_parallel_with(self, parallel_thing):
-        thread = threading.Thread(target = parallel_thing)
+        thread = threading.Thread(target = parallel_thing, daemon=True)
         thread.start()
         plt.show()
         thread.join()

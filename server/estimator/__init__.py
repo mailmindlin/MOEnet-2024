@@ -68,6 +68,8 @@ class DataFusion:
 			return None
 		
 		res = None
+		if res is None:
+			return None
 		if fresh:
 			self.fresh_o2r = False
 			if self.datalog is not None:
@@ -80,7 +82,10 @@ class DataFusion:
 		"Get the most recent `field`→`robot` transform"
 		if fresh and (not self.fresh_f2r):
 			return None
+		ts = self.clock.now()
 		res = self.pose_estimator._get_filtered_odometry()
+		if res is None:
+			return None
 		if fresh:
 			self.fresh_f2r = False
 			if self.datalog is not None:

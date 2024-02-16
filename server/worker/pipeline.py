@@ -14,7 +14,8 @@ from .node.nn import ObjectDetectionNode
 from .node.slam import SlamBuilder
 from .node.stream import WebStreamNode, ShowNode
 from .node.util import ImageOutStage, TelemetryStage, ImageOutConfig
-from .node.video import MonoBuilder, RgbBuilder, DepthBuilder
+from .node.video import MonoCameraNode, ColorCameraNode, DepthBuilder
+from .node.slam_local import LocalSlamBuilder
 
 if TYPE_CHECKING:
 	# import spectacularAI.depthai.Pipeline as SaiPipeline
@@ -42,8 +43,8 @@ class MoeNetPipeline:
 		
 		register('apriltag',  AprilTagBuilder, cfg.ApriltagStageWorker)
 		register('slam',      SlamBuilder, cfg.SlamStageWorker)
-		register('mono',      MonoBuilder, cfg.MonoConfigStage)
-		register('rgb',       RgbBuilder, cfg.RgbConfigStage)
+		register('mono',      MonoCameraNode, cfg.MonoConfigStage)
+		register('rgb',       ColorCameraNode, cfg.RgbConfigStage)
 		register('depth',     DepthBuilder, cfg.DepthConfigStage)
 		register('telemetry', TelemetryStage, cfg.TelemetryStage)
 		register('nn',        ObjectDetectionNode, cfg.ObjectDetectionStage)
@@ -142,9 +143,9 @@ class MoeNetPipeline:
 			self.log.debug("Stage %s (%s) using factory %s", config.name, repr(config), factory)
 			stage = factory(config, log=self.log.getChild(config.name))
 			args = list()
-			for requirement, req_optional in stage.requires:
-				self.log.debug("Stage %s %s %s", config.name, "prefers" if req_optional else "requires", requirement)
-				arg = self._get_stage(requirement, req_optional)
+			for requirement in stage.requires:
+				self.log.debug("Stage %s %s %s", config.name, "prefers" if requirement.optional else "requires", requirement.name)
+				arg = self._get_stage(requirement.name, requirement.optional)
 				args.append(arg)
 			if stage.build(self.pipeline, *args):
 				# Skip stage
@@ -181,8 +182,8 @@ class MoeNetPipeline:
 				raise
 		
 		args = list()
-		for requirement, req_optional in builder.requires:
-			arg = self._start_stage(requirement, req_optional)
+		for requirement in builder.requires:
+			arg = self._start_stage(requirement.name, requirement.optional)
 			args.append(arg)
 		
 		ctx = NodeRuntime.Context(
@@ -190,6 +191,7 @@ class MoeNetPipeline:
 			log=self.log.getChild(name),
 			tsyn=self.tsyn,
 		)
+		self.log.info("Starting stage %s", builder.config.name)
 		if runtime := builder.start(ctx, *args):
 			if runtime.do_poll:
 				self.poll_stages.append(runtime)
@@ -220,6 +222,8 @@ class MoeNetPipeline:
 		for stage_name in self.stages.keys():
 			self.log.debug("Start stage %s", stage_name)
 			self._start_stage(stage_name, False)
+		
+		self.log.debug("Output queues: %s", device.getOutputQueueNames())
 	
 	def broadcast(self, cmd: AnyCmd):
 		handled = False
@@ -238,6 +242,7 @@ class MoeNetPipeline:
 					if res := stage.poll(event):
 						yield from res
 					already_polled.add(stage)
+		
 		
 		for stage in self.poll_stages:
 			if stage in already_polled:

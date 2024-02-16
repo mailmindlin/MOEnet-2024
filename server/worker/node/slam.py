@@ -42,10 +42,14 @@ class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
 			sai_config.mapSavePath = str(mapSavePath)
 		self.vio_pipeline = sai.depthai.Pipeline(pipeline, sai_config)
 	
-	def start(self, device: dai.Device, *args, **kwargs) -> 'SlamRuntime':
-		self.vio_session = self.vio_pipeline.startSession(device)
+	def start(self, context: NodeRuntime.Context, *args, **kwargs) -> 'SaiSlamRuntime':
+		vio_session = self.vio_pipeline.startSession(context.device)
 		
-		return True
+		return SaiSlamRuntime(
+			self,
+			context,
+			vio_session,
+		)
 
 def sai_camera_pose(cam: 'CameraPose') -> Pose3d:
 	pose_cv2 = Pose3d(
@@ -64,7 +68,7 @@ def sai_camera_pose(cam: 'CameraPose') -> Pose3d:
 	return pose_cv2
 	
 
-class SlamRuntime(NodeRuntime):
+class SaiSlamRuntime(NodeRuntime):
 	do_poll = True
 	
 	def __init__(self, builder: SlamBuilder, context: NodeRuntime.Context, vio_session: 'VioSession'):

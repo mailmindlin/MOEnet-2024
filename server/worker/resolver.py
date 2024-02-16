@@ -142,11 +142,11 @@ class WorkerConfigResolver:
 			return None
 		
 		if isinstance(pipeline, str):
-			self.log.info("Looking up pipeline %s", pipeline)
-			self.log.info("Pipelines: %s", self.pipelines)
+			self.log.debug("Looking up pipeline %s", pipeline)
+			self.log.debug("Pipelines: %s", self.pipelines)
 			try:
 				res = self.pipelines[pipeline]
-				self.log.info('Resolved pipeline %s: %s', pipeline, res)
+				self.log.debug('Resolved pipeline %s: %s', pipeline, res)
 				return res
 			except KeyError:
 				self.log.warning("%s requested preset pipeline %s, but that preset doesn't exist", cid, pipeline)

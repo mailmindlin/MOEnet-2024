@@ -4,11 +4,11 @@ from typing import TYPE_CHECKING, Literal, Callable, Iterable, Union
 import depthai as dai
 
 from typedef import pipeline as cfg
-from .builder import XOutNode
+from .builder import XOutNode, Dependency
 from ..msg import WorkerMsg, AnyCmd
 
 if TYPE_CHECKING:
-	from .video import MonoBuilder, RgbBuilder, DepthBuilder
+	from .video import MonoCameraNode, ColorCameraNode, DepthBuilder
 
 
 class TelemetryStage(XOutNode[dai.SystemInformation, cfg.TelemetryStage]):
@@ -46,17 +46,17 @@ class ImageOutStage(XOutNode[dai.ImgFrame, ImageOutConfig]):
 	def requires(self):
 		match self.config.target:
 			case 'left':
-				return [('mono.left', False)]
+				return [Dependency('mono.left')]
 			case 'right':
-				return [('mono.right', False)]
+				return [Dependency('mono.right')]
 			case 'rgb':
-				return [('rgb', False)]
+				return [Dependency('rgb')]
 			case 'depth':
-				return [('depth', False)]
+				return [Dependency('depth')]
 			case _:
 				raise RuntimeError()
 		
-	def get_input(self, pipeline: dai.Pipeline, source: Union['MonoBuilder', 'RgbBuilder', 'DepthBuilder'], *args, **kwargs) -> dai.Node.Output:
+	def get_input(self, pipeline: dai.Pipeline, source: Union['MonoCameraNode', 'ColorCameraNode', 'DepthBuilder'], *args, **kwargs) -> dai.Node.Output:
 		# if self.config.syncNN and (self.node_yolo is not None):
 		# 	nn = self.node_yolo
 		# 	nn.passthrough.link(xoutRgb.input)

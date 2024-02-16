@@ -4,18 +4,15 @@ from abc import ABC, abstractproperty
 import depthai as dai
 
 from typedef import pipeline as cfg
-from .builder import NodeBuilder, NodeRuntime
+from .builder import NodeBuilder, NodeRuntime, Dependency
 
 if TYPE_CHECKING:
 	from .slam import SlamBuilder
 
 
 S = TypeVar('S', bound=cfg.PipelineStageWorker)
-class VideoBuilder(NodeBuilder[S], ABC):
+class VideoNode(NodeBuilder[S], ABC):
 	node: dai.node.ColorCamera | dai.node.MonoCamera | dai.node.StereoDepth
-	
-	@abstractproperty
-	def camera_socket(self) -> dai.CameraBoardSocket: ...
 	
 	@abstractproperty
 	def video_out(self) -> dai.Node.Output: ...
@@ -24,14 +21,21 @@ class VideoBuilder(NodeBuilder[S], ABC):
 		return None
 
 
-class MonoBuilder(VideoBuilder[cfg.MonoConfigStage]):
+class CameraNode(VideoNode[S], ABC):
+	node: dai.node.ColorCamera | dai.node.MonoCamera
+
+	@abstractproperty
+	def camera_socket(self) -> dai.CameraBoardSocket: ...
+
+
+class MonoCameraNode(CameraNode[cfg.MonoConfigStage]):
 	node: dai.node.MonoCamera
 	@classmethod
 	def infer(cls, name: str):
 		target = name.lstrip('mono.')
 		return cfg.MonoConfigStage(stage='mono', target=target)
 	
-	requires = [('slam', True)]
+	requires = [Dependency('slam', optional=True)]
 
 	@property
 	def video_out(self):
@@ -64,13 +68,15 @@ class MonoBuilder(VideoBuilder[cfg.MonoConfigStage]):
 		self.node = node
 
 
-class RgbBuilder(VideoBuilder[cfg.RgbConfigStage]):
+class ColorCameraNode(CameraNode[cfg.RgbConfigStage]):
 	node: dai.node.ColorCamera
+	camera_socket = dai.CameraBoardSocket.RGB
+
 	@classmethod
 	def infer(cls, name: str):
 		return cfg.RgbConfigStage(stage='rgb')
 
-	requires = [('slam', True)]
+	requires = [Dependency('slam', optional=True)]
 	
 	def build(self, pipeline: dai.Pipeline, slam: Optional['SlamBuilder'] = None, *args, **kwargs):
 		if slam is not None:
@@ -86,22 +92,19 @@ class RgbBuilder(VideoBuilder[cfg.RgbConfigStage]):
 		camRgb.setInterleaved(False)
 		camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
 		self.node = camRgb
-	
-	camera_socket = dai.CameraBoardSocket.RGB
 
 	@property
 	def video_out(self):
 		return self.node.video
 
-class DepthBuilder(VideoBuilder[cfg.DepthConfigStage]):
+class DepthBuilder(VideoNode[cfg.DepthConfigStage]):
 	node: dai.node.StereoDepth
-	camera_socket = None #TODO: fix inheritance so we can get rid of this method
 	requires = [
-		('mono.left', False),
-		('mono.right', False),
+		Dependency('mono.left'),
+		Dependency('mono.right'),
 	]
 	
-	def build(self, pipeline: dai.Pipeline, left: MonoBuilder, right: MonoBuilder, *args, **kwargs):
+	def build(self, pipeline: dai.Pipeline, left: MonoCameraNode, right: MonoCameraNode, *args, **kwargs):
 		# if (slam is not None) and False:
 		#     node = slam.vio_pipeline.stereo
 		#     # node.setDepthAlign(dai.CameraBoardSocket.RGB)

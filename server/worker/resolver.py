@@ -1,7 +1,7 @@
 "Helper to resolve camera configs"
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import Optional
 import os.path
 from pathlib import Path
 from logging import Logger
@@ -16,8 +16,7 @@ from typedef.pipeline import (
 	ObjectDetectionStage, NNConfig
 )
 from typedef.common import OakSelector
-from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig
-from typedef.geom import Transform3d
+from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig, CameraSelectorDefinition
 
 @dataclass
 class PipelinePresetId:
@@ -91,9 +90,12 @@ class WorkerConfigResolver:
 		return SlamStageWorker(**dict(
 			src,
 			apriltags=apriltags,
+			map_save=map_save,
+			map_load=map_load,
 		))
 	
 	def _resolve_apriltag(self, src: ApriltagStage) -> ApriltagStageWorker:
+		"Resolve an apriltag stage"
 		return ApriltagStageWorker(**dict(
 			src,
 			apriltags=src.apriltags.convert(apriltag.AprilTagFieldInlineWpi, self._basepath(), self._make_tempdir),
@@ -134,12 +136,15 @@ class WorkerConfigResolver:
 			),
 		)
 	
-	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> tuple[OakSelector, Optional[Transform3d]]:
+	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> tuple[OakSelector, Optional[CameraSelectorDefinition]]:
 		"Resolve an OakSelector, possibly by name"
 		if isinstance(raw_selector, str):
 			for selector in self.config.camera_selectors:
 				if selector.id == raw_selector:
-					return (selector, selector.pose)
+					return (
+						OakSelector.model_validate(selector, strict=False, from_attributes=True),
+						selector
+					)
 			else:
 				raise KeyError("%s requested named selector '%s', but that was never defined", cid, raw_selector)
 		else:
@@ -203,19 +208,35 @@ class WorkerConfigResolver:
 	
 	def process_one(self, camera: CameraConfig, idx: int = 0) -> worker.WorkerInitConfig:
 		"Resolve the config for a single camera"
-		cid = CameraId(idx, camera.id)
-		selector, pose = self._resolve_selector(cid, camera.selector)
+		cid = CameraId(idx, camera.name)
+		selector, dfn = self._resolve_selector(cid, camera.selector)
 		pipeline = self._resolve_pipeline(cid, camera.pipeline)
 
 		if pipeline is None:
 			pipeline = []
-
+		
+		name = camera.name
+		robot_to_camera = camera.pose
+		dynamic_pose = camera.dynamic_pose
+		if dfn is not None:
+			if name is None:
+				name = dfn.name
+			if robot_to_camera is None:
+				robot_to_camera = dfn.pose
+			if dynamic_pose is None:
+				dynamic_pose = dfn.dynamic_pose
+		
+		# We need name to exist for logging
+		if name is None:
+			name = str(cid)
+		
 		return worker.WorkerInitConfig(
-			id=camera.id or str(cid),
+			name=name,
 			selector=selector,
 			max_usb=camera.max_usb,
 			retry=camera.retry,
-			robot_to_camera=camera.pose or pose,
+			robot_to_camera=robot_to_camera,
+			dynamic_pose=dynamic_pose,
 			pipeline=pipeline,
 		)
 

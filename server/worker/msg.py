@@ -19,12 +19,13 @@ Mat66 = np.ndarray[float, tuple[Literal[6], Literal[6]]]
 
 class WorkerInitConfig(BaseModel):
     "Config for worker.main"
-    id: str
+    name: str
     selector: OakSelector
     retry: RetryConfig
     max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(None)
     maxRefresh: float = Field(10, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
+    dynamic_pose: Optional[str] = Field(None)
     pipeline: list[PipelineStageWorker] = Field(default_factory=list)
 
 

@@ -69,8 +69,8 @@ class DeviceManager:
 		if selector.mxid is not None:
 			desc.mxid = selector.mxid
 			use_desc = True
-		if selector.name is not None:
-			desc.name = selector.name
+		if selector.devname is not None:
+			desc.name = selector.devname
 			use_desc = True
 		if (platform := selector.platform_dai) is not None:
 			desc.platform = platform
@@ -95,7 +95,7 @@ class DeviceManager:
 		if (mxid := sel.mxid) is not None:
 			if info.mxid != mxid:
 				return False
-		if (name := sel.name) is not None:
+		if (name := sel.devname) is not None:
 			if info.name != name:
 				return False
 		if (platform := sel.platform_dai) is not None:
@@ -252,7 +252,7 @@ class CameraWorker:
 				if len(packet.detections) > 0:
 					self.log.info(" -> Send packet %s", repr(packet))
 			elif isinstance(packet, MsgFrame):
-				packet.worker = self.config.id
+				packet.worker = self.config.name
 				packet.timestamp_insert = time.time_ns()
 				try:
 					self.video_queue.put(packet, timeout=0.1)

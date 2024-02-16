@@ -5,13 +5,14 @@ import enum
 from pathlib import Path
 from datetime import timedelta
 
-from pydantic import BaseModel, Field, TypeAdapter, Tag, ByteSize
+from pydantic import BaseModel, Field, TypeAdapter, Tag
 from ntcore import NetworkTableInstance
 
 if __name__ == '__main__' and (not TYPE_CHECKING):
-	import common, geom, apriltag, pipeline
+	# Fix for when we run this as a script
+	import common, geom, pipeline
 else:
-	from . import common, geom, apriltag, pipeline
+	from . import common, geom, pipeline
 
 class ObjectTrackerConfig(BaseModel):
 	"Configuration for tracking object detections over time"
@@ -22,16 +23,20 @@ class ObjectTrackerConfig(BaseModel):
 	min_depth: float = Field(0.5, gt=0, description="")
 	alpha: float = Field(0.2, gt=0, description="")
 
+
 class AprilTagStrategy(enum.StrEnum):
+	"Strategy to convert AprilTags to positions"
 	LOWEST_AMBIGUITY = enum.auto()
 	CLOSEST_TO_LAST_POSE = enum.auto()
 	AVERAGE_BEST_TARGETS = enum.auto()
 
 class PoseEstimatorConfig(BaseModel):
+	"Pose estimator options"
 	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
 	apriltagStrategy: AprilTagStrategy | None = Field(default=AprilTagStrategy.LOWEST_AMBIGUITY)
 
 class PoseEstimatorConfig1(BaseModel):
+	"Pose estimator options"
 	publish_transform: bool = Field(True)
 	publish_acceleration: bool = Field(False)
 	permit_corrected_publication: bool = Field(False)
@@ -64,7 +69,7 @@ class EstimatorConfig(BaseModel):
 
 class WebConfig(BaseModel):
 	"Configure webserver"
-	enabled: bool = Field(True)
+	enabled: bool = Field(True, description="Enable web server")
 	host: Optional[str] = Field(None, description="Host for HTTP server")
 	port: Optional[int] = Field(8080, gt=0, description="Port for HTTP server")
 	video_codec: Optional[str] = Field(None, description="Force a specific video codec (e.g. video/H264)")

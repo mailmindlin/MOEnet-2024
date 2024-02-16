@@ -94,6 +94,13 @@ class FieldLayout(BaseModel):
 
 class AprilTagWpi(BaseModel):
     "A single AprilTag definition (WPI format)"
+
+    @staticmethod
+    def from_wpilib(src: 'robotpy_apriltag.AprilTag') -> 'AprilTagWpi':
+        return AprilTagWpi(
+            ID=src.ID,
+            pose=src.pose,
+        )
     
     ID: int = Field(description="AprilTag id", ge=0)
     pose: geom.Pose3d = Field(description="AprilTag pose, in field-space (field->tag)")
@@ -138,17 +145,14 @@ class AprilTagJsonWpi(BaseModel):
 class _AprilTagField(BaseModel):
     format: Literal["wpi", "sai"]
 
+    @classmethod
+    def from_wpilib(field: Union['robotpy_apriltag.AprilTagFieldLayout', 'robotpy_apriltag.AprilTagField']) -> '_AprilTagField':
+        if isinstance(field):
+            pass
+
     def _resolve_path(self, base: Path | None, relpart: Path) -> Path:
-        if relpart.is_absolute():
-            return relpart
-        import os.path
-        relpart = Path(os.path.expanduser(relpart))
-        if relpart.is_absolute():
-            return relpart
-        elif base is None:
-            raise ValueError(f'Unable to resolve relative path {relpart}')
-        else:
-            return (base / relpart).resolve()
+        from util.path import resolve_path
+        return resolve_path(base, relpart)
     
     def resolve(self, base: Path | None = None) -> '_AprilTagField':
         "Resolve path references (if any) relative to a base folder"
@@ -187,7 +191,6 @@ class _AprilTagField(BaseModel):
             target_format = None
         if need_store and (target_format is not None) and (self.format != target_format):
             need_load = True
-        print(f"Src={type(self).__name__}, dst={target.__name__}, need_load={need_load}, need_store={need_store}, target_format={target_format}")
 
         current = self
         if need_load:
@@ -268,6 +271,10 @@ class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
     tags: list[AprilTagWpi] = Field(description="AprilTags (WPI format)")
     tagFamily: AprilTagFamily = Field(description="AprilTag family")
     tagSize: float = Field(description="AprilTag side length, in meters")
+
+    @staticmethod
+    def from_wpilib(field: Union['robotpy_apriltag.AprilTagFieldLayout', 'robotpy_apriltag.AprilTagField']) -> 'AprilTagFieldInlineWpi':
+        pass
     def as_inline_sai(self, path: Path | None = None) -> 'AprilTagFieldInlineSai':
         return AprilTagFieldInlineSai(
             field=self.field,
@@ -377,6 +384,58 @@ class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
         return data
 
 
+class AprilTagFieldNamedWpilib(enum.StrEnum):
+    "Named AprilTag field"
+    FRC_2022 = "2022RapidReact"
+    FRC_2023 = "2023ChargedUp"
+    FRC_2024 = "2024Crescendo"
+    def as_wpilib(self):
+        "Get associated wpilib AprilTagField"
+        from robotpy_apriltag import AprilTagField
+        match self:
+            case AprilTagFieldNamedWpilib.FRC_2022:
+                return AprilTagField.k2022RapidReact
+            case AprilTagFieldNamedWpilib.FRC_2023:
+                return AprilTagField.k2023ChargedUp
+            case AprilTagFieldNamedWpilib.FRC_2024:
+                return AprilTagField.k2024Crescendo
+    def tagFamily(self):
+        match self:
+            case AprilTagFieldNamedWpilib.FRC_2022:
+                return AprilTagFamily.TAG_16H5
+            case AprilTagFieldNamedWpilib.FRC_2023:
+                return AprilTagFamily.TAG_16H5
+            case AprilTagFieldNamedWpilib.FRC_2024:
+                return AprilTagFamily.TAG_36H11
+    def tagSize(self):
+        from wpimath.units import inchesToMeters
+        match self:
+            case AprilTagFieldNamedWpilib.FRC_2022:
+                return inchesToMeters(6)
+            case AprilTagFieldNamedWpilib.FRC_2023:
+                return inchesToMeters(6)
+            case AprilTagFieldNamedWpilib.FRC_2024:
+                return inchesToMeters(6.5)
+            
+    def load_wpilib(self):
+        from robotpy_apriltag import loadAprilTagLayoutField
+        return loadAprilTagLayoutField(self.as_wpilib())
+    
+    def load(self, *args) -> AprilTagFieldInlineWpi:
+        field_wpilib = self.load_wpilib()
+        return AprilTagFieldInlineWpi(
+            field=FieldLayout(
+                length=field_wpilib.getFieldLength(),
+                width=field_wpilib.getFieldWidth(),
+            ),
+            tags=[
+                AprilTagWpi.from_wpilib(tag)
+                for tag in field_wpilib.getTags()
+            ],
+            tagFamily=self.tagFamily(),
+            tagSize=self.tagSize(),
+        )
+
 # ===== Annotated types =====
 
 AprilTagFieldInline = Annotated[
@@ -386,8 +445,6 @@ AprilTagFieldInline = Annotated[
     ],
     Discriminator("format")
 ]
-# AprilTagFieldInline = AprilTagFieldInlineWpi
-# AprilTagFieldRef = AprilTagFieldRefWpi
 
 AprilTagFieldRef = Annotated[
     Union[
@@ -400,6 +457,7 @@ AprilTagFieldRef = Annotated[
 AprilTagField = Union[
     AprilTagFieldRef,
     AprilTagFieldInline,
+    AprilTagFieldNamedWpilib,
 ]
 "Any AprilTag field data"
 

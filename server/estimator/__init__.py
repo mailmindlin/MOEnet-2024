@@ -84,6 +84,8 @@ class DataFusion:
 		if fresh and (not self.fresh_o2r):
 			return None
 		res = self.pose_estimator.odom_to_robot()
+		if res is None:
+			return None
 		if fresh:
 			self.fresh_o2r = False
 			if self.datalog is not None:
@@ -98,6 +100,8 @@ class DataFusion:
 			return None
 		ts = self.clock.now()
 		res = self.pose_estimator.field_to_robot(ts)
+		if res is None:
+			return None
 		if fresh:
 			self.fresh_f2r = False
 			if self.datalog is not None:

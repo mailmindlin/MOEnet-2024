@@ -183,10 +183,12 @@ class WorkerConfigResolver:
 					case 'slam':
 						stages.append(self._resolve_slam(stage))
 					case 'nn':
-						if stage := self._resolve_nn(cid, stage):
-							stages.append(stage)
-						else:
+						if stage_res := self._resolve_nn(cid, stage):
+							stages.append(stage_res)
+						elif stage.optional:
 							self.log.warning('%s unable to resolve object detection stage %d', cid, i)
+						else:
+							raise RuntimeError(f"Unable to construct stage #{i}")
 					case _:
 						# Passthrough
 						stages.append(stage)

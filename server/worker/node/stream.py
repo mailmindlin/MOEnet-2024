@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Iterable
 import depthai as dai
 
 from typedef import pipeline as cfg
-from .builder import NodeBuilder, NodeRuntime
+from .builder import NodeBuilder, NodeRuntime, Dependency
 from ..msg import AnyCmd, CmdEnableStream, MsgFrame, WorkerMsg
 
 if TYPE_CHECKING:
@@ -12,9 +12,7 @@ if TYPE_CHECKING:
 class WebStreamNode(NodeRuntime, NodeBuilder[cfg.WebStreamStage]):
 	@property
 	def requires(self):
-		return [
-			(f'xout.{self.config.target}', False)
-		]
+		return [Dependency(f'xout.{self.config.target}')]
 
 	def handle_command(self, cmd: AnyCmd):
 		if isinstance(cmd, CmdEnableStream) and cmd.stream == self.config.target:
@@ -49,9 +47,7 @@ class ShowNode(NodeRuntime, NodeBuilder[cfg.WebStreamStage]):
 	do_poll = True
 	@property
 	def requires(self):
-		return [
-			(f'xout.{self.config.target}', False)
-		]
+		return [Dependency(f'xout.{self.config.target}')]
 	
 	def start(self, context: NodeRuntime.Context, src: 'ImageOutStage', *args, **kwargs) -> bool:
 		src.add_handler(self.handle_frame)

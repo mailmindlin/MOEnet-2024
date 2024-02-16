@@ -5,20 +5,20 @@ import depthai as dai
 
 from typedef import pipeline as cfg
 from typedef.geom import Translation3d
-from .builder import XOutNode
+from .builder import XOutNode, Dependency
 from ..msg import ObjectDetection, MsgDetections
 
 if TYPE_CHECKING:
-	from .video import RgbBuilder, DepthBuilder
+	from .video import ColorCameraNode, DepthBuilder
 
 class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetectionStage]):
 	stream_name = 'nn'
 	requires = [
-		('rgb', False),
-		('depth', False),
+		Dependency('rgb'),
+		Dependency('depth'),
 	]
 	
-	def get_input(self, pipeline: dai.Pipeline, rgb: 'RgbBuilder', depth: 'DepthBuilder', *args, **kwargs) -> dai.Node.Output:
+	def get_input(self, pipeline: dai.Pipeline, rgb: 'ColorCameraNode', depth: 'DepthBuilder', *args, **kwargs) -> dai.Node.Output:
 		spatialDetectionNetwork = pipeline.createYoloSpatialDetectionNetwork()
 		nnConfig = self.config.config
 		nnBlobPath = Path(self.config.blobPath).resolve().absolute()

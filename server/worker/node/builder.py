@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 
 
 T = TypeVar('T')
-S = TypeVar('S', bound=pcfg.PipelineStageWorker)
+S = TypeVar('S', bound=pcfg.StageBase)
+
+@dataclass
+class Dependency:
+	name: str
+	optional: bool = False
 
 class StageSkip(BaseException):
 	"Raise this exception from a PipelineStage to skip it"
@@ -36,7 +41,7 @@ class NodeBuilder(Generic[S], ABC):
 		self.config = config
 		self.log = log
 	
-	requires: list[tuple[str, bool]] = []
+	requires: list[Dependency] = []
 	
 	def build(self, pipeline: dai.Pipeline, *args, **kwargs):
 		pass

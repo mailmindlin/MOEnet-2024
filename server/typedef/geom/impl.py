@@ -12,7 +12,7 @@ from .repr import FieldDesc
 
 T = TypeVar('T')
 
-def _fix_ser(t: Type[T], fields: dict[str, Union[FieldDesc, Type]], *, struct: bool = False, pickle: bool = True, json: bool = True):
+def _fix_ser(t: Type[T], fields: dict[str, Union[FieldDesc, Type]], *, struct: bool = False, pickle: bool = True, json: bool = True, hash: bool = True):
 	"""
 	Fix type serialization, by modifying the datatypes
 	"""
@@ -27,9 +27,9 @@ def _fix_ser(t: Type[T], fields: dict[str, Union[FieldDesc, Type]], *, struct: b
 		from .wpistruct import fix_struct
 		sd = fix_struct(t, fields)
 	
-	if pickle:
+	if pickle or hash:
 		from .pickle import add_pickle_support
-		add_pickle_support(t, fields, sd)
+		add_pickle_support(t, fields, sd, reduce=pickle, hash=hash)
 		
 	
 	if json:

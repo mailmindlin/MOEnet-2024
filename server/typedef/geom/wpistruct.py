@@ -60,10 +60,3 @@ def fix_struct(t: Type[T], fields: list[FieldInfo]):
 		t.WPIStruct = sd
 	t._WPIStruct = sd
 	return sd
-
-def _get_sd(t: Type[T]) -> StructDescriptor:
-	"Get StructDescriptor for type (we might store it in two fields, depending)"
-	# if r := getattr(t, 'WPIStruct', None):
-	# 	if isinstance(r, StructDescriptor):
-	# 		return r
-	return getattr(t, '_WPIStruct')

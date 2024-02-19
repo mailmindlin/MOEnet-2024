@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, TypeVar, Optional
+from typing import TYPE_CHECKING, Optional
 import logging
 from dataclasses import dataclass
 
@@ -182,7 +182,6 @@ class Comms:
 		self._pub_status.enabled = ntc.publishStatus
 		self._pub_config.enabled = ntc.publishConfig
 		self._pub_telem.enabled = ntc.publishSystemInfo
-		self._pub_telem_ram.enabled = ntc.publishSystemInfo
 		self._pub_tf_field_odom.enabled   = (ntc.tfFieldToOdom  == NetworkTablesDirection.PUBLISH)
 		self._pub_tf_field_robot.enabled  = (ntc.tfFieldToRobot == NetworkTablesDirection.PUBLISH)
 		self._pub_tf_odom_robot.enabled   = (ntc.tfOodomToRobot == NetworkTablesDirection.PUBLISH)

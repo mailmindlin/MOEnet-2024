@@ -17,6 +17,7 @@ from util.watchdog import Watchdog
 from util.interrupt import InterruptHandler
 from util.clock import WallClock
 from util.timemap import IdentityTimeMapper
+from util.timestamp import Timestamp
 
 class MoeNet:
 	camera_workers: Optional[WorkerManager]
@@ -132,8 +133,11 @@ class MoeNet:
 			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
 	
-	def pose_override(self, pose: 'Pose3d'):
-		"Update all the "
+	def pose_override(self, pose: 'Pose3d', timestamp: 'Timestamp' | None = None):
+		if timestamp is None:
+			timestamp = self.clock.now()
+		self.estimator.observe_f2r_override(pose, timestamp)
+
 		self.log.info('Pose override %s', pose)
 		if self.camera_workers is not None:
 			cmd = wmsg.CmdPoseOverride(pose=pose)

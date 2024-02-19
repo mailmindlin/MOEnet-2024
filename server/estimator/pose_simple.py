@@ -13,7 +13,7 @@ from util.timestamp import Timestamp
 from .util import interpolate_pose3d
 
 
-class PoseEstimator:
+class SimplePoseEstimator:
 	"""
 	We need to merge together (often) conflicting views of the world.
 	"""

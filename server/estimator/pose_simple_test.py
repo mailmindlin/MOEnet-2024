@@ -2,10 +2,15 @@ from unittest import TestCase
 
 from typedef.geom import Pose3d, Twist3d, Translation3d
 
-from estimator import PoseEstimator, Transform3d, MsgPose, Pose3d, Rotation3d, Translation3d, Clock
+from .pose_simple import (
+    SimplePoseEstimator,
+    Transform3d,
+    MsgPose,
+    Pose3d, Rotation3d, Translation3d,
+    Clock,
+)
 
 
-# Tests
 class PoseEstimatorTest(TestCase):
     def setUp(self) -> None:
         # Create a clock that doesn't update
@@ -18,7 +23,7 @@ class PoseEstimatorTest(TestCase):
         self.clock = FakeClock()
     
     def test_interpolate(self):
-        estimator = PoseEstimator(
+        estimator = SimplePoseEstimator(
             clock=self.clock,
             history_duration=10.0
         )

@@ -34,7 +34,7 @@ class ProtobufPublisher(Generic[T]):
 		self._publisher.set(b)
 
 @dataclass
-class TimestampedProto(GenericTsValue[T]):
+class TimestampedProto(Generic[T]):
 	serverTime: int
 	time: int
 	value: T

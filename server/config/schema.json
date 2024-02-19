@@ -89,6 +89,16 @@
 			"title": "AprilTagFieldInlineWpi",
 			"type": "object"
 		},
+		"AprilTagFieldNamedWpilib": {
+			"description": "Named AprilTag field",
+			"enum": [
+				"2022RapidReact",
+				"2023ChargedUp",
+				"2024Crescendo"
+			],
+			"title": "AprilTagFieldNamedWpilib",
+			"type": "string"
+		},
 		"AprilTagFieldRefSai": {
 			"description": "Reference to an AprilTag JSON file (in SpectacularAI format)",
 			"properties": {
@@ -441,6 +451,9 @@
 									"$ref": "#/$defs/AprilTagFieldInlineSai"
 								}
 							]
+						},
+						{
+							"$ref": "#/$defs/AprilTagFieldNamedWpilib"
 						}
 					],
 					"title": "Apriltags"
@@ -454,7 +467,7 @@
 		},
 		"CameraConfig": {
 			"properties": {
-				"id": {
+				"name": {
 					"anyOf": [
 						{
 							"type": "string"
@@ -465,7 +478,7 @@
 					],
 					"default": null,
 					"description": "Human-readable name",
-					"title": "Id"
+					"title": "Name"
 				},
 				"selector": {
 					"anyOf": [
@@ -580,6 +593,19 @@
 					"description": "Camera pose (in robot-space)",
 					"title": "Pose"
 				},
+				"dynamic_pose": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "If this camera can move, this is it's network name",
+					"title": "Dynamic Pose"
+				},
 				"pipeline": {
 					"anyOf": [
 						{
@@ -618,7 +644,7 @@
 						}
 					],
 					"default": null,
-					"description": "Pick the nth camera found (unstable, starts at 1)",
+					"description": "Pick the n-th camera found (unstable, starts at 1)",
 					"title": "Ordinal"
 				},
 				"mxid": {
@@ -634,7 +660,7 @@
 					"description": "Filter camera by mxid",
 					"title": "Mxid"
 				},
-				"name": {
+				"devname": {
 					"anyOf": [
 						{
 							"type": "string"
@@ -644,8 +670,8 @@
 						}
 					],
 					"default": null,
-					"description": "Device name",
-					"title": "Name"
+					"description": "Filter camera by device name",
+					"title": "Devname"
 				},
 				"platform": {
 					"default": null,
@@ -672,9 +698,21 @@
 					"title": "Protocol"
 				},
 				"id": {
-					"description": "Human-readable ID",
+					"description": "ID to reference this definition by",
 					"title": "Id",
 					"type": "string"
+				},
+				"name": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Name"
 				},
 				"pose": {
 					"anyOf": [
@@ -754,6 +792,19 @@
 					"default": null,
 					"description": "Robot-to-camera transform",
 					"title": "Pose"
+				},
+				"dynamic_pose": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "If this camera can move, this is it's network name",
+					"title": "Dynamic Pose"
 				}
 			},
 			"required": [
@@ -1008,6 +1059,7 @@
 				"file": {
 					"anyOf": [
 						{
+							"format": "path",
 							"type": "string"
 						},
 						{
@@ -1371,7 +1423,7 @@
 						}
 					],
 					"default": null,
-					"description": "Pick the nth camera found (unstable, starts at 1)",
+					"description": "Pick the n-th camera found (unstable, starts at 1)",
 					"title": "Ordinal"
 				},
 				"mxid": {
@@ -1387,7 +1439,7 @@
 					"description": "Filter camera by mxid",
 					"title": "Mxid"
 				},
-				"name": {
+				"devname": {
 					"anyOf": [
 						{
 							"type": "string"
@@ -1397,8 +1449,8 @@
 						}
 					],
 					"default": null,
-					"description": "Device name",
-					"title": "Name"
+					"description": "Filter camera by device name",
+					"title": "Devname"
 				},
 				"platform": {
 					"default": null,
@@ -1547,6 +1599,12 @@
 					"title": "History",
 					"type": "string"
 				},
+				"force2d": {
+					"default": true,
+					"description": "Should we force the pose to fit on the field?",
+					"title": "Force2D",
+					"type": "boolean"
+				},
 				"apriltagStrategy": {
 					"anyOf": [
 						{
@@ -1557,8 +1615,18 @@
 						}
 					],
 					"default": "lowest_ambiguity"
+				},
+				"odometryStdDevs": {
+					"items": {
+						"type": "number"
+					},
+					"title": "Odometrystddevs",
+					"type": "array"
 				}
 			},
+			"required": [
+				"odometryStdDevs"
+			],
 			"title": "PoseEstimatorConfig",
 			"type": "object"
 		},
@@ -1621,6 +1689,19 @@
 					],
 					"default": null,
 					"description": "Camera sensor resolution"
+				},
+				"fps": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Max FPS",
+					"title": "Fps"
 				}
 			},
 			"title": "RgbConfigStage",
@@ -1758,6 +1839,7 @@
 			"type": "object"
 		},
 		"ShowStage": {
+			"description": "Show video stream as GUI",
 			"properties": {
 				"stage": {
 					"const": "show",

@@ -125,6 +125,7 @@ class AprilTagPose(BaseModel):
 class MsgAprilTagPoses(BaseModel):
     timestamp: int
     poses: list[AprilTagPose]
+    "Represents multiple possible poses"
 
 
 @dataclass

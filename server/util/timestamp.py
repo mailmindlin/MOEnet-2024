@@ -155,6 +155,6 @@ class Timestamp:
 
 T = TypeVar('T')
 class Stamped(Generic[T]):
-	def __init__(self, value: T, stamp: Timestamp):
-		self.stamp = stamp
+	def __init__(self, value: T, ts: Timestamp):
+		self.ts = ts
 		self.value = value

@@ -29,7 +29,9 @@ class AprilTagStrategy(enum.StrEnum):
 
 class PoseEstimatorConfig(BaseModel):
 	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
+	force2d: bool = Field(True, description="Should we force the pose to fit on the field?")
 	apriltagStrategy: AprilTagStrategy | None = Field(default=AprilTagStrategy.LOWEST_AMBIGUITY)
+	odometryStdDevs: list[float] = Field()
 
 class PoseEstimatorConfig1(BaseModel):
 	publish_transform: bool = Field(True)

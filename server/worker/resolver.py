@@ -34,7 +34,7 @@ class CameraId:
 	
 	def __str__(self):
 		if self.name is None:
-			return f"Camera #{self.idx}"
+			return f"camera_{self.idx}"
 		else:
 			return f"Camera '{self.name}')"
 

@@ -15,7 +15,6 @@ from .node.slam import SlamBuilder
 from .node.stream import WebStreamNode, ShowNode
 from .node.util import ImageOutStage, TelemetryStage, ImageOutConfig
 from .node.video import MonoCameraNode, ColorCameraNode, DepthBuilder
-from .node.slam_local import LocalSlamBuilder
 
 if TYPE_CHECKING:
 	# import spectacularAI.depthai.Pipeline as SaiPipeline
@@ -137,14 +136,17 @@ class MoeNetPipeline:
 			raise RuntimeError(f'Unable to infer config for required stage {name}') from e
 	
 	def _build_stage(self, config: S, optional: bool):
-		self.log.debug("Build stage %s", config.name)
+		# self.log.debug("Build stage %s", config.name)
 		try:
 			factory = self.stage_factories[config.stage]
-			self.log.debug("Stage %s (%s) using factory %s", config.name, repr(config), factory)
-			stage = factory(config, log=self.log.getChild(config.name))
+			stage_log = self.log.getChild(config.name)
+			stage_log.debug("Building with config %s", repr(config))
+			stage = factory(config, log=stage_log)
+
+			# Resolve dependencies
 			args = list()
 			for requirement in stage.requires:
-				self.log.debug("Stage %s %s %s", config.name, "prefers" if requirement.optional else "requires", requirement.name)
+				stage_log.debug("%s stage '%s'", "Prefers" if requirement.optional else "Requires", requirement.name)
 				arg = self._get_stage(requirement.name, requirement.optional)
 				args.append(arg)
 			if stage.build(self.pipeline, *args):
@@ -160,6 +162,8 @@ class MoeNetPipeline:
 				raise
 	def build(self):
 		"Build DepthAI pipeline"
+		self.log.info("Building pipeline")
+		
 		for stage_cfg in self.config:
 			if stage_cfg.name in self.stages:
 				continue
@@ -167,6 +171,7 @@ class MoeNetPipeline:
 				continue
 			self._build_stage(stage_cfg, stage_cfg.optional)
 		
+		self.log.info("Built pipeline successfully")
 		return self.pipeline
 	
 	def _start_stage(self, name: str, optional: bool):

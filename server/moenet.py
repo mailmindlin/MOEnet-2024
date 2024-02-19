@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 import logging, sys
 from pathlib import Path
 
@@ -17,7 +17,8 @@ from util.watchdog import Watchdog
 from util.interrupt import InterruptHandler
 from util.clock import WallClock
 from util.timemap import IdentityTimeMapper
-from util.timestamp import Timestamp
+if TYPE_CHECKING:
+	from util.timestamp import Timestamp
 
 class MoeNet:
 	camera_workers: Optional[WorkerManager]
@@ -133,7 +134,7 @@ class MoeNet:
 			self.status = Status.INITIALIZING
 		self.reset(update_cameras)
 	
-	def pose_override(self, pose: 'Pose3d', timestamp: 'Timestamp' | None = None):
+	def pose_override(self, pose: 'Pose3d', timestamp: Optional['Timestamp'] = None):
 		if timestamp is None:
 			timestamp = self.clock.now()
 		self.estimator.observe_f2r_override(pose, timestamp)
@@ -179,7 +180,6 @@ class MoeNet:
 			self.build_cameras()
 	
 	def poll(self):
-		# self.log.debug("Tick start")
 		self.nt.update()
 		self.web.poll()
 
@@ -200,7 +200,7 @@ class MoeNet:
 			for worker in self.camera_workers:
 				for packet in worker.poll():
 					if isinstance(packet, wmsg.MsgPose):
-						self.estimator.record_f2r(worker.robot_to_camera, packet)
+						self.estimator.observe_f2r(worker.robot_to_camera, packet)
 					elif isinstance(packet, wmsg.MsgDetections):
 						self.estimator.record_detections(worker.robot_to_camera, packet)
 					elif isinstance(packet, wmsg.MsgAprilTagPoses):

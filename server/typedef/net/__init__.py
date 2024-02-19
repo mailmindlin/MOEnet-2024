@@ -103,7 +103,9 @@ if TYPE_CHECKING:
 		label_id: Optional[int] = None
 		confidence: Optional[float] = None
 		positionRobot: Optional[Translation3d] = None
+		"Robot-to-object"
 		positionField: Optional[Translation3d] = None
+		"Field-to-object"
 
 	@dataclass
 	class ObjectDetections:

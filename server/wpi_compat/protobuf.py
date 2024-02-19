@@ -2,13 +2,17 @@
 
 from typing import TYPE_CHECKING, Callable, Iterable
 
+from google.protobuf.pyext.cpp_message import GeneratedProtocolMessageType
 if TYPE_CHECKING:
-	from google.protobuf.pyext.cpp_message import GeneratedProtocolMessageType
 	from google.protobuf.descriptor import FileDescriptor
 	from .typedef import SchemaRegistry
 
 
+def is_protobuf_type(type: type) -> bool:
+	return isinstance(type, GeneratedProtocolMessageType)
+
 def type_string(proto: 'GeneratedProtocolMessageType') -> str:
+	assert is_protobuf_type(proto)
 	if name := getattr(proto, 'type_string', None):
 		return name
 	return 'proto:' + proto.DESCRIPTOR.name
@@ -24,6 +28,7 @@ def _iter_descriptor(file: 'FileDescriptor', exists: Callable[[str], bool]) -> I
 	yield (name, file.serialized_pb)
 
 def add_schema(registry: 'SchemaRegistry', proto: 'GeneratedProtocolMessageType', timestamp: int = 0):
-	"Register a protobuf's schema with NetworkTables"
+	"Register a protobuf's schema with NetworkTables or DataLog"
+	assert is_protobuf_type(proto)
 	for (typeString, schema) in _iter_descriptor(proto.DESCRIPTOR.file, registry.hasSchema):
 		registry.addSchema(typeString, "proto:FileDescriptorProto", schema)

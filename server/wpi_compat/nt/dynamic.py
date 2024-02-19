@@ -1,36 +1,73 @@
-from typing import overload, Generic, TypeVar, Callable, Optional, Union, Tuple, Type
+from typing import overload, Generic, TypeVar, Callable, Optional, Union, Type, Literal
 import typing
-from .typedef import GenericPublisher, GenericSubscriber, GenericTsValue, GenericTopic
-from ntcore import NetworkTableInstance, NetworkTable, PubSubOptions
+
+from wpiutil import wpistruct
 import numpy as np
+from ntcore import NetworkTableInstance, NetworkTable, PubSubOptions
+
+from .typedef import GenericPublisher, GenericTsValue, GenericTopic
 
 
 P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 T = TypeVar("T")
 
-def _make_topic(base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T]) -> GenericTopic[T]:
+NetworkTableLike = Union[NetworkTableInstance, NetworkTable]
+
+def _topic_f64(nt: NetworkTableLike, path: str):
+	return nt.getDoubleTopic(path)
+def _topic_list_f64(nt: NetworkTableLike, path: str):
+	return nt.getDoubleArrayTopic(path)
+
+TopicFactory = Callable[[NetworkTableLike, str], GenericTopic]
+SCALAR_FACTORIES: dict[type, TopicFactory] = {
+	bool: lambda nt, path: nt.getBooleanTopic(path),
+	int: lambda nt, path: nt.getIntegerTopic(path),
+	np.float32: lambda nt, path: nt.getFloatTopic(path),
+	str: lambda nt, path: nt.getStringTopic(path),
+	# A bunch of aliases for double
+	float: _topic_f64,
+	np.float_: _topic_f64,
+	np.float64: _topic_f64,
+	wpistruct.double: _topic_f64,
+}
+ARRAY_FACTORIES: dict[type, Callable[[NetworkTableLike, str], GenericTopic]] = {
+	bool: lambda nt, path: nt.getBooleanArray(path),
+	int: lambda nt, path: nt.getIntegerArrayTopic(path),
+	np.float32: lambda nt, path: nt.getFloatArrayTopic(path),
+	str: lambda nt, path: nt.getStringArrayTopic(path),
+	# A bunch of aliases for double
+	float: _topic_list_f64,
+	np.float_: _topic_list_f64,
+	np.float64: _topic_list_f64,
+	wpistruct.double: _topic_list_f64,
+}
+
+def _topic_factory(type: Type[T], mode: Literal['scalar', 'struct', 'proto', None] = None) -> Callable[[NetworkTableLike, str], GenericTopic[T]]:
 	# Check scalar types
-	if type == bool:
-		return base.getBooleanTopic(path)
-	if type == int:
-		return base.getIntegerTopic(path)
-	if type == str:
-		return base.getStringTopic(path)
-	if type in (float, np.float_, np.float64):
-		return base.getDoubleTopic(path)
-	if type == np.float32:
-		return base.getFloatTopic(path)
+	if mode in ('scalar', None):
+		try:
+			return SCALAR_FACTORIES[type]
+		except KeyError:
+			pass
 	
-	# Struct types
-	from ..struct import get_descriptor
-	try:
-		get_descriptor(type)
-	except TypeError:
-		pass
-	else:
-		return base.getStructTopic(path, type)
-	#TODO: protobuf
+	if mode in ('struct', None):
+		# Struct types
+		from ..struct import get_descriptor
+		try:
+			get_descriptor(type)
+		except TypeError:
+			pass
+		else:
+			return lambda nt, path: nt.getStructTopic(path, type)
 	
+	# Protobuf types
+	if mode in ('proto', None):
+		from ..protobuf import is_protobuf_type
+		if is_protobuf_type(type):
+			from .protobuf import ProtobufTopic
+			return lambda nt, path: ProtobufTopic.wrap(nt, path, type)
+	
+	# Array types
 	if origin := typing.get_origin(type):
 		args = typing.get_args(type)
 		if origin in (list, typing.List):
@@ -38,34 +75,39 @@ def _make_topic(base: Union[NetworkTableInstance, NetworkTable], path: str, type
 				raise TypeError(f'Unable to map generic list to NetworkTables topic')
 			if len(args) > 1:
 				raise TypeError(f'Too many arguments for list type')
-			
 			t0 = args[0]
-			if t0 == bool:
-				return base.getBooleanArrayTopic(path)
-			if t0 == int:
-				return base.getIntegerArrayTopic(path)
-			if t0 == str:
-				return base.getStringArrayTopic(path)
-			if t0 in (float, np.float_, np.float64):
-				return base.getDoubleArrayTopic(path)
-			if t0 == np.float32:
-				return base.getFloatArrayTopic(path)
-			try:
-				get_descriptor(t0)
-			except TypeError:
-				pass
-			else:
-				return base.getStructArrayTopic(path, t0)
-			#TODO: protobuf
-	raise TypeError(f'Unable to map type {type} to NetworkTables topic')
-		
+			if mode in ('scalar', None):
+				try:
+					return ARRAY_FACTORIES[t0]
+				except KeyError:
+					pass
+			if mode in ('struct', None):
+				try:
+					get_descriptor(t0)
+				except TypeError:
+					pass
+				else:
+					return lambda nt, path: nt.getStructArrayTopic(path, t0)
 			
+			#TODO: protobuf arrays
+	
+	raise TypeError(f'Unable to map type {type} to NetworkTables topic')
+
+
+def _make_topic_factory(base: Union[NetworkTableLike, Callable[[], NetworkTableLike]], path: str, type: Type[T], mode: Literal['scalar', 'struct', 'proto', None] = None) -> Union[GenericTopic[T], Callable[[], GenericTopic[T]]]:
+	factory = _topic_factory(type, mode=mode)
+	if isinstance(base, (NetworkTableInstance, NetworkTable)):
+		return factory(base, path)
+	else:
+		assert callable(base)
+		return lambda: factory(base(), path)
 	
 class DynamicPublisher(Generic[T]):
 	@classmethod
-	def create(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], options: Optional[PubSubOptions] = None) -> 'DynamicPublisher[T]':
-		topic = _make_topic(base, path, type)
-		return cls(topic, options)
+	def create(cls, base: Union[NetworkTableLike, Callable[[], NetworkTableLike]], path: str, type: Type[T], options: Optional[PubSubOptions] = None, *, enabled: bool = False, mode: Literal['scalar', 'struct', 'proto', None] = None) -> 'DynamicPublisher[T]':
+		topic = _make_topic_factory(base, path, type, mode=mode)
+		return cls(topic, options, enabled=enabled)
+
 
 	_builder: Optional[Callable[[], GenericTopic[T]]]
 	"Topic builder (lets us be lazy)"
@@ -159,13 +201,9 @@ class DynamicSubscriber(Generic[P]):
 	"NetworkTables subscriber that can easily be enabled/disabled"
 
 	@classmethod
-	def create(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None, enabled: bool = False) -> 'DynamicSubscriber[T]':
-		topic = _make_topic(base, path, type)
+	def create(cls, base: Union[NetworkTableLike, Callable[[], NetworkTableLike]], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None, *, enabled: bool = False, mode: Literal['scalar', 'struct', 'proto', None] = None) -> 'DynamicSubscriber[T]':
+		topic = _make_topic_factory(base, path, type, mode=mode)
 		return cls(topic, defaultValue, options, enabled=enabled)
-	
-	@classmethod
-	def create_struct(cls, base: Union[NetworkTableInstance, NetworkTable], path: str, type: Type[T], defaultValue: T, options: Optional[PubSubOptions] = None) -> 'DynamicSubscriber[T]':
-		pass
 	
 	def __init__(self, topic: Union[Callable[[], GenericTopic[T]], GenericTopic[T]], defaultValue: T, options: Optional[PubSubOptions] = None, *, enabled: bool = False):
 		super().__init__()

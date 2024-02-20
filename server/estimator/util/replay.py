@@ -234,8 +234,6 @@ class ReplayFilter(Generic[M, S]):
 		if self._filter.is_initialized:
 			self._filter.differentiate(now)
 	
-	def enqueue_measurement(self, measurement: M):
-		self._measurement_queue.push(measurement)
 	
 	def poll(self, now: Timestamp):
 		if self.enabled:

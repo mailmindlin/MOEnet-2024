@@ -32,17 +32,6 @@ class ReplayableFilter(Generic[M, S], ABC):
 	def differentiate(self, now: Timestamp):
 		pass
 
-	def validate_delta(self, delta: timedelta):
-		pass
-
-	@abstractmethod
-	def predict(self, now: Timestamp, delta: timedelta):
-		pass
-
-	@abstractmethod
-	def process_measurement(self, measurement: M):
-		pass
-
 
 def _pop_before(queue: deque[M], cutoff: Timestamp):
 	"Pop all entries that happened before `cutoff`"

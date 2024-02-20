@@ -234,6 +234,8 @@ class ReplayFilter(Generic[M, S]):
 		if self._filter.is_initialized:
 			self._filter.differentiate(now)
 	
+	def validate_delta(self, delta: timedelta):
+		return self._filter.validate_delta(delta)
 	
 	def poll(self, now: Timestamp):
 		if self.enabled:

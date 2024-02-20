@@ -35,6 +35,7 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
             daemon=True,
             msg_queue=10,
             cmd_queue=10,
+            log=moenet.log.getChild('web'),
         )
         self.add_handler(ty.WMsgRequestConfig, self._process_request_config)
         self.add_handler(ty.WMsgRequestStreams, self._process_request_streams)

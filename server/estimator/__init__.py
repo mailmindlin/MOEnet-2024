@@ -1,4 +1,4 @@
-from typing import Optional, overload
+from typing import Optional, overload, TYPE_CHECKING
 import logging
 from collections import OrderedDict
 
@@ -13,8 +13,13 @@ from util.clock import Clock, WallClock
 from util.timemap import TimeMapper, IdentityTimeMapper
 from util.timestamp import Timestamp
 
-from .estimator import PoseEstimator
+from .pose_simple import SimplePoseEstimator
 from .tracker import ObjectTracker
+from .tf import TfTracker, ReferenceFrameKind
+from .camera_tracker import CamerasTracker
+
+if TYPE_CHECKING:
+	from worker.controller import WorkerManager, WorkerHandle
 
 
 class DataFusion:
@@ -27,8 +32,18 @@ class DataFusion:
 		self.clock = clock or WallClock()
 		self.config = config
 
-		self.pose_estimator = PoseEstimator(config.pose, self.clock, log=self.log, datalog=self.datalog)
-		self.object_tracker = ObjectTracker(config.detections)
+		self.camera_tracker = CamerasTracker(self.log.getChild('cam'), config.pose.history)
+		self.pose_estimator = SimplePoseEstimator(config.pose, self.clock, log=self.log.getChild('pose'), datalog=self.datalog)
+		tf_robot = TfTracker(
+			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ROBOT, self.pose_estimator),
+			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ODOM, self.pose_estimator),
+			(ReferenceFrameKind.ROBOT, ReferenceFrameKind.CAMERA, self.camera_tracker),
+		)
+		self.object_tracker = ObjectTracker(
+			config.detections,
+			tf_robot,
+			self.log.getChild('obj'),
+		)
 
 		# Datalogs
 		if self.datalog is not None:
@@ -53,8 +68,18 @@ class DataFusion:
 		self.fresh_o2r = True
 		self.fresh_det = True
 	
-	def record_f2r(self, robot_to_camera: Transform3d, msg: MsgPose):
+	def set_cameras(self, cameras: 'WorkerManager'):
+		self.camera_tracker.reset(cameras)
+	
+	def observe_f2r_override(self, pose: Pose3d, timestamp: Timestamp):
+		self.pose_estimator.observe
+		pass
+
+	def observe_f2r(self, camera: 'WorkerHandle', msg: MsgPose):
 		timestamp = Timestamp.from_nanos(msg.timestamp, WallClock())
+		#TODO: track camera?
+		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
+
 		self.pose_estimator.record_f2r(robot_to_camera, msg)
 
 		if self.datalog is not None:

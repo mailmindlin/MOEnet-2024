@@ -73,7 +73,7 @@ class PoseSource(DataSource[Stamped[Twist3dCov]]):
 			self.pose_threshold,
 			self,
 			msg.value,
-			msg.stamp,
+			msg.ts,
 			self.mode,
 		)
 
@@ -89,7 +89,7 @@ class TwistSource(DataSource[Stamped[Twist3dCov]]):
 			self.twist_threshold,
 			self,
 			msg.value,
-			msg.stamp,
+			msg.ts,
 		)
 
 class IMUSource(DataSource[Stamped[Twist3dCov]]):
@@ -181,11 +181,11 @@ class PoseEstimator:
 		# Also set the last set pose time, so we ignore all messages
 		# that occur before it
 
-		self._last_set_pose_ts = msg.stamp
+		self._last_set_pose_ts = msg.ts
 
 		# Set the state vector to the reported pose
 		ALL = reduce(lambda a, b: a|b, StateMembers)
-		measurement = Measurement(msg.stamp, None, update_vector=ALL)
+		measurement = Measurement(msg.ts, None, update_vector=ALL)
 		# We only measure pose variables, so initialize the vector to 0
 		measurement.measure(ALL, 0.0, 1e-6)
 

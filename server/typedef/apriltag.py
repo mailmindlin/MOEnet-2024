@@ -214,6 +214,7 @@ class _AprilTagField(BaseModel):
     
     @abc.abstractmethod
     def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRef':
+        "Convert this field into a reference, by storing data in `tempdir`"
         pass
 
     def load(self, base: Path | None = None) -> 'AprilTagFieldInline':

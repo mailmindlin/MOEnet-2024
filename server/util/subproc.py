@@ -55,6 +55,7 @@ class Subprocess(Generic[M, C, R], ABC):
 			return arg
 	
 	def add_handler(self, msg: Type[M], callback: Callable[[M], R | None]):
+		"Register a callback to handle messages of a specific type"
 		self._handlers.append((msg, callback))
 	
 	def handle_default(self, msg: M) -> R | None:
@@ -62,6 +63,7 @@ class Subprocess(Generic[M, C, R], ABC):
 		print("Unknown message:", repr(msg))
 	
 	def handle_dead(self):
+		"Handle the subprocess being dead"
 		pass
 
 	def _get_args(self):
@@ -90,6 +92,7 @@ class Subprocess(Generic[M, C, R], ABC):
 		self.stop()
 	
 	def send(self, command: C, block: bool = True, timeout: float = 1.0):
+		"Send command to subprocess"
 		try:
 			self.cmd_queue.put(
 				command,

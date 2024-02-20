@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from util.timestamp import Timestamp
 
 from .heap import Heap
-from .types import HasTimestamp
+from .types import HasTimestamp, Filter
 
 
 S = TypeVar('S', bound=HasTimestamp)
@@ -14,7 +14,7 @@ S = TypeVar('S', bound=HasTimestamp)
 M = TypeVar('M', bound=HasTimestamp)
 "Measurement"
 
-class ReplayableFilter(Generic[M, S], ABC):
+class ReplayableFilter(Filter[M], ABC, Generic[M, S]):
 	last_measurement_ts: Timestamp
 	"Timestamp of last processed measurement"
 	is_initialized: bool = True
@@ -49,19 +49,35 @@ def _pop_after(queue: deque[M], cutoff: Timestamp) -> M | None:
 		last = queue.pop()
 	return last
 
+class FilterHistoryBuffer(Generic[M, S]):
+	def __init__(self, log: Logger, filter: ReplayableFilter[M, S]) -> None:
+		super().__init__()
+		self.log = log
+		self._filter = filter
+		self._filter_state_history: deque[S] = deque()
+	
+	def clear(self):
+		self._filter_state_history.clear()
+	
+	def _clear_expired_history(self, cutoff_time: Timestamp):
+		return _pop_before(self._filter_state_history, cutoff_time)
 
-class ReplayFilter(Generic[M, S]):
+class ReplayFilter(Filter[M], Generic[M, S]):
 	"""
 	A lot of """
-	def __init__(self, log: Logger, filter: ReplayableFilter[M, S]):
+	def __init__(self, filter: ReplayableFilter[M, S], history_length: timedelta, *, log: Logger, smooth_lagged_data: bool = False, predict_to_current_time: bool = True):
 		self.log = log
 		self._filter = filter
 		self._measurement_queue: Heap[M] = Heap()
+		"Queue of measurements yet to be processed by the filter"
 		self._filter_state_history: deque[S] = deque()
 		self._measurement_history: deque[M] = deque()
 		"Measurements already processed by the filter, in order of timestamp"
+		self.history_length = history_length
 		self.enabled = True
 		self.use_control = False
+		self.smooth_lagged_data = smooth_lagged_data
+		self.predict_to_current_time = predict_to_current_time
 	
 	def _clear_expired_history(self, cutoff_time: Timestamp):
 		popped_measurements = _pop_before(self._measurement_history, cutoff_time)
@@ -73,6 +89,7 @@ class ReplayFilter(Generic[M, S]):
 		self._measurement_queue.clear()
 		self._filter_state_history.clear()
 		self._measurement_history.clear()
+		self._filter.clear()
 	
 	def observe(self, measurement: M):
 		self._measurement_queue.push(measurement)
@@ -122,35 +139,34 @@ class ReplayFilter(Generic[M, S]):
 	def _snapshot_filter(self):
 		state = self._filter.snapshot()
 		self._filter_state_history.append(state)
-		self.log.debug("Saved state with timestamp %s to history. %s measurements are in the queue.", state.ts, len(self._filter_state_history))
+		self.log.debug("Saved state with timestamp %s to history. %s measurements are in the queue. %s", state.ts, len(self._filter_state_history), state)
 	
-	def _integrate_measurements(self, now: Timestamp, smooth_lagged_data: bool = False, predict_to_current_time: bool = True):
+	def _inner_observe(self, measurement: M):
+		self._filter.observe(measurement)
+	
+	def _integrate_measurements(self, now: Timestamp):
 		"""
 		Processes all measurements in the measurement queue, in temporal order
 
 		@param[in] now - The time at which to carry out integration (the current time)
 		"""
+		predict_to_current_time = self.predict_to_current_time
 		# If we have any measurements in the queue, process them
 		if (first_measurement := self._measurement_queue.peek()) is not None:
+			self.log.debug("First measurement: %s", first_measurement)
 			# Check if the first measurement we're going to process is older than the
 			# filter's last measurement. This means we have received an out-of-sequence
 			# message (one with an old timestamp), and we need to revert both the
 			# filter state and measurement queue to the first state that preceded the
 			# time stamp of our first measurement.
 			restored_measurement_count = 0
-			if smooth_lagged_data and first_measurement.ts < self._filter.last_measurement_ts:
-				# RF_DEBUG(
-				# 	"Received a measurement that was " <<
-				# 	filter_utilities::toSec(
-				# 	filter_.getLastMeasurementTime() -
-				# 	first_measurement->time_) <<
-				# 	" seconds in the past. Reverting filter state and "
-				# 	"measurement queue...");
+			if self.smooth_lagged_data and first_measurement.ts < self._filter.last_measurement_ts:
+				self.log.info("Received a measurement that was %s seconds in the past. Reverting filter state and measurement queue...", (self._filter.last_measurement_ts - first_measurement.ts).total_seconds())
 
 				original_count = len(self._measurement_queue)
 				first_measurement_time = first_measurement.ts
 				# revertTo may invalidate first_measurement
-				if not self.revert_to(first_measurement_time - timedelta(micros=1)):
+				if not self.revert_to(first_measurement_time - timedelta(microseconds=1)):
 					self.log.warning("history interval is too small to revert to time %s", first_measurement_time)
 					# ROS_WARN_STREAM_DELAYED_THROTTLE(history_length_,
 					#   "Received old measurement for topic " << first_measurement_topic <<
@@ -171,6 +187,7 @@ class ReplayFilter(Generic[M, S]):
 					break
 
 				self._measurement_queue.pop()
+				self.log.debug("Process measurement %s", measurement)
 
 				# When we receive control messages, we call this directly in the control
 				# callback. However, we also associate a control with each sensor message
@@ -186,10 +203,10 @@ class ReplayFilter(Generic[M, S]):
 					restored_measurement_count -= 1
 
 				# This will call predict and, if necessary, correct
-				self._filter.process_measurement(measurement)
+				self._inner_observe(measurement)
 
 				# Store old states and measurements if we're smoothing
-				if smooth_lagged_data:
+				if self.smooth_lagged_data:
 					# Invariant still holds: measurementHistoryDeque_.back().time_ <
 					# measurement_queue_.top().time_
 					self._measurement_history.append(measurement)
@@ -213,12 +230,13 @@ class ReplayFilter(Generic[M, S]):
 
 		if self._filter.is_initialized and predict_to_current_time:
 			last_update_delta = now - self._filter.last_measurement_ts
+			self.log.info("Predicting delta %s", last_update_delta)
 
 			self._filter.validate_delta(last_update_delta)
 			self._filter.predict(now, last_update_delta)
 
 			# Update the last measurement time and last update time
-			self._filter.last_measurement_ts += last_update_delta
+			# self._filter.last_measurement_ts += last_update_delta
 
 	def _differentiate_measurements(self, now: Timestamp):
 		if self._filter.is_initialized:
@@ -227,7 +245,8 @@ class ReplayFilter(Generic[M, S]):
 	def validate_delta(self, delta: timedelta):
 		return self._filter.validate_delta(delta)
 	
-	def predict(self, now: Timestamp, delta: timedelta):
+	def predict(self, now: Timestamp, _delta: timedelta = None):
+		self.log.debug("Predict to %s", now)
 		if self.enabled:
 			# Now we'll integrate any measurements we've received if requested,
 			# and update angular acceleration.
@@ -240,3 +259,7 @@ class ReplayFilter(Generic[M, S]):
 			# Reset last measurement time so we don't get a large time delta on toggle
 			if self._filter.is_initialized:
 				self._filter.last_measurement_ts = now
+		
+		if self.smooth_lagged_data:
+			self._clear_expired_history(self._filter.last_measurement_ts - self.history_length)
+		

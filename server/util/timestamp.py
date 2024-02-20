@@ -64,6 +64,10 @@ class Timestamp:
 		self.nanos = int(nanos)
 		self.clock = clock
 	
+	@property
+	def is_valid(self) -> bool:
+		return self.nanos != 0
+	
 	def as_seconds(self) -> float:
 		"Get time in fractional seconds"
 		return self.nanos / 1_000_000_000
@@ -127,6 +131,13 @@ class Timestamp:
 			if self.clock != other.clock:
 				return NotImplemented
 			return self.nanos < other.nanos
+		return NotImplemented
+	
+	def __gt__(self, other: 'Timestamp'):
+		if isinstance(other, Timestamp):
+			if self.clock != other.clock:
+				return NotImplemented
+			return self.nanos > other.nanos
 		return NotImplemented
 	
 	def localize(self, clock: 'Clock', map: Optional['TimeMap'] = None) -> 'Timestamp':

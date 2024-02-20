@@ -1,27 +1,27 @@
 # Utilities
-numpy>=1.26.3
-scikit-learn>=1.3.0
-pydantic>=2.5.3
-pydantic_core>=2.14.6
-typing_extensions>=4.7.1
+numpy>=1.26.4
+scikit-learn>=1.4.1
+pydantic>=2.6.1
+pydantic_core>=2.16.2
+typing_extensions>=4.9.0
 sortedcontainers>=2.4.0
-multidict>=6.0.4
-robotpy>=2024.2.1.1
-robotpy-wpimath>=2024.2.1.2
+multidict>=6.0.5
+robotpy>=2024.3.1.0
+robotpy-wpimath>=2024.3.1.0
 
 # Camera stuff
 depthai>=2.24.0.0
 # spectacularAI
-opencv-python
-robotpy-apriltag>=2024.2.1.2
+opencv-python>=4.9.0.80
+robotpy-apriltag>=2024.3.1.0
 
 # Robot comms
 robotpy-navx>=2024.1.0
-robotpy-wpinet>=2024.2.1.2
-robotpy-wpiutil>=2024.2.1.2
-protobuf>=4.25.2
+robotpy-wpinet>=2024.3.1.0
+robotpy-wpiutil>=2024.3.1.0
+protobuf>=4.25.3
 
 # For video streaming
-aiohttp
-aiortc
-matplotlib
+aiohttp>=3.9.3
+aiortc>=1.7.0
+matplotlib>=3.8.3

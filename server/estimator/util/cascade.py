@@ -21,6 +21,23 @@ class Tracked(Generic[T], abc.ABC):
             return StaticValue(func(self.value))
         return Derived(func, self)
 
+class PushValue(Tracked[T]):
+    def __init__(self, value: T):
+        super().__init__()
+        self.value = value
+        self.value_next = value
+    
+    def update(self, value_next: T):
+        self.value_next = value_next
+    
+    @property
+    def is_fresh(self):
+        return self.value == self.value_next
+
+    def refresh(self) -> Tracked[int]:
+        self.value = self.value_next
+        return self
+
 class StaticValue(Tracked[T]):
     def __init__(self, value: T) -> None:
         super().__init__()

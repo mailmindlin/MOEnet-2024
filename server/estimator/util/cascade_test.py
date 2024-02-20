@@ -1,5 +1,5 @@
 from unittest import TestCase
-from .cascade import Tracked, StaticValue, Derived
+from .cascade import Tracked, StaticValue, PushValue
 
 class TestStatic(TestCase):
 	def test_simple(self):
@@ -21,21 +21,7 @@ class TestStatic(TestCase):
 
 class TestDerive(TestCase):
 	def test_map(self):
-		class SampleTracked(Tracked[int]):
-			def __init__(self, value: int):
-				super().__init__()
-				self.value = value
-				self.value_next = value
-			
-			@property
-			def is_fresh(self):
-				return self.value == self.value_next
-
-			def refresh(self) -> Tracked[int]:
-				self.value = self.value_next
-				return self
-
-		a = SampleTracked(5)
+		a = PushValue(5)
 		assert a.is_fresh
 		assert not a.is_static
 		assert a.value == 5

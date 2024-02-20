@@ -6,6 +6,8 @@ import dataclasses
 from util.timestamp import Timestamp
 
 from .replay import ReplayFilter, ReplayableFilter
+from .cascade import StaticValue, PushValue
+from .cascade_replay import CascadingReplayFilter
 
 @dataclasses.dataclass(order=True)
 class Measurement:
@@ -110,3 +112,68 @@ class TestReplay(TestCase):
 			rf.predict(Timestamp(4e9))
 		self.assertEqual(filter.last_measurement_ts, Timestamp(4e9))
 		self.assertEqual(filter.state.x, 3)
+
+
+class TestCascade(TestCase):
+	def test_inorder(self):
+		log = logging.getLogger("filter")
+		filter = LinearFilter()
+		cf = CascadingReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
+
+		cf.observe(Measurement(Timestamp(0), 1, 1))
+
+		cf.predict(Timestamp(1e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		self.assertEqual(filter.state.x, 2)
+
+		cf.observe(Measurement(Timestamp(1e9), 3, 4))
+		# Not processed
+		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		self.assertEqual(filter.state.x, 2)
+
+		cf.predict(Timestamp(2e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp(2e9))
+		self.assertEqual(filter.state.x, 7)
+	
+	def test_replay(self):
+		log = logging.getLogger("filter")
+		filter = LinearFilter()
+		cf = CascadingReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
+
+		with self.assertNoLogs(log, logging.INFO + 1):
+			cf.observe(Measurement(Timestamp(0e9), 1, 1))
+			cf.observe(Measurement(Timestamp(1e9), 3, 4))
+			cf.predict(Timestamp(3e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+		self.assertEqual(filter.state.x, 11)
+
+
+		with self.assertNoLogs(log, logging.INFO + 1):
+			cf.observe(Measurement(Timestamp(2e9), 1, 1))
+			cf.predict(Timestamp(4e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp(4e9))
+		self.assertEqual(filter.state.x, 3)
+	
+	def test_cascade(self):
+		log = logging.getLogger("filter")
+
+		filter = LinearFilter()
+		cf = CascadingReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
+
+		t_dx = PushValue(4.0)
+
+		with self.assertNoLogs(log, logging.INFO + 1):
+			cf.observe(Measurement(Timestamp(0e9), 1, 1))
+			cf.observe(t_dx.map(lambda dx: Measurement(Timestamp(1e9), 3, dx)))
+			cf.predict(Timestamp(3e9))
+		
+		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+		self.assertEqual(filter.state.x, 3 + 4*2)
+
+
+		with self.assertNoLogs(log, logging.INFO + 1):
+			t_dx.update(5.0) # Trigger cascade
+			cf.predict(Timestamp(3e9)) # recalculate
+		
+		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+		self.assertEqual(filter.state.x, 3 + 5 * 2)

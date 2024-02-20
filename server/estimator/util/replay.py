@@ -17,13 +17,14 @@ M = TypeVar('M', bound=HasTimestamp)
 class ReplayableFilter(Generic[M, S], ABC):
 	last_measurement_ts: Timestamp
 	"Timestamp of last processed measurement"
-	is_initialized: bool
+	is_initialized: bool = True
 	sensor_timeout: timedelta
 	
 	@abstractmethod
 	def snapshot(self) -> S:
 		"Take a snapshot of this filter's data (should take the timestamp from last_measurement_ts)"
 		pass
+
 	@abstractmethod
 	def restore(self, state: S):
 		"Restore state from a snapshot"

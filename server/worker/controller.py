@@ -33,7 +33,7 @@ class WorkerManager:
 		"Start all camera processes"
 		for i, cfg in enumerate(self.config):
 			name = cfg.name if cfg.name is not None else f'cam_{i}'
-			wh = WorkerHandle(name, cfg, log=self.log, datalog=self.datalog, ctx=self.ctx, vidq=self.video_queue)
+			wh = WorkerHandle(i, name, cfg, log=self.log, datalog=self.datalog, ctx=self.ctx, vidq=self.video_queue)
 			self._workers.append(wh)
 			wh.start()
 	
@@ -68,7 +68,7 @@ class WorkerManager:
 
 
 class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
-	def __init__(self, name: str, config: worker.WorkerInitConfig, *, log: logging.Logger | None = None, ctx: BaseContext | None = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None):
+	def __init__(self, idx: int, name: str, config: worker.WorkerInitConfig, *, log: logging.Logger | None = None, ctx: BaseContext | None = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None):
 		if ctx is None:
 			ctx = get_context('spawn')
 		
@@ -78,6 +78,7 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 			cmd_queue=0,
 			msg_queue=0,
 			daemon=True, ctx=ctx)
+		self.idx = idx
 
 		self.datalog = datalog
 		if datalog is not None:

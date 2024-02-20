@@ -181,7 +181,8 @@ class MoeNet:
 	
 	def poll(self):
 		self.nt.update()
-		self.web.poll()
+		for _msg in self.web.poll():
+			pass
 
 		if self.sleeping:
 			# Transition to sleeping

@@ -2,11 +2,12 @@ from typing import TYPE_CHECKING, Sequence, Optional, TypeVar, Union
 from abc import ABC, abstractmethod
 from functools import cached_property
 import operator, contextvars
-from .timestamp import Timestamp
+
 from .decorators import classproperty
 
 if TYPE_CHECKING:
 	from .clock import Clock, OffsetClock
+	from .timestamp import Timestamp
 
 class TimeMapper(ABC):
 	"Identity time mapper"
@@ -43,11 +44,11 @@ class TimeMapper(ABC):
 		"The cost of applying this map (for looking up in [TimeMap]). Must be non-negative integer."
 		return 10
 	
-	def a_to_b(self, ts_a: Timestamp) -> Timestamp:
+	def a_to_b(self, ts_a: 'Timestamp') -> 'Timestamp':
 		ts_a.assert_src(self.clock_a)
 		return ts_a.offset_ns(self.get_offset(), clock=self.clock_b)
 	
-	def b_to_a(self, ts_b: Timestamp) -> Timestamp:
+	def b_to_a(self, ts_b: 'Timestamp') -> 'Timestamp':
 		ts_b.assert_src(self.clock_b)
 		return ts_b.offset_ns(-self.get_offset(), clock=self.clock_a)
 	

@@ -37,8 +37,9 @@ class FakeVioSession:
         pass
 
 class StampedPacket(Protocol):
-    def getTimestamp(self) -> 'timedelta': ...
-    def getTimestampDevice(self) -> 'timedelta': ...
+    "Matches DepthAI packets with timestamps"
+    def getTimestamp(self) -> timedelta: ...
+    def getTimestampDevice(self) -> timedelta: ...
 
 
 class MoeNetSession:
@@ -88,7 +89,7 @@ class MoeNetSession:
         "Convert device time to wall time"
         ts_dai = packet.getTimestamp()
         ts_dev = packet.getTimestampDevice()
-        now_dai: 'timedelta' = dai.Clock.now()
+        now_dai: timedelta = dai.Clock.now()
         now_wall = self.clock.now()
         latency = now_dai - ts_dai
 

@@ -237,7 +237,7 @@ class ReplayFilter(Generic[M, S]):
 	def validate_delta(self, delta: timedelta):
 		return self._filter.validate_delta(delta)
 	
-	def poll(self, now: Timestamp):
+	def predict(self, now: Timestamp, delta: timedelta):
 		if self.enabled:
 			# Now we'll integrate any measurements we've received if requested,
 			# and update angular acceleration.

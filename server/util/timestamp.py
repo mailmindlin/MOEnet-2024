@@ -76,15 +76,45 @@ class Timestamp:
 		"Get in wpi-time (integer microseconds)"
 		return self.nanos // 1_000
 
+	def split(self):
+		"Split into seconds and partial-nanoseconds"
+		return divmod(self.nanos, 1_000_000_000)
+
+	def assert_src(self, clock: Optional['Clock']):
+		"Assert source clock"
+		pass
+	
+	def offset(self, offset: timedelta) -> 'Timestamp':
+		return Timestamp(self.nanos + (offset.total_seconds() * 1e9), clock=self.clock)
+	
+	def offset_ns(self, offset: int, clock: Optional['Clock'] = None) -> 'Timestamp':
+		return Timestamp(self.nanos + offset, clock=clock or self.clock)
+
+	def difference(self, other: 'Timestamp') -> timedelta:
+		delta_ns = self.nanos - other.nanos
+		return timedelta(microseconds=delta_ns / 1e3)
+	
+	def localize(self, clock: 'Clock', map: Optional['TimeMap'] = None) -> 'Timestamp':
+		if self.clock is None:
+			warnings.warn('Convert from unknown clock', RuntimeWarning, stacklevel=2)
+			return Timestamp(self.nanos, clock)
+		if self.clock == clock:
+			return self
+		
+		if map is None:
+			from .timemap import TimeMap
+			map = TimeMap.default
+		
+		conv = map.get_conversion(self.clock, clock)
+		if conv is None:
+			raise RuntimeError('No conversion available')
+		return conv.a_to_b(self)
+
 	def __add__(self, other: timedelta) -> 'Timestamp':
 		"Apply offset"
 		if isinstance(other, timedelta):
 			return self.offset(other)
 		return NotImplemented
-
-	def split(self):
-		"Split into seconds and partial-nanoseconds"
-		return divmod(self.nanos, 1_000_000_000)
 	
 	@overload
 	def __sub__(self, /, other: timedelta) -> 'Timestamp':
@@ -102,20 +132,6 @@ class Timestamp:
 				return NotImplemented
 			return self.difference(other)
 		return NotImplemented
-
-	def assert_src(self, clock: Optional['Clock']):
-		"Assert source clock"
-		pass
-	
-	def offset(self, offset: timedelta) -> 'Timestamp':
-		return Timestamp(self.nanos + (offset.total_seconds() * 1e9), clock=self.clock)
-	
-	def offset_ns(self, offset: int, clock: Optional['Clock'] = None) -> 'Timestamp':
-		return Timestamp(self.nanos + offset, clock=clock or self.clock)
-
-	def difference(self, other: 'Timestamp') -> timedelta:
-		delta_ns = self.nanos - other.nanos
-		return timedelta(microseconds=delta_ns / 1e3)
 	
 	def __hash__(self) -> int:
 		return hash((self.nanos, self.clock))
@@ -142,22 +158,6 @@ class Timestamp:
 				return NotImplemented
 			return self.nanos > other.nanos
 		return NotImplemented
-	
-	def localize(self, clock: 'Clock', map: Optional['TimeMap'] = None) -> 'Timestamp':
-		if self.clock is None:
-			warnings.warn('Convert from unknown clock', RuntimeWarning, stacklevel=2)
-			return Timestamp(self.nanos, clock)
-		if self.clock == clock:
-			return self
-		
-		if map is None:
-			from .timemap import TimeMap
-			map = TimeMap.default
-		
-		conv = map.get_conversion(self.clock, clock)
-		if conv is None:
-			raise RuntimeError('No conversion available')
-		return conv.a_to_b(self)
 
 	def __int__(self):
 		return self.nanos
@@ -165,6 +165,13 @@ class Timestamp:
 	def __float__(self):
 		#TODO: is this ambiguous
 		return self.as_seconds()
+	
+	def __str__(self):
+		if self.clock is None:
+			return f'Timestamp({self.nanos:,})'
+		else:
+			return f'Timestamp({self.nanos:,}, clock={self.clock})'
+	__repr__ = __str__
 
 
 T = TypeVar('T')

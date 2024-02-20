@@ -15,7 +15,7 @@ class Heap(Generic[T]):
     def peek(self) -> T | None:
         try:
             return self.data[0]
-        except KeyError:
+        except IndexError:
             return None
     
     def __bool__(self):

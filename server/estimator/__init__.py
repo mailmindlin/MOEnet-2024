@@ -133,60 +133,7 @@ class DataFusion:
 				self.log_f2r.append(res)
 		return res
 	
-	def transform_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None, mapper_net: Optional[TimeMapper] = None) -> net.ObjectDetections:
-		"Transform detections message into robot-space"
-		if mapper_loc is not None:
-			assert mapper_loc.clock_b == self.clock
-		if mapper_net is not None:
-			assert mapper_net.clock_a == self.clock
-		
-		# I'm not super happy with this method being on PoseEstimator, but whatever
-		labels: OrderedDict[str, int] = OrderedDict()
-		res: list[net.ObjectDetection] = list()
-		timestamp     = detections.timestamp
-		timestamp_loc = timestamp     if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
-		timestamp_net = timestamp_loc if (mapper_net is None) else mapper_net.a_to_b(timestamp_loc)
-		timestamp_net = net.Timestamp(
-			seconds=int(timestamp_net / 1e9),
-			nanos=int(timestamp_net % 1e9),
-		)
-
-		field_to_robot = Transform3d(Pose3d(), self.pose_estimator.field_to_robot(Timestamp.from_nanos(timestamp_loc)))
-		field_to_camera = field_to_robot + robot_to_camera
-
-		for detection in detections.detections:
-			# Lookup or get next ID
-			label_id = labels.setdefault(detection.label, len(labels))
-
-			# Compute transforms
-			camera_to_object = Transform3d(detection.position, Rotation3d())
-			positionRobot = robot_to_camera + camera_to_object
-			positionField = field_to_camera + camera_to_object
-
-			# Fix datatype (ugh)
-			detection_net = net.ObjectDetection(
-				timestamp=timestamp_net,
-				label_id=label_id,
-				confidence=detection.confidence,
-				positionRobot=net.Translation3d(
-					x=positionRobot.x,
-					y=positionRobot.y,
-					z=positionRobot.z,
-				),
-				positionField=net.Translation3d(
-					x=positionField.x,
-					y=positionField.y,
-					z=positionField.z,
-				),
-			)
-			res.append(detection_net)
-		
-		return net.ObjectDetections(
-			labels=list(labels.keys()),
-			detections=res,
-		)
-	
-	def record_apriltag(self, robot_to_camera: Transform3d, apriltags: MsgAprilTagPoses):
+	def record_apriltag(self, camera: 'WorkerHandle', apriltags: MsgAprilTagPoses):
 		timestamp = Timestamp.from_nanos(apriltags.timestamp, clock=WallClock())
 		if self.datalog:
 			delta = timestamp - self._last_apr_ts

@@ -1,6 +1,8 @@
 from unittest import TestCase
+from datetime import timedelta
 
 from typedef.geom import Pose3d, Twist3d, Translation3d
+from typedef.cfg import PoseEstimatorConfig
 
 from .pose_simple import (
     SimplePoseEstimator,
@@ -24,8 +26,11 @@ class PoseEstimatorTest(TestCase):
     
     def test_interpolate(self):
         estimator = SimplePoseEstimator(
+            PoseEstimatorConfig(
+                history=timedelta(seconds=10.0),
+                force2d=False,
+            ),
             clock=self.clock,
-            history_duration=10.0
         )
         # Start at f2r (0, 0, 0) t=0
         f2r_0 = Pose3d(Translation3d(0, 0, 0), Rotation3d())

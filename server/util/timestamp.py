@@ -117,6 +117,9 @@ class Timestamp:
 		delta_ns = self.nanos - other.nanos
 		return timedelta(microseconds=delta_ns / 1e3)
 	
+	def __hash__(self) -> int:
+		return hash((self.nanos, self.clock))
+	
 	def __eq__(self, other: 'Timestamp'):
 		if isinstance(other, Timestamp):
 			if self.nanos != other.nanos:

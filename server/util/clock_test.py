@@ -1,5 +1,5 @@
 from unittest import TestCase
-from clock import MonoClock, WallClock
+from .clock import MonoClock, WallClock
 
 class SingletonTest(TestCase):
 	def test_mono(self):

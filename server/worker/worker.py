@@ -62,9 +62,11 @@ class ForwardHandler(logging.Handler):
 
 class DeviceManager:
 	@staticmethod
-	def selector_to_descriptor(selector: OakSelector) -> Optional['dai.DeviceDesc']:
-		from depthai import DeviceDesc
+	def selector_to_descriptor(selector: OakSelector) -> Optional['dai.DeviceInfo']:
+		from depthai import DeviceDesc, DeviceInfo
 		desc = DeviceDesc()
+
+		# Only return anything if we have any filters set
 		use_desc = False
 		if selector.mxid is not None:
 			desc.mxid = selector.mxid
@@ -80,7 +82,7 @@ class DeviceManager:
 			use_desc = True
 		
 		if use_desc:
-			return dai.DeviceInfo(desc)
+			return DeviceInfo(desc)
 		else:
 			return None
 	
@@ -179,7 +181,7 @@ class DeviceManager:
 
 
 class CameraWorker:
-	def __init__(self, config: WorkerInitConfig, data_queue: Queue[WorkerMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]) -> None:
+	def __init__(self, config: WorkerInitConfig, data_queue: Queue[WorkerMsg], command_queue: Queue[AnyCmd], video_queue: Optional[Queue[MsgFrame]]):
 		self.config = config
 		self.data_queue = data_queue
 		self.command_queue = command_queue

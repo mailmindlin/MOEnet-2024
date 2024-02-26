@@ -157,7 +157,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 			camToTag = coords.cv2_to_wpi(camToTag_cv2)
 
 			# Compute fieldToCam if we have fieldToTag
-			fieldToCam = Transform3d(Pose3d(), fieldToTag.transformBy(camToTag.inverse())) if (fieldToTag is not None) else None
+			fieldToCam = fieldToTag.transformBy(camToTag.inverse()) if (fieldToTag is not None) else None
 
 			result.append(AprilTagPose(error=error, camToTag=camToTag, fieldToCam=fieldToCam))
 		

@@ -41,7 +41,7 @@ class BaseStageConfig(BaseModel, ABC):
 	merge: ClassVar[bool] = False
 	"Should we merge stages with the same name?"
 
-	stage: S = Field(description="Stage name")
+	stage: str = Field(description="Stage name")
 	enabled: bool = Field(default=True, description="Is this stage enabled?")
 	optional: bool = Field(default=False, description="If there's an error constructing this stage, is that a pipeline failure?")
 
@@ -58,7 +58,7 @@ def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
 	if not TYPE_CHECKING:
 		_S = Literal[name]
 	
-	class _ModelHelper(BaseStageConfig[S], ABC):
+	class _ModelHelper(BaseStageConfig, ABC):
 		merge: ClassVar[bool] = _merge
 		infer: ClassVar[bool] = implicit
 		# Use default_factory to exclude default JSON
@@ -131,24 +131,24 @@ class AprilTagStageConfigBase(_stage_base('apriltag')):
 	camera: Literal["left", "right", "rgb"] = Field("left")
 
 	# AprilTag detector runtime
-	detectorThreads: int | None = Field(default=None, ge=0, description="How many threads should be used for computation")
-	detectorAsync: bool = Field(False, description="Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera")
+	detectorThreads: int | None = Field(default=None, ge=0, title="Detector Threads", description="How many threads should be used for computation")
+	detectorAsync: bool = Field(False, title="Detector Async", description="Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera")
 
 	# AprilTag detector params
-	decodeSharpening: float | None = Field(default=None, ge=0, description="How much sharpening should be done to decoded images")
+	decodeSharpening: float | None = Field(default=None, ge=0, title="Decode Sharpening", description="How much sharpening should be done to decoded images")
 	quadDecimate: int = Field(1)
 	quadSigma: float = Field(0.0)
-	refineEdges: bool = Field(True)
+	refineEdges: bool = Field(True, title="Refine Edges")
 	# Filter
-	hammingDist: int = Field(default=0, ge=0, lt=3, description="Maximum number of bits to correct")
-	decisionMargin: int = Field(35)
+	hammingDist: int = Field(default=0, ge=0, lt=3, title="Hamming Distance", description="Maximum number of bits to correct")
+	decisionMargin: int = Field(35, ge=0, title="Decision Margin")
 
 	# Pose
 	numIterations: int = Field(40)
 	undistort: bool = Field(False, description="Should we try to undistort the camera lens?")
-	solvePNP: bool = Field(True)
-	doMultiTarget: bool = Field(False)
-	doSingleTargetAlways: bool = Field(False)
+	solvePNP: bool = Field(True, title="Solve PnP")
+	doMultiTarget: bool = Field(False, title="Do Multi-Target")
+	doSingleTargetAlways: bool = Field(False, title="Do Single Target Always")
 
 class AprilTagStageConfig(AprilTagStageConfigBase):
 	apriltags: apriltag.AprilTagField
@@ -188,6 +188,7 @@ PipelineStage = Annotated[
 		Annotated[SaveStageConfig, Tag("save")],
 		Annotated[ShowStageConfig, Tag("show")],
 		Annotated[ImuStageConfig, Tag("imu")],
+		Annotated[TelemetryStageConfig, Tag("telemetry")],
 	],
 	Discriminator("stage")
 ]
@@ -205,9 +206,12 @@ PipelineStageWorker = Annotated[
 		Annotated[SaveStageConfig, Tag("save")],
 		Annotated[ShowStageConfig, Tag("show")],
 		Annotated[ImuStageConfig, Tag("imu")],
+		Annotated[TelemetryStageConfig, Tag("telemetry")],
 	],
 	Discriminator("stage")
 ]
 
-PipelineConfig = RootModel[list[PipelineStage]]
-PipelineConfigWorker = RootModel[list[PipelineStageWorker]]
+class PipelineConfig(RootModel[list[PipelineStage]]):
+	pass
+class PipelineConfigWorker(RootModel[list[PipelineStageWorker]]):
+	pass

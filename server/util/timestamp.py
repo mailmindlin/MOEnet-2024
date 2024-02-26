@@ -64,6 +64,10 @@ class Timestamp:
 		self.nanos = int(nanos)
 		self.clock = clock
 	
+	def before(self):
+		return Timestamp(self.nanos - 1, clock=self.clock)
+	def after(self):
+		return Timestamp(self.nanos + 1, clock=self.clock)
 	@property
 	def is_valid(self) -> bool:
 		return self.nanos != 0

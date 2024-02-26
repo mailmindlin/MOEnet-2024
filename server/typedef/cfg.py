@@ -163,12 +163,23 @@ class CameraConfig(BaseModel):
 	dynamic_pose: Optional[str] = Field(None, description="If this camera can move, this is it's network name")
 	pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
+class LogFormatterSpec(BaseModel):
+	format: str
+	datefmt: str | None = Field(None)
+
+class LogHandlerSpec(BaseModel):
+	formatter: str | LogFormatterSpec | None = Field(None)
+
+class LoggerSpec(BaseModel):
+	handlers: list[str | LogHandlerSpec] = Field(default_factory=list)
+
 class LogConfig(BaseModel):
-	"""
-	Configuration for logging output
-	"""
+	"Configuration for logging output"
 	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
 	file: Optional[Path] = Field(None)
+	formatters: dict[str, LogFormatterSpec] = Field(default_factory=dict)
+	handlers: dict[str, LogHandlerSpec] = Field(default_factory=dict)
+	loggers: dict[str, LoggerSpec] = Field(default_factory=dict)
 
 
 class DataLogConfig(BaseModel):

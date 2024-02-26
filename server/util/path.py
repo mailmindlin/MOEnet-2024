@@ -1,7 +1,10 @@
 from pathlib import Path
 import os.path
 
-def resolve_path(base: Path, relpart: Path):
+def resolve_path(base: Path, relpart: str | Path):
+    if isinstance(relpart, str):
+        relpart = Path(relpart)
+    
     if relpart.is_absolute():
         return relpart
     relpart = Path(os.path.expanduser(relpart))

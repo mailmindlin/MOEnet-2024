@@ -1,6 +1,6 @@
 .DS_Store
-./moenet.service
-./moenet.service.sh
+moenet.service
+moenet.service.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

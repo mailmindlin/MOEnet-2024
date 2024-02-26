@@ -61,6 +61,7 @@ class NodeRuntime:
 			return self.tsyn.reference_clock
 
 		def local_timestamp(self, packet: StampedPacket) -> 'Timestamp':
+			"Get wall timestamp from DepthAI packet"
 			return self.tsyn.local_timestamp(packet)
 	
 	events: list[str] = []

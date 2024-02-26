@@ -43,6 +43,23 @@
 					"config": "./moenet-2023-v1/pipeline.json"
 				}
 			]
+		},
+		{
+			"id": "nn:moenet-2024-v1",
+			"stages": [
+				{
+					"stage": "rgb",
+					"resolution": "THE_1080_P"
+				},
+				{
+					"stage": "depth"
+				},
+				{
+					"stage": "nn",
+					"blobPath": "./moenet-2024-v1/nn.blob",
+					"config": "./moenet-2024-v1/pipeline.json"
+				}
+			]
 		}
 	],
 	"camera_selectors": [
@@ -73,7 +90,7 @@
 			"pipeline": [
 				{
 					"stage": "inherit",
-					"id": "nn:moenet-2023-v1"
+					"id": "nn:moenet-2024-v1"
 				}
 			],
 			"slam": false

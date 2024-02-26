@@ -42,7 +42,8 @@ $(OAKD_RULES):
 
 schema: server/config/schema.json
 
-server: serv
+server: schema
+	
 server_stream: ./server/config/schema.json ./server/web/static
 	python3 server stream
 
@@ -56,4 +57,25 @@ install_deps:
 
 
 ./server/config/schema.json: ./server/typedef/apriltag.py ./server/typedef/cfg.py ./server/typedef/common.py ./server/typedef/geom/__init__.py ./server/typedef/geom/__init__.py
+	cd server && $(MAKE) ./config/schema.json
+
+./moenet.service.sh:
+	echo "#!/bin/bash" > $@
+	echo "python3.11 server" >> $@
+
+./moenet.service: moenet.service.sh
+	echo "[Unit]" > $@
+	echo "Description=MOEnet service" >> $@
+	echo "After=network.target" >> $@
+	echo "" >> $@
+	echo "[Service]" >> $@
+	echo "ExecStart=/bin/bash ./moenet.service.sh" >> $@
+	echo "WorkingDirectory=$(shell dirname $(realpath $@))" >> $@
+	echo "StandardOutput=inherit" >> $@
+	echo "StandardError=inherit" >> $@
+	echo "Restart=always" >> $@
+	echo "User=$$USER" >> $@
+	echo "" >> $@
+	echo "[Install]" >> $@
+	echo "WantedBy=multi-user.target" >> $@
 

@@ -149,7 +149,7 @@ class WorkerConfigResolver:
 				# We need to map some stages
 				case 'inherit':
 					if (parent := self._resolve_pipeline(cid, stage.id)) is not None:
-						return parent
+						return parent.root
 					else:
 						e = RuntimeError(f"Unable to inherit from pipeline '{stage.id}', as id doesn't exist")
 						if self.config.pipelines:
@@ -195,7 +195,7 @@ class WorkerConfigResolver:
 		for i, stage in enumerate(pipeline.root):
 			stages.extend(self._resolve_stage(cid, i, stage))
 		
-		return PipelineConfigWorker(stages)
+		return PipelineConfigWorker.model_validate(stages)
 	
 	def _resolve_selector(self, cid: CameraId, raw_selector: str | OakSelector) -> tuple[OakSelector, Optional[CameraSelectorDefinition]]:
 		"Resolve an OakSelector, possibly by name"

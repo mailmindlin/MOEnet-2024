@@ -24,9 +24,9 @@ S = TypeVar('S', bound=cfg.PipelineStageWorker)
 
 class MoeNetPipeline:
 	"Pipeline builder"
-	def __init__(self, config: list[cfg.PipelineStageWorker], log: 'logging.Logger'):
+	def __init__(self, config: cfg.PipelineConfigWorker, log: 'logging.Logger'):
 		self.log = log.getChild('pipeline')
-		self.config = config
+		self.config = config.root
 		self.stages: dict[str, NodeBuilder[cfg.PipelineStageWorker]] = dict()
 		self.runtimes: dict[str, NodeRuntime] = dict()
 		self.pipeline = dai.Pipeline()

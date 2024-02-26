@@ -26,24 +26,6 @@
 		"publishField2dF2R": false,
 		"publishField2dDets": true
 	},
-	"pipelines": [
-		{
-			"id": "moenet-2023-v1",
-			"stages": [
-				{
-					"stage": "nn",
-					"blobPath": "./moenet-2023-v1/nn.blob",
-					"config": "./moenet-2023-v1/pipeline.json"
-				}
-			]
-		}
-	],
-	"camera_selectors": [
-		{
-			"id": "main",
-			"ordinal": 1
-		}
-	],
 	"cameras": [
 	]
 }

@@ -23,9 +23,13 @@ class ObjectTrackerConfig(BaseModel):
 	alpha: float = Field(0.2, gt=0, description="")
 
 class AprilTagStrategy(enum.StrEnum):
+	"How should we handle AprilTag detections?"
 	LOWEST_AMBIGUITY = enum.auto()
+	"Select the lowest ambiguity of available poses"
 	CLOSEST_TO_LAST_POSE = enum.auto()
+	"Select the pose closest to our last position"
 	AVERAGE_BEST_TARGETS = enum.auto()
+	"Return the average of the best target poses using ambiguity as weight"
 
 class PoseEstimatorConfig(BaseModel):
 	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
@@ -66,7 +70,7 @@ class EstimatorConfig(BaseModel):
 
 class WebConfig(BaseModel):
 	"Configure webserver"
-	enabled: bool = Field(True)
+	enabled: bool = Field(True, description="Should we enable the webserver?")
 	host: Optional[str] = Field(None, description="Host for HTTP server")
 	port: Optional[int] = Field(8080, gt=0, description="Port for HTTP server")
 	video_codec: Optional[str] = Field(None, description="Force a specific video codec (e.g. video/H264)")

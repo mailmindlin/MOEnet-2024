@@ -2,7 +2,7 @@ from unittest import TestCase
 from logging import getLogger
 from .controller import WorkerManager
 from typedef.cfg import LocalConfig
-from .resolver import CameraId
+from .config_resolver import CameraId
 
 class TestManager(TestCase):
 	def test_apriltags(self):

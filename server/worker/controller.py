@@ -11,7 +11,7 @@ from logging import Logger
 from wpiutil.log import DataLog, StringLogEntry, IntegerLogEntry
 
 from . import msg as worker
-from .resolver import WorkerConfigResolver
+from .config_resolver import WorkerConfigResolver
 from typedef.cfg import LocalConfig
 from util.subproc import Subprocess
 from util.log import child_logger

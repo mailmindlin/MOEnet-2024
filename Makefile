@@ -56,4 +56,4 @@ install_deps:
 
 
 ./server/config/schema.json: ./server/typedef/apriltag.py ./server/typedef/cfg.py ./server/typedef/common.py ./server/typedef/geom/__init__.py ./server/typedef/geom/__init__.py
-	python3 server.typedef.cfg --format json LocalConfig -o ./server/config/schema.json
+

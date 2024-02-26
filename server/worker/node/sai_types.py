@@ -1,8 +1,10 @@
-from typing import TYPE_CHECKING, Any, Optional
+"Helper to add typedefs arount SpectacularAI"
+
+from typing import TYPE_CHECKING, Any, Optional, ClassVar
 if TYPE_CHECKING:
 	import numpy as np
 	from depthai.node import MonoCamera, StereoDepth, ColorCamera
-	from depthai import Device
+	from depthai import Device, Pipeline as DaiPipeline
 
 	class Configuration:
 		accFrequencyHz: int
@@ -94,6 +96,9 @@ if TYPE_CHECKING:
 		position: Vector3d
 		time: float
 		def asMatrix(self) -> np.ndarray: ...
+
+		@staticmethod
+		def fromMatrix(time: float, matrix: list[list[float[4]][4]]) -> 'Pose': ...
 	
 	class Camera:
 		def getIntrinsicMatrix(self) -> np.ndarray: ...
@@ -105,6 +110,11 @@ if TYPE_CHECKING:
 		def getPosition(self) -> Vector3d: ...
 		def getWorldToCameraMatrix(self) -> np.ndarray: ...
 	
+	class TrackingStatus:
+		INIT: ClassVar['TrackingStatus']
+		TRACKING: ClassVar['TrackingStatus']
+		LOST_TRACKING: ClassVar['TrackingStatus']
+	
 	class VioOutput:
 		angularVelocity: Vector3d
 		pose: Pose
@@ -113,6 +123,7 @@ if TYPE_CHECKING:
 		tag: int
 		velocity: Vector3d
 		velocityCovariance: np.ndarray
+		status: TrackingStatus
 
 		def getCameraPose(self, id: int) -> CameraPose: ...
 	
@@ -122,12 +133,10 @@ if TYPE_CHECKING:
 		latitude: float
 		longitude: float
 	
-	class VioSession:
+	class Session:
 		def hasOutput(self) -> bool:
 			pass
-		def getOutput(self) -> VioOutput:
-			pass
-		def addAbsolutePose(self, /, arg0: Pose, arg1: list[list[float[3]][3]], arg2: float) -> None:
+		def addAbsolutePose(self, arg0: Pose, arg1: list[list[float[3]][3]], arg2: float) -> None:
 			"Add external pose information.VIO will correct its estimates to match the pose."
 		def addGnss(self, /, arg0: float, arg1: WgsCoordinates, arg2: list[list[float[3]][3]]) -> None:
 			"Add GNSS input (for GNSS-VIO fusion)"
@@ -180,4 +189,27 @@ if TYPE_CHECKING:
 		stereo: StereoDepth
 		color: ColorCamera
 
-		def startSession(self, /, arg0: Device) -> VioSession: ...
+		def __init__(self, pipeline: DaiPipeline, config: Configuration): ...
+
+		def startSession(self, /, arg0: Device) -> Session: ...
+else:
+	from spectacularAI import (
+		Vector3d,
+		Quaternion,
+		Pose,
+		Camera,
+		CameraPose,
+		TrackingStatus,
+		VioOutput,
+		WgsCoordinates,
+		Frame,
+		FrameSet,
+		KeyFrame,
+		Map,
+		MapperOutput,
+	)
+	from spectacularAI.depthai import (
+		Configuration,
+		Session,
+		Pipeline
+	)

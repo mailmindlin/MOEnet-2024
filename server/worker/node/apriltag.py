@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Literal, Union, Callable
+from functools import cached_property
 
 import depthai as dai
 import numpy as np
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
 
 Mat44 = np.ndarray[float, tuple[Literal[4], Literal[4]]]
 Mat33 = np.ndarray[float, tuple[Literal[3], Literal[3]]]
+
+AnyAprilTagDetection = Union['WpiAprilTagDetection', AprilTagDetection]
 
 
 class AprilTagPoseList:
@@ -50,29 +53,17 @@ class AprilTagRuntimeBase(NodeRuntime):
 	def __init__(self, config: cfg.WorkerAprilTagStageConfig, src: 'CameraNode', *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.config = config
-
-		# Get camera parameters
-		from robotpy_apriltag import AprilTagPoseEstimator, AprilTagFieldLayout, AprilTag
 		
+		# Get camera parameters
 		calibdata = self.context.device.readCalibration()
 		at_camera = src.node
 		self.camera_matrix = calibdata.getCameraIntrinsics(src.camera_socket, destShape=(at_camera.getResolutionWidth(), at_camera.getResolutionHeight()))
 		self.camera_distortion = np.asarray(calibdata.getDistortionCoefficients(src.camera_socket))
-		fx = self.camera_matrix[0][0]
-		fy = self.camera_matrix[1][1]
-		cx = self.camera_matrix[0][2]
-		cy = self.camera_matrix[1][2]
 
-		estimator_cfg = AprilTagPoseEstimator.Config(
-			self.config.apriltags.tagSize,
-			fx, fy,
-			cx, cy
-		)
-		self.log.info("AprilTag config %s", estimator_cfg)
-		self.pose_estimator = AprilTagPoseEstimator(estimator_cfg)
-		self._camera_params = (fx, fy, cx, cy)
+		# Build (cached) pose estimator
+		self.pose_estimator
 
-
+		from robotpy_apriltag import AprilTagFieldLayout, AprilTag
 		atfl_tags = list()
 		for tag in self.config.apriltags.tags:
 			at = AprilTag()
@@ -87,7 +78,24 @@ class AprilTagRuntimeBase(NodeRuntime):
 
 		self.datapoints: list[AprilTagPose] = list()
 	
-	def _filter_detection(self, det: Union['WpiAprilTagDetection', AprilTagDetection]) -> bool:
+	@cached_property
+	def pose_estimator(self):
+		"Estimate pose from apriltag detections"
+		from robotpy_apriltag import AprilTagPoseEstimator
+		fx = self.camera_matrix[0][0]
+		fy = self.camera_matrix[1][1]
+		cx = self.camera_matrix[0][2]
+		cy = self.camera_matrix[1][2]
+
+		estimator_cfg = AprilTagPoseEstimator.Config(
+			self.config.apriltags.tagSize,
+			fx, fy,
+			cx, cy
+		)
+		self.log.info("AprilTag config %s", estimator_cfg)
+		return AprilTagPoseEstimator(estimator_cfg)
+	
+	def _filter_detection(self, det: AnyAprilTagDetection) -> bool:
 		"Check if an AprilTag detection matches the config filters"
 		if det.getDecisionMargin() < self.config.decisionMargin:
 			return False
@@ -95,7 +103,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 			return False
 		return True
 	
-	def _single_pnp(self, det: Union['WpiAprilTagDetection', AprilTagDetection], fieldToTag: Pose3d | None = None):
+	def _single_pnp(self, det: AnyAprilTagDetection, fieldToTag: Pose3d | None = None):
 		if fieldToTag is None:
 			fieldToTag = self.atfl.getTagPose(det.getId())
 		if fieldToTag is None:

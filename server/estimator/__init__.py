@@ -4,9 +4,9 @@ from collections import OrderedDict
 
 from wpiutil.log import DataLog, DoubleLogEntry
 
-from worker.msg import MsgPose, MsgDetections, MsgAprilTagPoses
+from worker.msg import MsgPose, MsgDetections, MsgAprilTagDetections, MsgOdom
 from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
-from typedef.geom import Transform3d, Rotation3d, Pose3d
+from typedef.geom import Transform3d, Pose3d
 from typedef import net, cfg
 from util.log import child_logger
 from util.clock import Clock, WallClock
@@ -23,7 +23,13 @@ if TYPE_CHECKING:
 
 
 class DataFusion:
-	pose_estimator: PoseEstimator
+	"""
+	We need to fuse data together from many different sources:
+	 - AprilTag detections (field -> camera)
+	 - Object detections (camera -> object)
+	 - 
+	"""
+	pose_estimator: SimplePoseEstimator
 	object_tracker: ObjectTracker
 
 	def __init__(self, config: cfg.EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
@@ -34,6 +40,7 @@ class DataFusion:
 
 		self.camera_tracker = CamerasTracker(self.log.getChild('cam'), config.pose.history)
 		self.pose_estimator = SimplePoseEstimator(config.pose, self.clock, log=self.log.getChild('pose'), datalog=self.datalog)
+		# Robot pose transforms
 		tf_robot = TfTracker(
 			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ROBOT, self.pose_estimator),
 			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ODOM, self.pose_estimator),
@@ -43,6 +50,14 @@ class DataFusion:
 			config.detections,
 			tf_robot,
 			self.log.getChild('obj'),
+		)
+
+		# Full transform tracker
+		self.tf = TfTracker(
+			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ROBOT, self.pose_estimator),
+			(ReferenceFrameKind.FIELD, ReferenceFrameKind.ODOM, self.pose_estimator),
+			(ReferenceFrameKind.ROBOT, ReferenceFrameKind.CAMERA, self.camera_tracker),
+			(ReferenceFrameKind.FIELD, ReferenceFrameKind.DETECTION, self.object_tracker),
 		)
 
 		# Datalogs
@@ -69,6 +84,7 @@ class DataFusion:
 		self.fresh_det = True
 	
 	def set_cameras(self, cameras: 'WorkerManager'):
+		"Set camera handles (for robot→camera tracking)"
 		self.camera_tracker.reset(cameras)
 	
 	def observe_f2r_override(self, pose: Pose3d, timestamp: Timestamp):
@@ -80,7 +96,7 @@ class DataFusion:
 		#TODO: track camera?
 		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
 
-		self.pose_estimator.record_f2r(robot_to_camera, msg)
+		self.pose_estimator.observe_f2r(robot_to_camera, msg)
 
 		if self.datalog is not None:
 			simple_f2o = msg.pose.transformBy(robot_to_camera.inverse())
@@ -93,14 +109,18 @@ class DataFusion:
 		self.fresh_f2r = True
 		self.fresh_o2r = True
 	
-	def record_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
+	def observe_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
 		if self.datalog:
 			delta = timestamp - self._last_f2o_ts
 			self._last_f2o_ts = timestamp
 			self.logFpsF2O.append(1.0 / delta.total_seconds())
-		self.pose_estimator.record_f2o(timestamp, field_to_odom)
+		
+		self.pose_estimator.observe_f2o(timestamp, field_to_odom)
 		self.fresh_f2o = True
 		self.fresh_o2r = True
+	
+	def observe_odom(self, odom: MsgOdom):
+		pass
 	
 	@overload
 	def odom_to_robot(self) -> Transform3d: ...
@@ -133,17 +153,18 @@ class DataFusion:
 				self.log_f2r.append(res)
 		return res
 	
-	def record_apriltag(self, camera: 'WorkerHandle', apriltags: MsgAprilTagPoses):
+	def record_apriltag(self, camera: 'WorkerHandle', apriltags: MsgAprilTagDetections):
 		timestamp = Timestamp.from_nanos(apriltags.timestamp, clock=WallClock())
+		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
 		if self.datalog:
 			delta = timestamp - self._last_apr_ts
 			self._last_apr_ts = timestamp
 			self.logFpsApriltag.append(1.0 / delta.total_seconds())
 		
 		self.fresh_f2r = True
-		self.pose_estimator.record_apriltag(timestamp, robot_to_camera, apriltags.poses)
+		self.pose_estimator.observe_apriltags(timestamp, robot_to_camera, apriltags)
 	
-	def record_detections(self, robot_to_camera: Transform3d, detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None):
+	def record_detections(self, camera: 'WorkerHandle', detections: MsgDetections, mapper_loc: Optional[TimeMapper] = None):
 		"Record some detections for tracking"
 		if mapper_loc is not None:
 			assert mapper_loc.clock_b == self.clock
@@ -152,14 +173,17 @@ class DataFusion:
 		timestamp     = Timestamp.from_nanos(detections.timestamp)
 		timestamp_loc = timestamp if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
 
+		# robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
+
 		if self.datalog:
 			delta = timestamp - self._last_det_ts
 			self._last_det_ts = timestamp
 			self.logFpsDetections.append(1.0 / delta.total_seconds())
 
-		field_to_robot = self.pose_estimator.field_to_robot(timestamp_loc)
+		from .tf import ReferenceFrame
+		# field_to_robot = self.pose_estimator.field_to_robot(timestamp_loc)
 
-		self.object_tracker.track(timestamp, detections, field_to_robot, robot_to_camera)
+		self.object_tracker.observe_detections(timestamp, detections, ReferenceFrame.camera(camera.idx))
 		self.fresh_det = True
 
 	def get_detections(self, mapper_net: Optional[TimeMapper] = None, *, fresh = False) -> Optional[net.ObjectDetections]:

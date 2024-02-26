@@ -165,6 +165,7 @@ class MoeNet:
 				vidq=self.web.vid_queue
 			)
 			self.camera_workers.start()
+			self.estimator.set_cameras(self.camera_workers)
 			self.status = Status.READY
 		except:
 			self.log.exception("Error starting cameras")
@@ -201,11 +202,13 @@ class MoeNet:
 			for worker in self.camera_workers:
 				for packet in worker.poll():
 					if isinstance(packet, wmsg.MsgPose):
-						self.estimator.observe_f2r(worker.robot_to_camera, packet)
+						self.estimator.observe_f2r(worker, packet)
 					elif isinstance(packet, wmsg.MsgDetections):
-						self.estimator.record_detections(worker.robot_to_camera, packet)
-					elif isinstance(packet, wmsg.MsgAprilTagPoses):
-						self.estimator.record_apriltag(worker.robot_to_camera, packet)
+						self.estimator.record_detections(worker, packet)
+					elif isinstance(packet, wmsg.MsgAprilTagDetections):
+						self.estimator.record_apriltag(worker, packet)
+					elif isinstance(packet, wmsg.MsgOdom):
+						packet.pose
 					active = True
 		
 		# Write transforms to NT

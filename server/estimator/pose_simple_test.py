@@ -2,7 +2,7 @@ from unittest import TestCase
 from datetime import timedelta
 
 from util.timestamp import Timestamp
-from typedef.geom import Pose3d, Twist3d, Translation3d
+from typedef.geom import Pose3d, Translation3d
 from typedef.cfg import PoseEstimatorConfig
 
 from .pose_simple import (
@@ -35,10 +35,10 @@ class PoseEstimatorTest(TestCase):
         r2c = Transform3d()
         # Start at f2r (0, 0, 0) t=0
         f2r_0 = Pose3d(Translation3d(0, 0, 0), Rotation3d())
-        estimator.record_f2r(Timestamp(0), r2c, f2r_0)
+        estimator.observe_f2r(Timestamp(0), r2c, f2r_0)
         # End at f2r (0, 0, 0) t=2s
         f2r_2 = Pose3d(Translation3d(2, 0, 0), Rotation3d())
-        estimator.record_f2r(Timestamp(2e9), r2c, f2r_2)
+        estimator.observe_f2r(Timestamp(2e9), r2c, f2r_2)
 
         # Check simple lookups
         assert estimator.field_to_robot(Timestamp(0)) == Pose3d()
@@ -52,7 +52,7 @@ class PoseEstimatorTest(TestCase):
 
         # Provide odometry
         f2o_1 = Pose3d(Translation3d(x=1,y=1,z=0), Rotation3d())
-        estimator.record_f2o(Timestamp(1e9), f2o_1)
+        estimator.observe_f2o(Timestamp(1e9), f2o_1)
 
         f2r_1 = estimator.field_to_robot(Timestamp(1e9)) # Correct value
         o2r_1 = estimator.odom_to_robot()

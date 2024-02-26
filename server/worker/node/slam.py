@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 else:
 	SaiConfig = None
 
-class SlamBuilder(NodeBuilder[cfg.SlamStageWorker]):
+class SlamBuilder(NodeBuilder[cfg.WorkerSlamStageConfig]):
 	vio_pipeline: 'SaiPipeline'
 	def build(self, pipeline: dai.Pipeline, *args, **kwargs):
 		config = self.config

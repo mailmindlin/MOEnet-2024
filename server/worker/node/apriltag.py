@@ -47,7 +47,7 @@ class AprilTagPoseList:
 		return repr(self.poses)
 
 class AprilTagRuntimeBase(NodeRuntime):
-	def __init__(self, config: cfg.ApriltagStageWorker, src: 'CameraNode', *args, **kwargs) -> None:
+	def __init__(self, config: cfg.WorkerAprilTagStageConfig, src: 'CameraNode', *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.config = config
 
@@ -466,7 +466,7 @@ class AprilTagHostRuntime(AprilTagRuntimeBase):
 		return self._process_dets(ts, good_dets)
 
 class AprilTagDeviceRuntime(XOutRuntime[dai.AprilTags], AprilTagRuntimeBase):
-	def __init__(self, context: NodeRuntime.Context, config: cfg.ApriltagStageWorker, src: 'CameraNode', xout: XLinkOut[dai.AprilTags]) -> None:
+	def __init__(self, context: NodeRuntime.Context, config: cfg.WorkerAprilTagStageConfig, src: 'CameraNode', xout: XLinkOut[dai.AprilTags]) -> None:
 		super().__init__(context=context, config=config, src=src, xout=xout)
 	
 	def _get_homography(self, det: dai.AprilTag):
@@ -517,7 +517,7 @@ def map_family(family: str | apriltag.AprilTagFamily) -> dai.AprilTagConfig.Fami
 		case _:
 			raise ValueError(f'Unknown AprilTag family {family}')
 
-class AprilTagBuilder(NodeBuilder[cfg.ApriltagStageWorker]):
+class AprilTagBuilder(NodeBuilder[cfg.WorkerAprilTagStageConfig]):
 	@property
 	def requires(self):
 		match self.config.runtime:

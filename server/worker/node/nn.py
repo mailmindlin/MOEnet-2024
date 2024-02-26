@@ -11,7 +11,7 @@ from ..msg import ObjectDetection, MsgDetections
 if TYPE_CHECKING:
 	from .video import ColorCameraNode, DepthBuilder
 
-class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetectionStage]):
+class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetectionStageConfig]):
 	stream_name = 'nn'
 	requires = [
 		Dependency('rgb'),

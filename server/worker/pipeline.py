@@ -40,16 +40,16 @@ class MoeNetPipeline:
 			self._msg_types[name] = cfg
 			self.stage_factories[name] = builder
 		
-		register('apriltag',  AprilTagBuilder, cfg.ApriltagStageWorker)
-		register('slam',      SlamBuilder, cfg.SlamStageWorker)
-		register('mono',      MonoCameraNode, cfg.MonoConfigStage)
-		register('rgb',       ColorCameraNode, cfg.RgbConfigStage)
-		register('depth',     DepthBuilder, cfg.DepthConfigStage)
-		register('telemetry', TelemetryStage, cfg.TelemetryStage)
-		register('nn',        ObjectDetectionNode, cfg.ObjectDetectionStage)
+		register('apriltag',  AprilTagBuilder, cfg.WorkerAprilTagStageConfig)
+		register('slam',      SlamBuilder, cfg.WorkerSlamStageConfig)
+		register('mono',      MonoCameraNode, cfg.MonoCameraStageConfig)
+		register('rgb',       ColorCameraNode, cfg.ColorCameraStageConfig)
+		register('depth',     DepthBuilder, cfg.StereoDepthStageConfig)
+		register('telemetry', TelemetryStage, cfg.TelemetryStageConfig)
+		register('nn',        ObjectDetectionNode, cfg.ObjectDetectionStageConfig)
 		register('xout',      ImageOutStage, ImageOutConfig)
-		register('web',       WebStreamNode, cfg.WebStreamStage)
-		register('show',      ShowNode, cfg.ShowStage)
+		register('web',       WebStreamNode, cfg.WebStreamStageConfig)
+		register('show',      ShowNode, cfg.ShowStageConfig)
 		
 	@contextmanager
 	def optional_stage(self, stage: S, optional: Optional[bool] = None):

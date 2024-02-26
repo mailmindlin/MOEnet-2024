@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from . import msg as worker
 from typedef import apriltag
 from typedef.pipeline import (
-	PipelineConfig, PipelineConfigWorker, PipelineStageWorker,
-	ApriltagStage, ApriltagStageWorker,
-	SlamStage, SlamStageWorker,
-	ObjectDetectionStage, NNConfig
+	PipelineConfig, PipelineConfigWorker, PipelineStage, PipelineStageWorker,
+	AprilTagStageConfig, WorkerAprilTagStageConfig,
+	SlamStageConfig, WorkerSlamStageConfig,
+	ObjectDetectionStageConfig, NNConfig
 )
 from typedef.common import OakSelector
 from typedef.cfg import PipelineDefinition, LocalConfig, CameraConfig, CameraSelectorDefinition

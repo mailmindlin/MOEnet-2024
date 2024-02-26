@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 S = TypeVar('S', bound=cfg.PipelineStageWorker)
 class VideoNode(NodeBuilder[S], ABC):
+	"Pipeline stage that "
 	node: dai.node.ColorCamera | dai.node.MonoCamera | dai.node.StereoDepth
 	
 	@abstractproperty
@@ -28,12 +29,12 @@ class CameraNode(VideoNode[S], ABC):
 	def camera_socket(self) -> dai.CameraBoardSocket: ...
 
 
-class MonoCameraNode(CameraNode[cfg.MonoConfigStage]):
+class MonoCameraNode(CameraNode[cfg.MonoCameraStageConfig]):
 	node: dai.node.MonoCamera
 	@classmethod
 	def infer(cls, name: str):
 		target = name.lstrip('mono.')
-		return cfg.MonoConfigStage(stage='mono', target=target)
+		return cfg.MonoCameraStageConfig(stage='mono', target=target)
 	
 	requires = [Dependency('slam', optional=True)]
 
@@ -68,13 +69,13 @@ class MonoCameraNode(CameraNode[cfg.MonoConfigStage]):
 		self.node = node
 
 
-class ColorCameraNode(CameraNode[cfg.RgbConfigStage]):
+class ColorCameraNode(CameraNode[cfg.ColorCameraStageConfig]):
 	node: dai.node.ColorCamera
 	camera_socket = dai.CameraBoardSocket.RGB
 
 	@classmethod
 	def infer(cls, name: str):
-		return cfg.RgbConfigStage(stage='rgb')
+		return cfg.ColorCameraStageConfig(stage='rgb')
 
 	requires = [Dependency('slam', optional=True)]
 	
@@ -97,7 +98,7 @@ class ColorCameraNode(CameraNode[cfg.RgbConfigStage]):
 	def video_out(self):
 		return self.node.video
 
-class DepthBuilder(VideoNode[cfg.DepthConfigStage]):
+class DepthBuilder(VideoNode[cfg.StereoDepthStageConfig]):
 	node: dai.node.StereoDepth
 	requires = [
 		Dependency('mono.left'),

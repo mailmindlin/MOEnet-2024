@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 	from .video import MonoCameraNode, ColorCameraNode, DepthBuilder
 
 
-class IMUStage(XOutNode[dai.IMUData, cfg.TelemetryStage]):
+class IMUStage(XOutNode[dai.IMUData, cfg.TelemetryStageConfig]):
 	"System logger (for telemetry)"
 	stream_name = 'imi'
 	

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 T = TypeVar('T')
-S = TypeVar('S', bound=pcfg.StageBase)
+S = TypeVar('S', bound=pcfg.BaseStageConfig)
 
 @dataclass
 class Dependency:

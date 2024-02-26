@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 	from .video import MonoCameraNode, ColorCameraNode, DepthBuilder
 
 
-class TelemetryStage(XOutNode[dai.SystemInformation, cfg.TelemetryStage]):
+class TelemetryStage(XOutNode[dai.SystemInformation, cfg.TelemetryStageConfig]):
 	"System logger (for telemetry)"
 	stream_fps = 2
 	stream_name = 'sysinfo'

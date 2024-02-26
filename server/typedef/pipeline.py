@@ -16,9 +16,11 @@ except ImportError:
 if TYPE_CHECKING:
 	RgbSensorResolution = dai.ColorCameraProperties.SensorResolution
 	MonoSensorResolution = dai.MonoCameraProperties.SensorResolution
+	CameraBoardSocket = dai.CameraBoardSocket
 else:
 	RgbSensorResolution = util.wrap_dai_enum(dai.ColorCameraProperties.SensorResolution)
 	MonoSensorResolution = util.wrap_dai_enum(dai.MonoCameraProperties.SensorResolution)
+	CameraBoardSocket = util.wrap_dai_enum(dai.CameraBoardSocket)
 
 class NNConfig(BaseModel):
 	"Base config for NN"
@@ -33,9 +35,11 @@ class NNConfig(BaseModel):
 	anchor_masks: dict[str, list[int]]
 
 S = TypeVar('S', bound=str)
-class StageBase(BaseModel, Generic[S], ABC):
+class BaseStageConfig(BaseModel, ABC):
 	infer: ClassVar[bool] = False
+	"Can we infer this stage?"
 	merge: ClassVar[bool] = False
+	"Should we merge stages with the same name?"
 
 	stage: S = Field(description="Stage name")
 	enabled: bool = Field(default=True, description="Is this stage enabled?")
@@ -48,12 +52,13 @@ class StageBase(BaseModel, Generic[S], ABC):
 		return self.stage
 
 def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
+	"Make customized BaseStageConfig inheritance (fix 'stage' field)"
 	_merge = merge
 	_S: S = S
 	if not TYPE_CHECKING:
 		_S = Literal[name]
 	
-	class _ModelHelper(StageBase[S], ABC):
+	class _ModelHelper(BaseStageConfig[S], ABC):
 		merge: ClassVar[bool] = _merge
 		infer: ClassVar[bool] = implicit
 		# Use default_factory to exclude default JSON
@@ -61,23 +66,24 @@ def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
 	
 	return _ModelHelper
 
-class InheritStage(_stage_base('inherit')):
+class InheritStageConfig(_stage_base('inherit')):
 	"Include another defined pipeline"
 	id: str
 
-class RgbConfigStage(_stage_base('rgb', merge=True, implicit=True)):
+class ColorCameraStageConfig(_stage_base('rgb', merge=True, implicit=True)):
+	"Configure the RGB camera"
 	resolution: RgbSensorResolution | None = Field(default=None, description="Camera sensor resolution")
 	fps: float | None = Field(default=None, description='Max FPS')
 
 
-class MonoConfigStage(_stage_base('mono', implicit=True)):
+class MonoCameraStageConfig(_stage_base('mono', implicit=True)):
 	"Configure mono camera"
 	target: Literal["left", "right"]
 	resolution: MonoSensorResolution | None = Field(default=None, description='Camera sensor resolution')
 	fps: float | None = Field(default=None, description='Max FPS')
 	
 
-class DepthConfigStage(_stage_base('depth')):
+class StereoDepthStageConfig(_stage_base('depth')):
 	"Configure stereo depth"
 	checkLeftRight: bool | None = Field(default=None, description="Enable Left-Right check")
 	extendedDisparity: bool | None = Field(default=None, description="Enable extended disparity mode")
@@ -88,7 +94,7 @@ class DepthConfigStage(_stage_base('depth')):
 	] = Field(default=None, description='Set preset profile')
 
 
-class ObjectDetectionStage(_stage_base("nn")):
+class ObjectDetectionStageConfig(_stage_base("nn")):
 	config: Union[NNConfig, Path]
 	blobPath: Path
 
@@ -102,7 +108,7 @@ class VideoDisplayTarget(StrEnum):
 	"Color camera"
 	DEPTH = 'depth'
 
-class WebStreamStage(_stage_base("web")):
+class WebStreamStageConfig(_stage_base("web")):
 	"Stream data to web"
 	target: VideoDisplayTarget
 	maxFramerate: Optional[int] = Field(None, gt=0, description="Maximum framerate for stream")
@@ -110,17 +116,17 @@ class WebStreamStage(_stage_base("web")):
 	def name(self):
 		return f'{self.stage}.{self.target}'
 
-class SaveStage(_stage_base("save")):
+class SaveStageConfig(_stage_base("save")):
 	"Save images to file"
 	target: VideoDisplayTarget
 	path: Path
 	maxFramerate: Optional[float] = Field(default=None, gt=0, description="Maximum framerate for stream")
 
-class ShowStage(_stage_base('show')):
+class ShowStageConfig(_stage_base('show')):
 	"Show video stream as GUI"
 	target: VideoDisplayTarget
 
-class ApriltagBase(_stage_base('apriltag')):
+class AprilTagStageConfigBase(_stage_base('apriltag')):
 	runtime: Literal["device", "host"] = Field("host")
 	camera: Literal["left", "right", "rgb"] = Field("left")
 
@@ -144,14 +150,14 @@ class ApriltagBase(_stage_base('apriltag')):
 	doMultiTarget: bool = Field(False)
 	doSingleTargetAlways: bool = Field(False)
 
-class ApriltagStage(ApriltagBase):
+class AprilTagStageConfig(AprilTagStageConfigBase):
 	apriltags: apriltag.AprilTagField
 
-class ApriltagStageWorker(ApriltagBase):
+class WorkerAprilTagStageConfig(AprilTagStageConfigBase):
 	apriltags: apriltag.AprilTagFieldInlineWpi
 
 
-class SlamStage(_stage_base('slam')):
+class SlamStageConfig(_stage_base('slam')):
 	"SAI slam"
 	slam: bool = Field(default=True)
 	vio: bool = Field(default=False, description="Enable VIO")
@@ -159,28 +165,29 @@ class SlamStage(_stage_base('slam')):
 	map_load: Optional[Path] = Field(default=None)
 	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.AprilTagFieldInline, None] = Field(None)
 
-class SlamStageWorker(SlamStage):
+class WorkerSlamStageConfig(SlamStageConfig):
+	"Resolved version of 'SlamStageConfig"
 	apriltags: Optional[apriltag.AprilTagFieldRefSai]
 
-class TelemetryStage(_stage_base('telemetry')):
+class TelemetryStageConfig(_stage_base('telemetry')):
 	pass
 
-class ImuStage(_stage_base('imu')):
+class ImuStageConfig(_stage_base('imu')):
 	pass
 
 PipelineStage = Annotated[
 	Union[
-		Annotated[InheritStage, Tag("inherit")],
-		Annotated[RgbConfigStage, Tag("rgb")],
-		Annotated[MonoConfigStage, Tag("mono")],
-		Annotated[DepthConfigStage, Tag("depth")],
-		Annotated[ObjectDetectionStage, Tag("nn")],
-		Annotated[ApriltagStage, Tag("apriltag")],
-		Annotated[SlamStage, Tag("slam")],
-		Annotated[WebStreamStage, Tag("web")],
-		Annotated[SaveStage, Tag("save")],
-		Annotated[ShowStage, Tag("show")],
-		Annotated[ImuStage, Tag("imu")],
+		Annotated[InheritStageConfig, Tag("inherit")],
+		Annotated[ColorCameraStageConfig, Tag("rgb")],
+		Annotated[MonoCameraStageConfig, Tag("mono")],
+		Annotated[StereoDepthStageConfig, Tag("depth")],
+		Annotated[ObjectDetectionStageConfig, Tag("nn")],
+		Annotated[AprilTagStageConfig, Tag("apriltag")],
+		Annotated[SlamStageConfig, Tag("slam")],
+		Annotated[WebStreamStageConfig, Tag("web")],
+		Annotated[SaveStageConfig, Tag("save")],
+		Annotated[ShowStageConfig, Tag("show")],
+		Annotated[ImuStageConfig, Tag("imu")],
 	],
 	Discriminator("stage")
 ]
@@ -188,16 +195,16 @@ PipelineStage = Annotated[
 PipelineStageWorker = Annotated[
 	Union[
 		# Annotated[InheritStage, Tag("inherit")],
-		Annotated[RgbConfigStage, Tag("rgb")],
-		Annotated[MonoConfigStage, Tag("mono")],
-		Annotated[DepthConfigStage, Tag("depth")],
-		Annotated[ObjectDetectionStage, Tag("nn")],
-		Annotated[ApriltagStageWorker, Tag("apriltag")],
-		Annotated[SlamStageWorker, Tag("slam")],
-		Annotated[WebStreamStage, Tag("web")],
-		Annotated[SaveStage, Tag("save")],
-		Annotated[ShowStage, Tag("show")],
-		Annotated[ImuStage, Tag("imu")],
+		Annotated[ColorCameraStageConfig, Tag("rgb")],
+		Annotated[MonoCameraStageConfig, Tag("mono")],
+		Annotated[StereoDepthStageConfig, Tag("depth")],
+		Annotated[ObjectDetectionStageConfig, Tag("nn")],
+		Annotated[WorkerAprilTagStageConfig, Tag("apriltag")],
+		Annotated[WorkerSlamStageConfig, Tag("slam")],
+		Annotated[WebStreamStageConfig, Tag("web")],
+		Annotated[SaveStageConfig, Tag("save")],
+		Annotated[ShowStageConfig, Tag("show")],
+		Annotated[ImuStageConfig, Tag("imu")],
 	],
 	Discriminator("stage")
 ]

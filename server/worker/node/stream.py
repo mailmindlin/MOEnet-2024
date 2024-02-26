@@ -9,7 +9,7 @@ from ..msg import AnyCmd, CmdEnableStream, MsgFrame, WorkerMsg
 if TYPE_CHECKING:
 	from .util import ImageOutStage
 
-class WebStreamNode(NodeRuntime, NodeBuilder[cfg.WebStreamStage]):
+class WebStreamNode(NodeRuntime, NodeBuilder[cfg.WebStreamStageConfig]):
 	@property
 	def requires(self):
 		return [Dependency(f'xout.{self.config.target}')]
@@ -43,7 +43,7 @@ class WebStreamNode(NodeRuntime, NodeBuilder[cfg.WebStreamStage]):
 			data=frame.getCvFrame()
 		)
 
-class ShowNode(NodeRuntime, NodeBuilder[cfg.WebStreamStage]):
+class ShowNode(NodeRuntime, NodeBuilder[cfg.WebStreamStageConfig]):
 	do_poll = True
 	@property
 	def requires(self):

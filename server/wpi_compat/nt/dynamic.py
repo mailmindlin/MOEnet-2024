@@ -44,19 +44,20 @@ ARRAY_FACTORIES: dict[type, Callable[[NetworkTableLike, str], GenericTopic]] = {
 
 def _topic_factory(type: Type[T], mode: Literal['scalar', 'struct', 'proto', None] = None) -> Callable[[NetworkTableLike, str], GenericTopic[T]]:
 	# Check scalar types
+	excs = []
 	if mode in ('scalar', None):
 		try:
 			return SCALAR_FACTORIES[type]
-		except KeyError:
-			pass
+		except KeyError as e:
+			excs.append(('Not a scalar', e))
 	
 	if mode in ('struct', None):
 		# Struct types
 		from ..struct import get_descriptor
 		try:
 			get_descriptor(type)
-		except TypeError:
-			pass
+		except TypeError as e:
+			excs.append(('Not a struct', e))
 		else:
 			return lambda nt, path: nt.getStructTopic(path, type)
 	
@@ -66,6 +67,8 @@ def _topic_factory(type: Type[T], mode: Literal['scalar', 'struct', 'proto', Non
 		if is_protobuf_type(type):
 			from .protobuf import ProtobufTopic
 			return lambda nt, path: ProtobufTopic.wrap(nt, path, type)
+		else:
+			excs.append(('Not a protobuf', None))
 	
 	# Array types
 	if origin := typing.get_origin(type):
@@ -79,19 +82,24 @@ def _topic_factory(type: Type[T], mode: Literal['scalar', 'struct', 'proto', Non
 			if mode in ('scalar', None):
 				try:
 					return ARRAY_FACTORIES[t0]
-				except KeyError:
-					pass
+				except KeyError as e:
+					excs.append(('Not a simple array', e))
 			if mode in ('struct', None):
 				try:
 					get_descriptor(t0)
-				except TypeError:
-					pass
+				except TypeError as e:
+					excs.append(('Not a struct array', e))
 				else:
 					return lambda nt, path: nt.getStructArrayTopic(path, t0)
 			
 			#TODO: protobuf arrays
 	
-	raise TypeError(f'Unable to map type {type} to NetworkTables topic')
+	exc = TypeError(f'Unable to map type {type} to NetworkTables topic')
+	for msg, e in excs:
+		if e is not None:
+			msg += f' ({e})'
+		exc.add_note(msg)
+	raise exc
 
 
 def _make_topic_factory(base: Union[NetworkTableLike, Callable[[], NetworkTableLike]], path: str, type: Type[T], mode: Literal['scalar', 'struct', 'proto', None] = None) -> Union[GenericTopic[T], Callable[[], GenericTopic[T]]]:

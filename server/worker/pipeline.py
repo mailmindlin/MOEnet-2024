@@ -53,8 +53,8 @@ class MoeNetPipeline:
 		register('telemetry', cfg.TelemetryStageConfig,       ('util', 'TelemetryStage'))
 		register('nn',        cfg.ObjectDetectionStageConfig, ('nn', 'ObjectDetectionNode'))
 		register('xout',      ImageOutConfig,                 ('util', 'ImageOutStage'))
-		register('web',       cfg.WebStreamStageConfig,       ('stream', 'WebStreamNode'))
-		register('show',      cfg.ShowStageConfig,            ('stream', 'ShowNode'))
+		register('web',       cfg.WebStreamStageConfig,       ('web', 'WebStreamNode'))
+		register('show',      cfg.ShowStageConfig,            ('show', 'ShowNode'))
 		
 	@contextmanager
 	def optional_stage(self, stage: S, optional: Optional[bool] = None):

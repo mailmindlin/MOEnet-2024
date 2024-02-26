@@ -163,6 +163,7 @@ class SlamStageConfig(_stage_base('slam')):
 	vio: bool = Field(default=False, description="Enable VIO")
 	map_save: Optional[Path] = Field(default=None)
 	map_load: Optional[Path] = Field(default=None)
+	waitForPose: bool = Field(False, description="Wait for external pose before emitting data")
 	apriltags: Union[apriltag.AprilTagFieldRef, apriltag.AprilTagFieldInline, None] = Field(None)
 
 class WorkerSlamStageConfig(SlamStageConfig):

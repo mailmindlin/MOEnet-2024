@@ -181,7 +181,7 @@
 					"description": "Tag family"
 				},
 				"tagToWorld": {
-					"$ref": "#/$defs/RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____"
+					"$ref": "#/$defs/Mat44"
 				}
 			},
 			"required": [
@@ -193,7 +193,184 @@
 			"title": "AprilTagSai",
 			"type": "object"
 		},
+		"AprilTagStageConfig": {
+			"properties": {
+				"stage": {
+					"const": "apriltag",
+					"description": "Stage name",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"description": "Is this stage enabled?",
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"runtime": {
+					"default": "host",
+					"enum": [
+						"device",
+						"host"
+					],
+					"title": "Runtime",
+					"type": "string"
+				},
+				"camera": {
+					"default": "left",
+					"enum": [
+						"left",
+						"right",
+						"rgb"
+					],
+					"title": "Camera",
+					"type": "string"
+				},
+				"detectorThreads": {
+					"anyOf": [
+						{
+							"minimum": 0,
+							"type": "integer"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "How many threads should be used for computation",
+					"title": "Detector Threads"
+				},
+				"detectorAsync": {
+					"default": false,
+					"description": "Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera",
+					"title": "Detector Async",
+					"type": "boolean"
+				},
+				"decodeSharpening": {
+					"anyOf": [
+						{
+							"minimum": 0.0,
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "How much sharpening should be done to decoded images",
+					"title": "Decode Sharpening"
+				},
+				"quadDecimate": {
+					"default": 1,
+					"title": "Quaddecimate",
+					"type": "integer"
+				},
+				"quadSigma": {
+					"default": 0.0,
+					"title": "Quadsigma",
+					"type": "number"
+				},
+				"refineEdges": {
+					"default": true,
+					"title": "Refine Edges",
+					"type": "boolean"
+				},
+				"hammingDist": {
+					"default": 0,
+					"description": "Maximum number of bits to correct",
+					"exclusiveMaximum": 3,
+					"minimum": 0,
+					"title": "Hamming Distance",
+					"type": "integer"
+				},
+				"decisionMargin": {
+					"default": 35,
+					"minimum": 0,
+					"title": "Decision Margin",
+					"type": "integer"
+				},
+				"numIterations": {
+					"default": 40,
+					"title": "Numiterations",
+					"type": "integer"
+				},
+				"undistort": {
+					"default": false,
+					"description": "Should we try to undistort the camera lens?",
+					"title": "Undistort",
+					"type": "boolean"
+				},
+				"solvePNP": {
+					"default": true,
+					"title": "Solve PnP",
+					"type": "boolean"
+				},
+				"doMultiTarget": {
+					"default": false,
+					"title": "Do Multi-Target",
+					"type": "boolean"
+				},
+				"doSingleTargetAlways": {
+					"default": false,
+					"title": "Do Single Target Always",
+					"type": "boolean"
+				},
+				"apriltags": {
+					"anyOf": [
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/AprilTagFieldRefSai",
+									"wpi": "#/$defs/AprilTagFieldRefWpi"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/AprilTagFieldRefWpi"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldRefSai"
+								}
+							]
+						},
+						{
+							"discriminator": {
+								"mapping": {
+									"sai": "#/$defs/AprilTagFieldInlineSai",
+									"wpi": "#/$defs/AprilTagFieldInlineWpi"
+								},
+								"propertyName": "format"
+							},
+							"oneOf": [
+								{
+									"$ref": "#/$defs/AprilTagFieldInlineWpi"
+								},
+								{
+									"$ref": "#/$defs/AprilTagFieldInlineSai"
+								}
+							]
+						},
+						{
+							"$ref": "#/$defs/AprilTagFieldNamedWpilib"
+						}
+					],
+					"title": "Apriltags"
+				}
+			},
+			"required": [
+				"apriltags"
+			],
+			"title": "AprilTagStageConfig",
+			"type": "object"
+		},
 		"AprilTagStrategy": {
+			"description": "How should we handle AprilTag detections?",
 			"enum": [
 				"lowest_ambiguity",
 				"closest_to_last_pose",
@@ -288,181 +465,6 @@
 				"pose"
 			],
 			"title": "AprilTagWpi",
-			"type": "object"
-		},
-		"ApriltagStage": {
-			"properties": {
-				"stage": {
-					"const": "apriltag",
-					"description": "Stage name",
-					"title": "Stage"
-				},
-				"enabled": {
-					"default": true,
-					"description": "Is this stage enabled?",
-					"title": "Enabled",
-					"type": "boolean"
-				},
-				"optional": {
-					"default": false,
-					"description": "If there's an error constructing this stage, is that a pipeline failure?",
-					"title": "Optional",
-					"type": "boolean"
-				},
-				"runtime": {
-					"default": "host",
-					"enum": [
-						"device",
-						"host"
-					],
-					"title": "Runtime",
-					"type": "string"
-				},
-				"camera": {
-					"default": "left",
-					"enum": [
-						"left",
-						"right",
-						"rgb"
-					],
-					"title": "Camera",
-					"type": "string"
-				},
-				"detectorThreads": {
-					"anyOf": [
-						{
-							"minimum": 0,
-							"type": "integer"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "How many threads should be used for computation",
-					"title": "Detectorthreads"
-				},
-				"detectorAsync": {
-					"default": false,
-					"description": "Should we run the detector on a different thread? Only useful if we're doing multiple things with the same camera",
-					"title": "Detectorasync",
-					"type": "boolean"
-				},
-				"decodeSharpening": {
-					"anyOf": [
-						{
-							"minimum": 0.0,
-							"type": "number"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "How much sharpening should be done to decoded images",
-					"title": "Decodesharpening"
-				},
-				"quadDecimate": {
-					"default": 1,
-					"title": "Quaddecimate",
-					"type": "integer"
-				},
-				"quadSigma": {
-					"default": 0.0,
-					"title": "Quadsigma",
-					"type": "number"
-				},
-				"refineEdges": {
-					"default": true,
-					"title": "Refineedges",
-					"type": "boolean"
-				},
-				"hammingDist": {
-					"default": 0,
-					"description": "Maximum number of bits to correct",
-					"exclusiveMaximum": 3,
-					"minimum": 0,
-					"title": "Hammingdist",
-					"type": "integer"
-				},
-				"decisionMargin": {
-					"default": 35,
-					"title": "Decisionmargin",
-					"type": "integer"
-				},
-				"numIterations": {
-					"default": 40,
-					"title": "Numiterations",
-					"type": "integer"
-				},
-				"undistort": {
-					"default": false,
-					"description": "Should we try to undistort the camera lens?",
-					"title": "Undistort",
-					"type": "boolean"
-				},
-				"solvePNP": {
-					"default": true,
-					"title": "Solvepnp",
-					"type": "boolean"
-				},
-				"doMultiTarget": {
-					"default": false,
-					"title": "Domultitarget",
-					"type": "boolean"
-				},
-				"doSingleTargetAlways": {
-					"default": false,
-					"title": "Dosingletargetalways",
-					"type": "boolean"
-				},
-				"apriltags": {
-					"anyOf": [
-						{
-							"discriminator": {
-								"mapping": {
-									"sai": "#/$defs/AprilTagFieldRefSai",
-									"wpi": "#/$defs/AprilTagFieldRefWpi"
-								},
-								"propertyName": "format"
-							},
-							"oneOf": [
-								{
-									"$ref": "#/$defs/AprilTagFieldRefWpi"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldRefSai"
-								}
-							]
-						},
-						{
-							"discriminator": {
-								"mapping": {
-									"sai": "#/$defs/AprilTagFieldInlineSai",
-									"wpi": "#/$defs/AprilTagFieldInlineWpi"
-								},
-								"propertyName": "format"
-							},
-							"oneOf": [
-								{
-									"$ref": "#/$defs/AprilTagFieldInlineWpi"
-								},
-								{
-									"$ref": "#/$defs/AprilTagFieldInlineSai"
-								}
-							]
-						},
-						{
-							"$ref": "#/$defs/AprilTagFieldNamedWpilib"
-						}
-					],
-					"title": "Apriltags"
-				}
-			},
-			"required": [
-				"apriltags"
-			],
-			"title": "ApriltagStage",
 			"type": "object"
 		},
 		"CameraConfig": {
@@ -609,7 +611,7 @@
 				"pipeline": {
 					"anyOf": [
 						{
-							"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___"
+							"$ref": "#/$defs/PipelineConfig"
 						},
 						{
 							"type": "string"
@@ -832,6 +834,55 @@
 			],
 			"type": "string"
 		},
+		"ColorCameraStageConfig": {
+			"description": "Configure the RGB camera",
+			"properties": {
+				"stage": {
+					"const": "rgb",
+					"description": "Stage name",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"description": "Is this stage enabled?",
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"resolution": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/ColorCameraProperties_SensorResolution"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Camera sensor resolution"
+				},
+				"fps": {
+					"anyOf": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Max FPS",
+					"title": "Fps"
+				}
+			},
+			"title": "ColorCameraStageConfig",
+			"type": "object"
+		},
 		"DataLogConfig": {
 			"description": "Configuration for datalog",
 			"properties": {
@@ -895,66 +946,6 @@
 			"title": "DataLogConfig",
 			"type": "object"
 		},
-		"DepthConfigStage": {
-			"description": "Configure stereo depth",
-			"properties": {
-				"stage": {
-					"const": "depth",
-					"description": "Stage name",
-					"title": "Stage"
-				},
-				"enabled": {
-					"default": true,
-					"description": "Is this stage enabled?",
-					"title": "Enabled",
-					"type": "boolean"
-				},
-				"optional": {
-					"default": false,
-					"description": "If there's an error constructing this stage, is that a pipeline failure?",
-					"title": "Optional",
-					"type": "boolean"
-				},
-				"checkLeftRight": {
-					"anyOf": [
-						{
-							"type": "boolean"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Enable Left-Right check",
-					"title": "Checkleftright"
-				},
-				"extendedDisparity": {
-					"anyOf": [
-						{
-							"type": "boolean"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Enable extended disparity mode",
-					"title": "Extendeddisparity"
-				},
-				"preset": {
-					"default": null,
-					"description": "Set preset profile",
-					"enum": [
-						"high_accuracy",
-						"high_density",
-						null
-					],
-					"title": "Preset"
-				}
-			},
-			"title": "DepthConfigStage",
-			"type": "object"
-		},
 		"EstimatorConfig": {
 			"properties": {
 				"detections": {
@@ -987,7 +978,7 @@
 			"title": "FieldLayout",
 			"type": "object"
 		},
-		"ImuStage": {
+		"ImuStageConfig": {
 			"properties": {
 				"stage": {
 					"const": "imu",
@@ -1007,10 +998,10 @@
 					"type": "boolean"
 				}
 			},
-			"title": "ImuStage",
+			"title": "ImuStageConfig",
 			"type": "object"
 		},
-		"InheritStage": {
+		"InheritStageConfig": {
 			"description": "Include another defined pipeline",
 			"properties": {
 				"stage": {
@@ -1038,7 +1029,7 @@
 			"required": [
 				"id"
 			],
-			"title": "InheritStage",
+			"title": "InheritStageConfig",
 			"type": "object"
 		},
 		"LogConfig": {
@@ -1068,10 +1059,117 @@
 					],
 					"default": null,
 					"title": "File"
+				},
+				"formatters": {
+					"additionalProperties": {
+						"$ref": "#/$defs/LogFormatterSpec"
+					},
+					"title": "Formatters",
+					"type": "object"
+				},
+				"handlers": {
+					"additionalProperties": {
+						"$ref": "#/$defs/LogHandlerSpec"
+					},
+					"title": "Handlers",
+					"type": "object"
+				},
+				"loggers": {
+					"additionalProperties": {
+						"$ref": "#/$defs/LoggerSpec"
+					},
+					"title": "Loggers",
+					"type": "object"
 				}
 			},
 			"title": "LogConfig",
 			"type": "object"
+		},
+		"LogFormatterSpec": {
+			"properties": {
+				"format": {
+					"title": "Format",
+					"type": "string"
+				},
+				"datefmt": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Datefmt"
+				}
+			},
+			"required": [
+				"format"
+			],
+			"title": "LogFormatterSpec",
+			"type": "object"
+		},
+		"LogHandlerSpec": {
+			"properties": {
+				"formatter": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"$ref": "#/$defs/LogFormatterSpec"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Formatter"
+				}
+			},
+			"title": "LogHandlerSpec",
+			"type": "object"
+		},
+		"LoggerSpec": {
+			"properties": {
+				"handlers": {
+					"items": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"$ref": "#/$defs/LogHandlerSpec"
+							}
+						]
+					},
+					"title": "Handlers",
+					"type": "array"
+				}
+			},
+			"title": "LoggerSpec",
+			"type": "object"
+		},
+		"Mat44": {
+			"maxItems": 4,
+			"minItems": 4,
+			"prefixItems": [
+				{
+					"$ref": "#/$defs/Vec4"
+				},
+				{
+					"$ref": "#/$defs/Vec4"
+				},
+				{
+					"$ref": "#/$defs/Vec4"
+				},
+				{
+					"$ref": "#/$defs/Vec4"
+				}
+			],
+			"title": "Mat44",
+			"type": "array"
 		},
 		"MonoCameraProperties_SensorResolution": {
 			"enum": [
@@ -1083,7 +1181,7 @@
 			],
 			"type": "string"
 		},
-		"MonoConfigStage": {
+		"MonoCameraStageConfig": {
 			"description": "Configure mono camera",
 			"properties": {
 				"stage": {
@@ -1140,7 +1238,7 @@
 			"required": [
 				"target"
 			],
-			"title": "MonoConfigStage",
+			"title": "MonoCameraStageConfig",
 			"type": "object"
 		},
 		"NNConfig": {
@@ -1480,7 +1578,7 @@
 			"title": "OakSelector",
 			"type": "object"
 		},
-		"ObjectDetectionStage": {
+		"ObjectDetectionStageConfig": {
 			"properties": {
 				"stage": {
 					"const": "nn",
@@ -1521,7 +1619,7 @@
 				"config",
 				"blobPath"
 			],
-			"title": "ObjectDetectionStage",
+			"title": "ObjectDetectionStageConfig",
 			"type": "object"
 		},
 		"ObjectTrackerConfig": {
@@ -1573,6 +1671,63 @@
 			"title": "ObjectTrackerConfig",
 			"type": "object"
 		},
+		"PipelineConfig": {
+			"items": {
+				"discriminator": {
+					"mapping": {
+						"apriltag": "#/$defs/AprilTagStageConfig",
+						"depth": "#/$defs/StereoDepthStageConfig",
+						"imu": "#/$defs/ImuStageConfig",
+						"inherit": "#/$defs/InheritStageConfig",
+						"mono": "#/$defs/MonoCameraStageConfig",
+						"nn": "#/$defs/ObjectDetectionStageConfig",
+						"rgb": "#/$defs/ColorCameraStageConfig",
+						"save": "#/$defs/SaveStageConfig",
+						"show": "#/$defs/ShowStageConfig",
+						"slam": "#/$defs/SlamStageConfig",
+						"web": "#/$defs/WebStreamStageConfig"
+					},
+					"propertyName": "stage"
+				},
+				"oneOf": [
+					{
+						"$ref": "#/$defs/InheritStageConfig"
+					},
+					{
+						"$ref": "#/$defs/ColorCameraStageConfig"
+					},
+					{
+						"$ref": "#/$defs/MonoCameraStageConfig"
+					},
+					{
+						"$ref": "#/$defs/StereoDepthStageConfig"
+					},
+					{
+						"$ref": "#/$defs/ObjectDetectionStageConfig"
+					},
+					{
+						"$ref": "#/$defs/AprilTagStageConfig"
+					},
+					{
+						"$ref": "#/$defs/SlamStageConfig"
+					},
+					{
+						"$ref": "#/$defs/WebStreamStageConfig"
+					},
+					{
+						"$ref": "#/$defs/SaveStageConfig"
+					},
+					{
+						"$ref": "#/$defs/ShowStageConfig"
+					},
+					{
+						"$ref": "#/$defs/ImuStageConfig"
+					}
+				]
+			},
+			"title": "PipelineConfig",
+			"type": "array"
+		},
 		"PipelineDefinition": {
 			"properties": {
 				"id": {
@@ -1580,7 +1735,7 @@
 					"type": "string"
 				},
 				"stages": {
-					"$ref": "#/$defs/RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___"
+					"$ref": "#/$defs/PipelineConfig"
 				}
 			},
 			"required": [
@@ -1617,6 +1772,7 @@
 					"default": "lowest_ambiguity"
 				},
 				"odometryStdDevs": {
+					"default": [],
 					"items": {
 						"type": "number"
 					},
@@ -1624,9 +1780,6 @@
 					"type": "array"
 				}
 			},
-			"required": [
-				"odometryStdDevs"
-			],
 			"title": "PoseEstimatorConfig",
 			"type": "object"
 		},
@@ -1659,136 +1812,7 @@
 			"title": "RetryConfig",
 			"type": "object"
 		},
-		"RgbConfigStage": {
-			"properties": {
-				"stage": {
-					"const": "rgb",
-					"description": "Stage name",
-					"title": "Stage"
-				},
-				"enabled": {
-					"default": true,
-					"description": "Is this stage enabled?",
-					"title": "Enabled",
-					"type": "boolean"
-				},
-				"optional": {
-					"default": false,
-					"description": "If there's an error constructing this stage, is that a pipeline failure?",
-					"title": "Optional",
-					"type": "boolean"
-				},
-				"resolution": {
-					"anyOf": [
-						{
-							"$ref": "#/$defs/ColorCameraProperties_SensorResolution"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Camera sensor resolution"
-				},
-				"fps": {
-					"anyOf": [
-						{
-							"type": "number"
-						},
-						{
-							"type": "null"
-						}
-					],
-					"default": null,
-					"description": "Max FPS",
-					"title": "Fps"
-				}
-			},
-			"title": "RgbConfigStage",
-			"type": "object"
-		},
-		"RootModel_list_Annotated_Union_Annotated_InheritStage__Tag___Annotated_RgbConfigStage__Tag___Annotated_MonoConfigStage__Tag___Annotated_DepthConfigStage__Tag___Annotated_ObjectDetectionStage__Tag___Annotated_ApriltagStage__Tag___Annotated_SlamStage__Tag___Annotated_WebStreamStage__Tag___Annotated_SaveStage__Tag___Annotated_ShowStage__Tag___Annotated_ImuStage__Tag____Discriminator___": {
-			"items": {
-				"anyOf": [
-					{
-						"$ref": "#/$defs/InheritStage"
-					},
-					{
-						"$ref": "#/$defs/RgbConfigStage"
-					},
-					{
-						"$ref": "#/$defs/MonoConfigStage"
-					},
-					{
-						"$ref": "#/$defs/DepthConfigStage"
-					},
-					{
-						"$ref": "#/$defs/ObjectDetectionStage"
-					},
-					{
-						"$ref": "#/$defs/ApriltagStage"
-					},
-					{
-						"$ref": "#/$defs/SlamStage"
-					},
-					{
-						"$ref": "#/$defs/WebStreamStage"
-					},
-					{
-						"$ref": "#/$defs/SaveStage"
-					},
-					{
-						"$ref": "#/$defs/ShowStage"
-					},
-					{
-						"$ref": "#/$defs/ImuStage"
-					}
-				]
-			},
-			"title": "RootModel[list[Annotated[Union[Annotated[InheritStage, Tag], Annotated[RgbConfigStage, Tag], Annotated[MonoConfigStage, Tag], Annotated[DepthConfigStage, Tag], Annotated[ObjectDetectionStage, Tag], Annotated[ApriltagStage, Tag], Annotated[SlamStage, Tag], Annotated[WebStreamStage, Tag], Annotated[SaveStage, Tag], Annotated[ShowStage, Tag], Annotated[ImuStage, Tag]], Discriminator]]]",
-			"type": "array"
-		},
-		"RootModel_tuple_RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____RootModel_tuple_float__float__float__float____": {
-			"maxItems": 4,
-			"minItems": 4,
-			"prefixItems": [
-				{
-					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
-				},
-				{
-					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
-				},
-				{
-					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
-				},
-				{
-					"$ref": "#/$defs/RootModel_tuple_float__float__float__float__"
-				}
-			],
-			"title": "RootModel[tuple[RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]], RootModel[tuple[float, float, float, float]]]]",
-			"type": "array"
-		},
-		"RootModel_tuple_float__float__float__float__": {
-			"maxItems": 4,
-			"minItems": 4,
-			"prefixItems": [
-				{
-					"type": "number"
-				},
-				{
-					"type": "number"
-				},
-				{
-					"type": "number"
-				},
-				{
-					"type": "number"
-				}
-			],
-			"title": "RootModel[tuple[float, float, float, float]]",
-			"type": "array"
-		},
-		"SaveStage": {
+		"SaveStageConfig": {
 			"description": "Save images to file",
 			"properties": {
 				"stage": {
@@ -1835,10 +1859,10 @@
 				"target",
 				"path"
 			],
-			"title": "SaveStage",
+			"title": "SaveStageConfig",
 			"type": "object"
 		},
-		"ShowStage": {
+		"ShowStageConfig": {
 			"description": "Show video stream as GUI",
 			"properties": {
 				"stage": {
@@ -1865,10 +1889,10 @@
 			"required": [
 				"target"
 			],
-			"title": "ShowStage",
+			"title": "ShowStageConfig",
 			"type": "object"
 		},
-		"SlamStage": {
+		"SlamStageConfig": {
 			"description": "SAI slam",
 			"properties": {
 				"stage": {
@@ -1969,8 +1993,88 @@
 					"title": "Apriltags"
 				}
 			},
-			"title": "SlamStage",
+			"title": "SlamStageConfig",
 			"type": "object"
+		},
+		"StereoDepthStageConfig": {
+			"description": "Configure stereo depth",
+			"properties": {
+				"stage": {
+					"const": "depth",
+					"description": "Stage name",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"description": "Is this stage enabled?",
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
+					"title": "Optional",
+					"type": "boolean"
+				},
+				"checkLeftRight": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Enable Left-Right check",
+					"title": "Checkleftright"
+				},
+				"extendedDisparity": {
+					"anyOf": [
+						{
+							"type": "boolean"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"description": "Enable extended disparity mode",
+					"title": "Extendeddisparity"
+				},
+				"preset": {
+					"default": null,
+					"description": "Set preset profile",
+					"enum": [
+						"high_accuracy",
+						"high_density",
+						null
+					],
+					"title": "Preset"
+				}
+			},
+			"title": "StereoDepthStageConfig",
+			"type": "object"
+		},
+		"Vec4": {
+			"maxItems": 4,
+			"minItems": 4,
+			"prefixItems": [
+				{
+					"type": "number"
+				},
+				{
+					"type": "number"
+				},
+				{
+					"type": "number"
+				},
+				{
+					"type": "number"
+				}
+			],
+			"title": "Vec4",
+			"type": "array"
 		},
 		"VideoDisplayTarget": {
 			"description": "Name of video stream for user consumption",
@@ -1988,6 +2092,7 @@
 			"properties": {
 				"enabled": {
 					"default": true,
+					"description": "Should we enable the webserver?",
 					"title": "Enabled",
 					"type": "boolean"
 				},
@@ -2063,7 +2168,7 @@
 			"title": "WebConfig",
 			"type": "object"
 		},
-		"WebStreamStage": {
+		"WebStreamStageConfig": {
 			"description": "Stream data to web",
 			"properties": {
 				"stage": {
@@ -2104,7 +2209,7 @@
 			"required": [
 				"target"
 			],
-			"title": "WebStreamStage",
+			"title": "WebStreamStageConfig",
 			"type": "object"
 		}
 	},

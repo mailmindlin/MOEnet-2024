@@ -3,13 +3,14 @@
 from typing import TYPE_CHECKING, Callable, Iterable
 
 from google.protobuf.pyext.cpp_message import GeneratedProtocolMessageType
+from google.protobuf.message import Message
 if TYPE_CHECKING:
 	from google.protobuf.descriptor import FileDescriptor
 	from .typedef import SchemaRegistry
 
 
 def is_protobuf_type(type: type) -> bool:
-	return isinstance(type, GeneratedProtocolMessageType)
+	return issubclass(type, Message)
 
 def type_string(proto: 'GeneratedProtocolMessageType') -> str:
 	assert is_protobuf_type(proto)

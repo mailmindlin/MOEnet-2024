@@ -42,10 +42,12 @@ class WorkerState(IntEnum):
 
     
 
-class CmdPoseOverride(BaseModel):
+@dataclass
+class CmdPoseOverride:
     "Override worker pose"
-    pose: Pose3d
+    pose: Pose3d | Pose3dCov
     "Pose (field-to-camera)"
+    timestamp: Optional[int] = None
 
 class CmdFlush(BaseModel):
     "Request a data flush"

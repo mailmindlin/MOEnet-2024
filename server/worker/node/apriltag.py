@@ -9,7 +9,7 @@ from typedef import apriltag
 from typedef import pipeline as cfg
 from typedef.geom import Pose3d, Translation3d, Transform3d, Rotation3d
 from .builder import NodeBuilder, NodeRuntime, XOutRuntime, XLinkOut, Dependency
-from ..msg import AprilTagDetection, MsgAprilTagPoses, AprilTagPose
+from ..msg import AprilTagDetection, AprilTagPose, MsgAprilTagDetections, PnpPose, PnPResult
 from . import coords
 
 if TYPE_CHECKING:
@@ -25,14 +25,15 @@ AnyAprilTagDetection = Union['WpiAprilTagDetection', AprilTagDetection]
 
 
 class AprilTagPoseList:
-	def __init__(self, *poses: tuple[float, Transform3d]) -> None:
+	def __init__(self, *poses: AprilTagPose) -> None:
 		self.poses = list(poses)
 
-	def append(self, pose: tuple[float, Transform3d]):
+	def append(self, pose: AprilTagPose):
 		self.poses.append(pose)
+	
 	@property
 	def best(self):
-		return max(self.poses)[1]
+		return max(self.poses, key=lambda pose: pose.error)
 	
 	def __bool__(self):
 		return len(self.poses) > 0
@@ -48,6 +49,28 @@ class AprilTagPoseList:
 	
 	def __repr__(self):
 		return repr(self.poses)
+
+def make_object_points(knownTags: list[apriltag.AprilTagWpi], tagSize: float):
+	#TODO: do this in numpy
+	at_vertices = [
+		Translation3d(0, -tagSize / 2.0, -tagSize / 2.0),
+		Translation3d(0,  tagSize / 2.0, -tagSize / 2.0),
+		Translation3d(0,  tagSize / 2.0,  tagSize / 2.0),
+		Translation3d(0, -tagSize / 2.0,  tagSize / 2.0),
+	]
+	#TODO: especially this part
+	objectTrls = [
+		vtx.rotateBy(tag.pose.rotation()) + tag.pose.translation()
+		for tag in knownTags
+		for vtx in at_vertices
+	]
+	
+	# Convert to OpenCV coords
+	objectTrls = map(coords.wpi_to_cv2, objectTrls)
+	return np.array([
+		[trl.x, trl.y, trl.z]
+		for trl in objectTrls
+	], dtype=np.float32)
 
 class AprilTagRuntimeBase(NodeRuntime):
 	def __init__(self, config: cfg.WorkerAprilTagStageConfig, src: 'CameraNode', *args, **kwargs) -> None:
@@ -104,11 +127,9 @@ class AprilTagRuntimeBase(NodeRuntime):
 		return True
 	
 	def _single_pnp(self, det: AnyAprilTagDetection, fieldToTag: Pose3d | None = None):
+		"Find pose from a single AprilTag detection"
 		if fieldToTag is None:
 			fieldToTag = self.atfl.getTagPose(det.getId())
-		if fieldToTag is None:
-			# Unknown tag
-			return AprilTagPoseList()
 		
 		if self.config.undistort:
 			corners = det.getCorners(np.empty(9, dtype=np.float32))
@@ -129,83 +150,106 @@ class AprilTagRuntimeBase(NodeRuntime):
 		else:
 			estimate = self.pose_estimator.estimateOrthogonalIteration(det, self.config.numIterations)
 		
-		camToTag = AprilTagPoseList((estimate.error1, estimate.pose1))
-		if np.isfinite(estimate.error2):
-			camToTag.append((estimate.error2, estimate.pose2))
-		
-		return camToTag
-		# return camToTag.map(lambda c2t: Transform3d(Pose3d(), fieldToTag.transformBy(c2t.inverse())))
+		result: list[AprilTagPose] = []
+		def append_pose(error: float, camToTag_at: Transform3d):
+			# Convert camToTag coordinate system to WPI (ENU)
+			camToTag_cv2 = coords.apriltag_to_cv2(camToTag_at)
+			camToTag = coords.cv2_to_wpi(camToTag_cv2)
 
-	def _multi_pnp(self, dets: list[AprilTagDetection]) -> tuple[AprilTagPoseList, set[int]]:
+			# Compute fieldToCam if we have fieldToTag
+			fieldToCam = Transform3d(Pose3d(), fieldToTag.transformBy(camToTag.inverse())) if (fieldToTag is not None) else None
+
+			result.append(AprilTagPose(error=error, camToTag=camToTag, fieldToCam=fieldToCam))
+		
+		append_pose(estimate.error1, estimate.pose1)
+		if np.isfinite(estimate.error2):
+			append_pose(estimate.error2, estimate.pose2)
+		
+		return result
+
+	def _multi_pnp(self, dets: list[AprilTagDetection]) -> PnPResult | None:
 		# Find tag IDs that exist in the tag layout
-		knownTags: list[AprilTagDetection] = list()
-		tagPoses: dict[int, Pose3d] = dict()
+		knownTags: list[apriltag.AprilTagWpi] = list()
 		corners = list()
 		for det in dets:
 			id = det.getId()
 			if pose := self.atfl.getTagPose(id):
-				knownTags.append(det)
-				tagPoses[id] = pose
+				knownTags.append(apriltag.AprilTagWpi(ID=id, pose=pose))
 				corners.append(det.corners)
 
 		# Only run with multiple targets
 		if len(knownTags) < 2:
-			return [], set()
+			return None
 		
-		# Single tag PnP
 		match len(knownTags):
 			case 0:
-				return AprilTagPoseList(), set()
+				return None
 			case 1:
+				# Single tag PnP
+				#TODO: use OpenCV here?
 				det = knownTags[0]
 				fieldToCam = self._single_pnp(det)
-				return fieldToCam, set(tagPoses.keys())
-			case _:
-				corners = np.vstack(corners)
-				# Multi-tag PnP
-				objectTrls: list[Translation3d] = list()
-				tagSize = self.config.apriltags.tagSize
-				at_vertices = [
-					Translation3d(0, -tagSize / 2.0, -tagSize / 2.0),
-					Translation3d(0, tagSize / 2.0, -tagSize / 2.0),
-					Translation3d(0, tagSize / 2.0, tagSize / 2.0),
-					Translation3d(0, -tagSize / 2.0, tagSize / 2.0)
-				]
-				for tagPose in tagPoses.values():
-					objectTrls.extend(
-						vtx.rotateBy(tagPose.rotation()) + tagPose.translation()
-						for vtx in at_vertices
-					)
+				if len(fieldToCam) == 0:
+					return None
 				
-				objectPoints = np.array([
-					[trl.x, trl.y, trl.z]
-					for trl in objectTrls
-				])
+				return PnPResult(
+					tags=set(tag.ID for tag in knownTags),
+					poses=[
+						PnpPose(
+							error=pose.error,
+							fieldToCam=pose.fieldToCam,
+						)
+						for pose in fieldToCam
+					]
+				)
+			case _:
+				# Multi-tag PnP
+				corners = np.vstack(corners, dtype=np.float32)
+				objectPoints = make_object_points(knownTags, self.config.apriltags.tagSize)
+
 				# translate to opencv classes
-				rvecs = list()
-				tvecs = list()
-				rvec = np.zeros((3, 1), np.float32)
-				tvec = np.zeros((3, 1), np.float32)
+				rvecs: list[np.ndarray[np.float32]] = list()
+				tvecs: list[np.ndarray[np.float32]] = list()
 				reprojection_error = np.zeros((1,1), np.float32)
-				cv2.solvePnPGeneric(
-					objectPoints,
-					corners,
-					self.camera_matrix,
-					self.camera_distortion,
-					rvecs,
-					tvecs,
-					False,
-					cv2.SOLVEPNP_SQPNP,
-					rvec,
-					tvec,
-					reprojection_error,
+				try:
+					cv2.solvePnPGeneric(
+						objectPoints,
+						corners,
+						self.camera_matrix,
+						self.camera_distortion,
+						rvecs,
+						tvecs,
+						False,
+						cv2.SOLVEPNP_SQPNP,
+						np.zeros((3, 1), np.float32), # rvec (TODO: maybe none?)
+						np.zeros((3, 1), np.float32), # tvec (TODO: maybe none?)
+						reprojection_error,
+					)
+				except:
+					self.log.exception("SolvePNP_SQPNP failed")
+					return None
+				
+				error: float = reprojection_error[0,0]
+				# check if solvePnP failed with NaN results
+				if np.isnan(error):
+					self.log.error("SolvePNP_SQPNP NaN result")
+					return None
+				
+				self.log.info("Got %d tvecs, %d rvecs", len(tvecs), len(rvecs))
+				# Extract transform in WPI coordinates
+				camToField = Transform3d(
+					coords.cv2_to_wpi(Translation3d(tvecs[0][0], tvecs[0][1], tvecs[0][2])),
+					coords.cv2_to_wpi(Rotation3d(rvecs[0])),
 				)
-				error = reprojection_error[0,0]
-				best = Transform3d(
-					Translation3d(tvecs[0][0], tvecs[0][1], tvecs[0][2]),
-					Rotation3d(rvecs[0])
+				return PnPResult(
+					tags=set(tag.ID for tag in knownTags),
+					poses=[
+						PnpPose(
+							error=error,
+							fieldToCam=Pose3d().transformBy(camToField.inverse()),
+						)
+					]
 				)
-				return AprilTagPoseList((error, best)), set(tagPoses.keys())
 	
 	def _process_dets(self, ts: 'Timestamp', dets: list[Union['WpiAprilTagDetection', AprilTagDetection]]):
 		if len(dets) == 0:
@@ -224,15 +268,20 @@ class AprilTagRuntimeBase(NodeRuntime):
 
 		# Do multi-tag estimation
 		multiTagsUsed: set[int] = set()
-		multiTagPose = AprilTagPoseList()
 		if self.config.solvePNP and self.config.doMultiTarget:
-			multiTagPose, multiTagsUsed = self._multi_pnp(dets)
-			self.log.info("Multi tag %s used %s", multiTagPose, multiTagsUsed)
+			multiTagPose = self._multi_pnp(dets)
+			if multiTagPose is None:
+				self.log.info("Multi tag failed")
+			else:
+				self.log.info("Multi tag %s used %s", multiTagPose.poses, multiTagPose.tags)
+				multiTagsUsed = multiTagPose.tags
 			# for error, estimate in multiTagPose:
 			# 	targetList.append(AprilTagPose(
 			# 		error=error,
 			# 		fieldToCamera=Pose3d().transformBy(estimate)
 			# 	))
+		else:
+			multiTagPose = None
 		
 		targetList: list[AprilTagPose] = list()
 		if self.config.solvePNP:
@@ -240,39 +289,30 @@ class AprilTagRuntimeBase(NodeRuntime):
 				fieldToTag = self.atfl.getTagPose(detection.getId())
 				# Do single-tag estimation when "always enabled" or if a tag was not used for multitag
 				if self.config.doSingleTargetAlways or (detection.getId() not in multiTagsUsed):
-					for error, estimate in self._single_pnp(detection):
-						estimate_cv2 = coords.apriltag_to_cv2(estimate)
-						estimate_wpi = coords.cv2_to_wpi(estimate_cv2)
-						targetList.append(AprilTagPose(
-							error=error,
-							camToTag=estimate_wpi,
-							fieldToCam=None if (fieldToTag is None) else fieldToTag.transformBy(estimate_wpi.inverse()),
-						))
-						self.log.info("Single tag estimate: %s", estimate)
+					for pose in self._single_pnp(detection, fieldToTag):
+						targetList.append(pose)
+						self.log.debug("Single tag estimate: %s", pose.camToTag)
 				elif fieldToTag is not None:
 					# If single-tag estimation was not done, this is a multi-target tag from the layout
+					fieldToCam = multiTagPose.best.fieldToCam if (multiTagPose is not None) else Pose3d()
 					# compute this tag's camera-to-tag transform using the multitag result
-					fieldToCam = Pose3d() + multiTagPose.best
-					camToTag_wpi = Transform3d(
-						fieldToCam,
-						fieldToTag
-					)
+					camToTag = Transform3d(fieldToCam, fieldToTag)
 					# match expected AprilTag coordinate system
 					# camToTag_cv2 = coords.wpi_to_cv2(camToTag_wpi)
 					# camToTag_at = coords.cv2_to_apriltag(camToTag_cv2)
 					# tagPoseEstimate = AprilTagPoseList((0, camToTag_at))
 					targetList.append(AprilTagPose(
 						error=0,
-						camToTag=camToTag_wpi,
+						camToTag=camToTag,
 						fieldToCam=fieldToCam,
 					))
 		# for v in targetList:
 		# 	self.datapoints.append(v)
 
-		yield MsgAprilTagPoses(
+		yield MsgAprilTagDetections(
 			timestamp=ts.nanos,
 			poses=targetList,
-			# poseCovariance=np.diag([1e-5, 1e-5, 1e-5, 1e-4, 1e-4, 1e-4])
+			pnp=multiTagPose,
 		)
 		if len(self.datapoints) > 300:
 			from matplotlib import pyplot as plt

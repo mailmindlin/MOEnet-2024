@@ -4,8 +4,10 @@ from datetime import timedelta
 if TYPE_CHECKING:
 	import depthai as dai
 
-Vec4 = RootModel[tuple[float, float, float, float]]
-Mat44 = RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]
+class Vec4(RootModel[tuple[float, float, float, float]]):
+	pass
+class Mat44(RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]):
+	pass
 
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"

@@ -9,12 +9,7 @@ from typedef import pipeline as cfg
 from .time import DeviceTimeSync
 from .node.builder import NodeBuilder, NodeRuntime
 from .msg import AnyMsg, AnyCmd, WorkerMsg
-from .node.apriltag import AprilTagBuilder
-from .node.nn import ObjectDetectionNode
-from .node.slam import SlamBuilder
-from .node.stream import WebStreamNode, ShowNode
-from .node.util import ImageOutStage, TelemetryStage, ImageOutConfig
-from .node.video import MonoCameraNode, ColorCameraNode, DepthBuilder
+from .node.util import ImageOutConfig
 
 if TYPE_CHECKING:
 	# import spectacularAI.depthai.Pipeline as SaiPipeline
@@ -36,20 +31,30 @@ class MoeNetPipeline:
 		self.poll_stages: list[NodeRuntime] = list()
 		self.event_targets: dict[str, NodeRuntime] = dict()
 
-		def register(name: str, builder: Type[NodeBuilder], cfg: Type[S]):
+		def register(name: str, cfg: Type[S], builder_path: tuple[str]):
 			self._msg_types[name] = cfg
-			self.stage_factories[name] = builder
+
+			# Stages might have heavy dependencies, so don't load them until/unless necessary
+			builder = None
+			def lazy_builder(*args, **kwargs):
+				nonlocal builder
+				if builder is None:
+					import importlib
+					module = importlib.import_module('.'.join(('', 'node', *builder_path[:-1])), __package__)
+					builder = getattr(module, builder_path[-1])
+				return builder(*args, **kwargs)
+			self.stage_factories[name] = lazy_builder
 		
-		register('apriltag',  AprilTagBuilder, cfg.WorkerAprilTagStageConfig)
-		register('slam',      SlamBuilder, cfg.WorkerSlamStageConfig)
-		register('mono',      MonoCameraNode, cfg.MonoCameraStageConfig)
-		register('rgb',       ColorCameraNode, cfg.ColorCameraStageConfig)
-		register('depth',     DepthBuilder, cfg.StereoDepthStageConfig)
-		register('telemetry', TelemetryStage, cfg.TelemetryStageConfig)
-		register('nn',        ObjectDetectionNode, cfg.ObjectDetectionStageConfig)
-		register('xout',      ImageOutStage, ImageOutConfig)
-		register('web',       WebStreamNode, cfg.WebStreamStageConfig)
-		register('show',      ShowNode, cfg.ShowStageConfig)
+		register('apriltag',  cfg.WorkerAprilTagStageConfig,  ('apriltag', 'AprilTagBuilder'))
+		register('slam',      cfg.WorkerSlamStageConfig,      ('slam', 'SlamBuilder'))
+		register('mono',      cfg.MonoCameraStageConfig,      ('video', 'MonoCameraNode'))
+		register('rgb',       cfg.ColorCameraStageConfig,     ('video', 'ColorCameraNode'))
+		register('depth',     cfg.StereoDepthStageConfig,     ('video', 'DepthBuilder'))
+		register('telemetry', cfg.TelemetryStageConfig,       ('util', 'TelemetryStage'))
+		register('nn',        cfg.ObjectDetectionStageConfig, ('nn', 'ObjectDetectionNode'))
+		register('xout',      ImageOutConfig,                 ('util', 'ImageOutStage'))
+		register('web',       cfg.WebStreamStageConfig,       ('stream', 'WebStreamNode'))
+		register('show',      cfg.ShowStageConfig,            ('stream', 'ShowNode'))
 		
 	@contextmanager
 	def optional_stage(self, stage: S, optional: Optional[bool] = None):

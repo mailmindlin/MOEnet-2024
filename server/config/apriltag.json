@@ -19,63 +19,70 @@
 	},
 	"estimator": {
 		"pose": {
-			"apriltagStrategy": "closest_to_last_pose"
+			"apriltagStrategy": "closest_to_last_pose",
+			"history": "PT10S"
 		}
 	},
+	"camera_selectors": [
+		{
+			"id": "FortissiMOE-left",
+			"mxid": "1944301051451A1300",
+			"pose": {
+				"rotation": {
+					"quaternion": {
+						"W": 0.7071067811865476,
+						"X": 0,
+						"Y": 0,
+						"Z": 0.7071067811865476
+					}
+				},
+				"translation": {
+					"x": -0.2413,
+					"y": 0.3302,
+					"z": 0.6223
+				}
+			}
+		},
+		{
+			"id": "FortissiMOE-right",
+			"mxid": "19443010610FF21200",
+			"pose": {
+				"rotation": {
+					"quaternion": {
+						"W": 0.7071067811865476,
+						"X": 0,
+						"Y": 0,
+						"Z": -0.7071067811865476
+					}
+				},
+				"translation": {
+					"x": -0.2413,
+					"y": -0.3302,
+					"z": 0.6223
+				}
+			}
+		},
+		{
+			"id": "dev",
+			"ordinal": 1,
+			"pose": {
+				"rotation": {
+					"quaternion": {
+						"W": 1,
+						"X": 0,
+						"Y": 0,
+						"Z": 0
+					}
+				},
+				"translation": {
+					"x": 0,
+					"y": 0,
+					"z": 0
+				}
+			}
+		}
+	],
 	"pipelines": [
-		{
-			"id": "device-rgb",
-			"stages": [
-				{
-					"stage": "rgb",
-					"resolution": "THE_800_P",
-					"fps": 30
-				},
-				{
-					"stage": "apriltag",
-					"camera": "rgb",
-					"hammingDist": 0,
-					"apriltags": {
-						"format": "wpi",
-						"path": "./apriltag/2024-crescendo.json",
-						"tagFamily": "tag36h11",
-						"tagSize": 0.1651
-					},
-					"runtime": "device"
-				},
-				{
-					"stage": "show",
-					"target": "rgb"
-				}
-			]
-		},
-		{
-			"id": "device-mono",
-			"stages": [
-				{
-					"stage": "mono",
-					"target": "left",
-					"resolution": "THE_400_P",
-					"fps": 30
-				},
-				{
-					"stage": "apriltag",
-					"camera": "left",
-					"hammingDist": 0,
-					"apriltags": {
-						"format": "wpi",
-						"path": "./apriltag/2024-crescendo.json",
-						"tagFamily": "tag36h11",
-						"tagSize": 0.1651
-					},
-					"runtime": "device"
-				},
-				{
-					"stage": "show",
-					"target": "left"
-				}
-			]
-		},
 		{
 			"id": "host-rgb",
 			"stages": [
@@ -121,31 +128,7 @@
 						"format": "wpi",
 						"tagFamily": "tag36h11",
 						"tagSize": 0.1651,
-						"path": "./apriltag/2024-crescendo.json",
-						"field0": {
-							"length": 16.451,
-							"width": 8.211
-						},
-						"tags0": [
-							{
-								"ID": 42,
-								"pose": {
-									"translation": {
-										"x": 11.220196,
-										"y": 4.105148,
-										"z": 1.3208
-									},
-									"rotation": {
-										"quaternion": {
-											"W": 6.123233995736766e-17,
-											"X": 0.0,
-											"Y": 0.0,
-											"Z": 1.0
-										}
-									}
-								}
-							}
-						]
+						"path": "./apriltag/2024-crescendo.json"
 					},
 					"runtime": "host",
 					"doMultiTarget": false,
@@ -162,25 +145,9 @@
 	],
 	"cameras": [
 		{
-			"id": "Default",
-			"selector": {
-				"ordinal": 1
-			},
-			"pose": {
-				"rotation": {
-					"quaternion": {
-						"W": 1,
-						"X": 0,
-						"Y": 0,
-						"Z": 0
-					}
-				},
-				"translation": {
-					"x": 0,
-					"y": 0,
-					"z": 0
-				}
-			},
+			"id": "Left",
+			"selector": "dev",
+			"pose": null,
 			"pipeline": [
 				{
 					"stage": "inherit",

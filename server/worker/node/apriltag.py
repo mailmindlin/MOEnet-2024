@@ -490,7 +490,8 @@ class AprilTagHostRuntime(AprilTagRuntimeBase):
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
 		
 		dets = self.detector.detect(img)
-		self.log.debug("raw ats %s", dets)
+		if len(dets) > 0:
+			self.log.debug("raw ats %s", dets)
 		good_dets = list()
 		for detection in dets:
 			if not self._filter_detection(detection):

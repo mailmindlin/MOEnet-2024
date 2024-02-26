@@ -43,12 +43,14 @@ class DeviceTimeSync:
 		return now_wall - latency
 
 	def wall_to_device(self, wall: Timestamp) -> float:
+		"Convert wall time to device time (useful for SpectacularAI)"
 		wall.assert_src(self.reference_clock)
 		mapper = self.map.get_conversion(self.reference_clock, self.dev_clock)
 		dev = mapper.a_to_b(wall)
 		return dev.as_seconds()
 
 	def device_to_wall(self, devtime: float) -> 'Timestamp':
+		"Convert device time to wall time (useful for SpectacularAI)"
 		dev = Timestamp.from_seconds(devtime, self.dev_clock)
 		mapper = self.map.get_conversion(self.dev_clock, self.reference_clock)
 		wall = mapper.a_to_b(dev)

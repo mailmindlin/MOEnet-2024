@@ -11,7 +11,7 @@ import numpy as np
 from typedef.common import OakSelector, RetryConfig
 from typedef.geom import Pose3d, Translation3d, Twist3d, Transform3d
 from typedef.geom_cov import Pose3dCov, Twist3dCov
-from typedef.pipeline import PipelineStageWorker
+from typedef.pipeline import PipelineConfigWorker
 
 Mat33 = np.ndarray[float, tuple[Literal[3], Literal[3]]]
 Mat44 = np.ndarray[float, tuple[Literal[4], Literal[4]]]
@@ -26,7 +26,7 @@ class WorkerInitConfig(BaseModel):
     maxRefresh: float = Field(10, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
     dynamic_pose: Optional[str] = Field(None)
-    pipeline: list[PipelineStageWorker] = Field(default_factory=list)
+    pipeline: PipelineConfigWorker = Field(default_factory=PipelineConfigWorker)
 
 
 class WorkerState(IntEnum):
@@ -133,16 +133,31 @@ class MsgDetections(BaseModel):
     def __iter__(self):
         return iter(self.detections)
 
+@dataclass
+class PnpPose:
+    error: float
+    fieldToCam: Pose3d
+
+@dataclass
+class PnPResult:
+    tags: set[int]
+    poses: list[PnpPose]
+    ambiguity: float = 0
+
+    @property
+    def best(self):
+        return min(self.poses, key=lambda pose: pose.error)
+
+
 class AprilTagPose(BaseModel):
     error: float
     camToTag: Transform3d
     fieldToCam: Pose3d | None
 
-
-class MsgAprilTagPoses(BaseModel):
+class MsgAprilTagDetections(BaseModel):
     timestamp: int
-    poses: list[AprilTagPose]
-    "Represents multiple possible poses"
+    detections: list[AprilTagPose] = Field(default_factory=list)
+    pnp: PnPResult | None = Field(None)
 
 
 @dataclass
@@ -190,7 +205,7 @@ WorkerMsg: TypeAlias = Union[
 AnyMsg = Union[
     MsgDetections,
     MsgPose,
-    MsgAprilTagPoses,
+    MsgAprilTagDetections,
     MsgOdom,
 ]
 "Public message types"

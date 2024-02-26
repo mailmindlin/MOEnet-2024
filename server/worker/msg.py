@@ -95,16 +95,33 @@ class AprilTagDetection:
     corners: np.ndarray[float, tuple[Literal[4], Literal[2]]]
     homography: Mat33
 
-    def getFamily(self):
+    # We define these functions to comply with the shape of `robotpy_apriltag.AprilTagDetection``
+    def getFamily(self) -> str:
+        "Gets the decoded tag's family name."
         return self.tag_family
-    
-    def getId(self):
+    def getId(self) -> int:
+        "Gets the decoded ID of the tag."
         return self.tag_id
-    def getHamming(self):
+    def getHamming(self) -> int:
+        "Gets how many error bits were corrected"
         return self.hamming
-    def getDecisionMargin(self):
+    def getDecisionMargin(self) -> float:
+        """
+        Gets a measure of the quality of the binary decoding process: the
+        average difference between the intensity of a data bit versus
+        the decision threshold. Higher numbers roughly indicate better
+        decodes. This is a reasonable measure of detection accuracy
+        only for very small tags-- not effective for larger tags (where
+        we could have sampled anywhere within a bit cell and still
+        gotten a good detection.)
+        """
         return self.decision_margin
     def getCorners(self, *args):
+        """
+        Gets the corners of the tag in image pixel coordinates. These always
+        wrap counter-clock wise around the tag. The first set of corner coordinates
+        are the coordinates for the bottom left corner.
+        """
         return self.corners
 
 

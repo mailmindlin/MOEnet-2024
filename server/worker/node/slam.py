@@ -80,6 +80,9 @@ class SaiSlamRuntime(NodeRuntime):
 		"Last tag recieved from SAI"
 		self._vio_require_tag = 0
 		"Tag required by last flush"
+
+		if builder.config.waitForPose:
+			self._vio_require_tag = 1
 	
 	def handle_command(self, cmd: AnyCmd):
 		if isinstance(cmd, CmdFlush):
@@ -87,7 +90,40 @@ class SaiSlamRuntime(NodeRuntime):
 			dev_ts = self.context.tsyn.dev_clock.now()
 			self.vio_session.addTrigger(dev_ts.as_seconds(), self._vio_require_tag)
 			return True
-		return super().handle_command(cmd)
+		elif isinstance(cmd, CmdPoseOverride):
+			self.log.warning("Override SLAM pose")
+			# Convert to SAI pose
+			if cmd.timestamp is None:
+				ts = self.context.clock.now()
+			else:
+				ts = Timestamp.from_nanos(cmd.timestamp, clock=self.context.clock)
+			
+			ts_sai = self.context.tsyn.wall_to_device(ts)
+
+			if isinstance(cmd.pose, Pose3d):
+				pose = cmd.pose
+				pose_cov = np.zeros((3,3), dtype=float)
+				rot_cov = 0
+			else:
+				pose = cmd.pose.mean
+				raw_cov = cmd.pose.cov
+				pose_cov = raw_cov[:3, :3]
+				rot_cov = 0 # TODO
+			
+			# Use AprilTag conversion utils so we don't write this again
+			pose_sai = sai.Pose.fromMatrix(
+				ts_sai,
+				apriltag.AprilTagWpi(ID=0, pose=pose) \
+					.to_sai(apriltag.AprilTagFamily.TAG_16H5, 1.0) \
+					.get_sai_matrix()
+			)
+
+			self.vio_session.addAbsolutePose(pose_sai, pose_cov, rot_cov)
+			# Add trigger
+			self.vio_session.addTrigger(ts_sai, self._vio_require_tag)
+			return True
+		else:
+			return super().handle_command(cmd)
 	
 	def poll(self, event: str | None = None) -> Iterable[WorkerMsg]:
 		if not self.vio_session.hasOutput():

@@ -63,6 +63,7 @@ class AprilTagSai(BaseModel, AprilTagBase):
     family: AprilTagFamily = Field(description="Tag family")
     tagToWorld: common.Mat44
     def get_sai_matrix(self) -> np.ndarray:
+        "Get SpectacularAI tag-to-world matrix"
         return np.asarray(self.tagToWorld)
     def to_wpi(self) -> 'AprilTagWpi':
         matrix = np.asarray(self.tagToWorld, dtype=float)

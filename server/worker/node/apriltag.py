@@ -80,7 +80,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 		# Get camera parameters
 		calibdata = self.context.device.readCalibration()
 		at_camera = src.node
-		self.camera_matrix = calibdata.getCameraIntrinsics(src.camera_socket, destShape=(at_camera.getResolutionWidth(), at_camera.getResolutionHeight()))
+		self.camera_matrix = np.asarray(calibdata.getCameraIntrinsics(src.camera_socket, destShape=(at_camera.getResolutionWidth(), at_camera.getResolutionHeight())))
 		self.camera_distortion = np.asarray(calibdata.getDistortionCoefficients(src.camera_socket))
 
 		# Build (cached) pose estimator

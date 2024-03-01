@@ -154,7 +154,7 @@ class SimplePoseEstimator(Filter[int]):
 		if len(poses) == 0:
 			return None
 		if len(poses) == 1:
-			return poses[0][1]
+			return poses[0].fieldToCam
 		
 		match self.config.apriltagStrategy:
 			case AprilTagStrategy.LOWEST_AMBIGUITY:

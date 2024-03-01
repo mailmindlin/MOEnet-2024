@@ -208,22 +208,14 @@ class AprilTagRuntimeBase(NodeRuntime):
 				objectPoints = make_object_points(knownTags, self.config.apriltags.tagSize)
 
 				# translate to opencv classes
-				rvecs: list[np.ndarray[np.float32]] = list()
-				tvecs: list[np.ndarray[np.float32]] = list()
-				reprojection_error = np.zeros((1,1), np.float32)
 				try:
-					cv2.solvePnPGeneric(
+					rc, rvecs, tvecs, reprojection_error = cv2.solvePnPGeneric(
 						objectPoints,
 						corners,
 						self.camera_matrix,
 						self.camera_distortion,
-						rvecs,
-						tvecs,
-						False,
-						cv2.SOLVEPNP_SQPNP,
-						np.zeros((3, 1), np.float32), # rvec (TODO: maybe none?)
-						np.zeros((3, 1), np.float32), # tvec (TODO: maybe none?)
-						reprojection_error,
+						useExtrinsicGuess=False,
+						flags=cv2.SOLVEPNP_SQPNP,
 					)
 				except:
 					self.log.exception("SolvePNP_SQPNP failed")

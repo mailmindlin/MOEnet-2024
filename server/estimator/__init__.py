@@ -197,6 +197,7 @@ class DataFusion:
 
 		labels: OrderedDict[str, int] = OrderedDict()
 		res: list[net.ObjectDetection] = list()
+		self.object_tracker.predict(self.clock.now())
 
 		for detection in self.object_tracker.items():
 			# Lookup or get next ID

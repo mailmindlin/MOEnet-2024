@@ -1,5 +1,4 @@
 from datetime import timedelta
-from logging import Logger
 from typing import TypeVar, Generic
 from dataclasses import dataclass
 
@@ -7,7 +6,7 @@ from util.timestamp import Timestamp
 
 from .cascade import Tracked, StaticValue
 from .types import HasTimestamp
-from .replay import ReplayableFilter, ReplayFilter
+from .replay import ReplayFilter
 
 M = TypeVar('M', bound=HasTimestamp)
 S = TypeVar('S')

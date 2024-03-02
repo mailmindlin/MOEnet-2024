@@ -72,4 +72,8 @@ class TfTracker:
 	def track_pose(self, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Pose3d]:
 		"Special case where we track_tf relative to the field"
 		from .util.lerp import as_pose
-		return self.track_tf(ReferenceFrame.FIELD, dst, timestamp=timestamp).map(as_pose)
+		def as_pose_1(transform: Transform3d) -> Pose3d:
+			if transform is None:
+				raise ValueError(f'Empty transform field -> {dst}')
+			return as_pose(transform)
+		return self.track_tf(ReferenceFrame.FIELD, dst, timestamp=timestamp).map(as_pose_1)

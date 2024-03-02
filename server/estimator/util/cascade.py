@@ -122,3 +122,6 @@ class Derived(Tracked[T]):
             # Simplify
             return StaticValue(res.value)
         return res
+
+    def __repr__(self) -> str:
+        return f'Derived(func={self._func}, args={repr(self._args)})'

@@ -138,12 +138,15 @@ class SimplePoseEstimator(Filter[int]):
 				return True
 			# Z should be near the floor
 			if not (-0.5 < pose.translation().Z() < 1):
+				self.log.info("Reject pose: invalid z %s", pose)
 				return False
 			# Roll should be <30º
 			if not (-0.5 < pose.rotation().X() < 0.5):
+				self.log.info("Reject pose: invalid X %s", pose)
 				return False
 			# Pitch should be <30º
 			if not (-0.5 < pose.rotation().Y() < 0.5):
+				self.log.info("Reject pose: invalid Y %s", pose)
 				return False
 			# Yaw can be whatever
 			return True

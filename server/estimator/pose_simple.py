@@ -137,7 +137,7 @@ class SimplePoseEstimator(Filter[int]):
 			if not self.config.force2d:
 				return True
 			# Z should be near the floor
-			if not (-0.5 < pose.translation().Z() < 1):
+			if not (-1 < pose.translation().Z() < 1):
 				self.log.info("Reject pose: invalid z %s", pose)
 				return False
 			# Roll should be <30º

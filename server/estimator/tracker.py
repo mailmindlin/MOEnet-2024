@@ -86,13 +86,14 @@ class ObjectDetectionMeasurement:
 
 class Snapshot:
 	tracked_objects: MultiDict[TrackedObject]
-	def __init__(self) -> None:
+	def __init__(self, config: ObjectTrackerConfig) -> None:
 		self.next_id = 0
 		self.tracked_objects = MultiDict()
 		self.last_measurement_ts = Timestamp.invalid()
+		self.config = config
 	
 	def copy(self):
-		res = Snapshot()
+		res = Snapshot(self.config)
 		res.next_id = self.next_id
 		res.last_measurement_ts = self.last_measurement_ts
 		for k, v in self.tracked_objects.items():
@@ -112,7 +113,7 @@ class ObjectTrackerFilter(ReplayableFilter[ObjectDetectionMeasurement, Snapshot]
 	def __init__(self, config: ObjectTrackerConfig):
 		super().__init__()
 		self.config = config
-		self.state = Snapshot()
+		self.state = Snapshot(self.config)
 		self.sensor_timeout = config.history_duration
 	
 	# @property
@@ -176,7 +177,7 @@ class ObjectTrackerFilter(ReplayableFilter[ObjectDetectionMeasurement, Snapshot]
 		self.state.last_measurement_ts = max(self.state.last_measurement_ts, measurement.ts)
 
 	def clear(self):
-		self.state = Snapshot()
+		self.state = Snapshot(self.config)
 
 	def items(self):
 		return [

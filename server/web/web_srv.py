@@ -92,7 +92,7 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
                 pipeline = worker.config.pipeline
                 if not pipeline: continue
 
-                for stage in pipeline:
+                for stage in pipeline.root:
                     if stage.stage != 'web': continue
                     if not stage.enabled: continue
 

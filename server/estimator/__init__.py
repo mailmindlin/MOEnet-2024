@@ -183,7 +183,7 @@ class DataFusion:
 		from .tf import ReferenceFrame
 		# field_to_robot = self.pose_estimator.field_to_robot(timestamp_loc)
 
-		self.object_tracker.observe_detections(timestamp, detections, ReferenceFrame.camera(camera.idx))
+		self.object_tracker.observe_detections(detections.detections, ReferenceFrame.camera(camera.idx), timestamp)
 		self.fresh_det = True
 
 	def get_detections(self, mapper_net: Optional[TimeMapper] = None, *, fresh = False) -> Optional[net.ObjectDetections]:

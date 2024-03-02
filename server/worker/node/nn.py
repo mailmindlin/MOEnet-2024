@@ -69,9 +69,9 @@ class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetection
 				label=label,
 				confidence=raw_det.confidence,
 				position=Translation3d(
-					x=raw_det.spatialCoordinates.x / SCALE,
-					y=raw_det.spatialCoordinates.y / SCALE,
-					z=raw_det.spatialCoordinates.z / SCALE,
+					x=raw_det.spatialCoordinates.z / SCALE,
+					y=raw_det.spatialCoordinates.x / SCALE,
+					z=raw_det.spatialCoordinates.y / SCALE,
 				),
 			))
 		# We have to return an iterable

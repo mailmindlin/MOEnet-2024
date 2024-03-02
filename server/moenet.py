@@ -213,7 +213,7 @@ class MoeNet:
 		
 		# Write transforms to NT
 		if f2r := self.estimator.field_to_robot(fresh=True):
-			self.log.debug("Update pose")
+			self.log.debug("Update pose %s", f2r)
 			self.nt.tx_pose(f2r)
 		if o2r := self.estimator.odom_to_robot(fresh=True):
 			self.log.debug("Update correction")

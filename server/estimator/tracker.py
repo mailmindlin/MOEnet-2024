@@ -174,7 +174,7 @@ class ObjectTrackerFilter(ReplayableFilter[ObjectDetectionMeasurement, Snapshot]
 				self.state.next_id += 1 # Only bump IDs for new objects
 				self.state.tracked_objects.add(label, new_obj)
 		
-		self.state.last_measurement_ts = max(self.state.last_measurement_ts, measurement.ts)
+		self.state.last_measurement_ts = max(self.state.last_measurement_ts, measurement.ts) if self.state.last_measurement_ts.is_valid else measurement.ts
 
 	def clear(self):
 		self.state = Snapshot(self.config)

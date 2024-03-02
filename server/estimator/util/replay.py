@@ -228,7 +228,7 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 		else:
 			self.log.debug("Filter not yet initialized.")
 
-		if self._filter.is_initialized and predict_to_current_time:
+		if self._filter.is_initialized and predict_to_current_time  and self._filter.last_measurement_ts.is_valid:
 			last_update_delta = now - self._filter.last_measurement_ts
 			self.log.info("Predicting delta %s", last_update_delta)
 

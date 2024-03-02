@@ -10,8 +10,6 @@
 	},
 	"nt": {
 		"team": 365,
-		"host": "localhost",
-		"port": 5810,
 		"publishErrors": true,
 		"publishPing": true,
 		"subscribeSleep": false,

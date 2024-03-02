@@ -275,7 +275,7 @@ class Comms:
 			SimpleObjectDetection(
 				classsification=0,
 				confidence=det.confidence,
-				objectPose=Pose3d().transformBy(det.positionField),
+				objectPose=det.positionField,
 			)
 			for det in detections.detections or []
 		])

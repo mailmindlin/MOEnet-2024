@@ -303,7 +303,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 
 		yield MsgAprilTagDetections(
 			timestamp=ts.nanos,
-			poses=targetList,
+			detections=targetList,
 			pnp=multiTagPose,
 		)
 		if len(self.datapoints) > 300:

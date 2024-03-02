@@ -49,7 +49,7 @@ class ObjectDetectionNode(XOutNode[dai.SpatialImgDetections, cfg.ObjectDetection
 		return spatialDetectionNetwork.out
 	
 	def handle(self, packet: dai.SpatialImgDetections):
-		if False or packet.getTimestamp() < self._device_require_ts:
+		if False and packet.getTimestamp() < self._device_require_ts:
 			self.log.info('Skip detection frame (before FLUSH threshold)')
 			return None
 		

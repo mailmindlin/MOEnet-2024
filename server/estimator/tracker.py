@@ -53,9 +53,9 @@ class TrackedObject:
 		return self._position_rs_cache[1]
 	
 	def should_remove(self, now: Timestamp, config: ObjectTrackerConfig):
-		if self.n_detections < config.object_min_detections and self.last_seen < now - config.object_detected_duration:
+		if self.n_detections < config.min_detections and self.last_seen < now - config.detected_duration:
 			return True
-		if self.last_seen < now - config.object_history_duration:
+		if self.last_seen < now - config.history_duration:
 			return True
 		return False
 

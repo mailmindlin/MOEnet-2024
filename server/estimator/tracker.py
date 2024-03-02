@@ -135,7 +135,7 @@ class ObjectTrackerFilter(ReplayableFilter[ObjectDetectionMeasurement, Snapshot]
 
 		best = None
 		best_dist = self.config.clustering_distance
-		for old in self.state.tracked_objects.getall(new_obj.label):
+		for old in self.state.tracked_objects.getall(new_obj.label, []):
 			# ignore depth difference in clustering
 			old_cs = new_obj.position_rel(field_to_camera)
 

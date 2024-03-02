@@ -170,7 +170,7 @@ class DataFusion:
 			assert mapper_loc.clock_b == self.clock
 		
 		# I'm not super happy with this method being on PoseEstimator, but whatever
-		timestamp     = Timestamp.from_nanos(detections.timestamp)
+		timestamp     = Timestamp.from_nanos(detections.timestamp, clock=WallClock())
 		timestamp_loc = timestamp if (mapper_loc is None) else mapper_loc.a_to_b(timestamp)
 
 		# robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value

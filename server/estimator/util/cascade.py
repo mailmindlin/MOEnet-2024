@@ -97,7 +97,11 @@ class Derived(Tracked[T]):
     def value(self) -> T:
         if self._last_value is undefined:
             self._last_args = [arg.value for arg in self._args]
-            self._last_value = self._func(*self._last_args)
+            try:
+                self._last_value = self._func(*self._last_args)
+            except:
+                print("Error computing", repr(self))
+                raise
         return self._last_value
     
     def refresh(self) -> Tracked[T]:

@@ -198,6 +198,7 @@ class MoeNet:
 
 		# Process packets from cameras
 		active = True
+		assert self.camera_workers is not None
 		while active:
 			active = False
 			for worker in self.camera_workers:

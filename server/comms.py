@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Optional
 import logging
 from dataclasses import dataclass
 
-from ntcore import NetworkTableInstance, PubSubOptions
+from ntcore import NetworkTable, NetworkTableInstance, PubSubOptions
 from wpiutil import wpistruct
 
 from util.timestamp import Timestamp
@@ -89,6 +89,9 @@ class TelemetryPublisher:
 		pass
 
 class Comms:
+	nt: NetworkTableInstance
+	table: NetworkTable
+	
 	def __init__(self, moenet: 'MoeNet', config: LocalConfig, log: Optional[logging.Logger] = None):
 		self.moenet = moenet
 		self.config = config
@@ -131,7 +134,7 @@ class Comms:
 		self._sub_sleep  = DynamicSubscriber.create(table_lazy, "rio_sleep", bool, False)
 
 		# Field2d
-		f2d_lazy = lambda: self.nt.getTable("SmartDashboard/MOEnet")
+		f2d_lazy = lambda: self.nt.getTable("SmartDashboard").getSubTable("MOEnet")
 		self._pub_f2d_type = DynamicPublisher.create(f2d_lazy, ".type", str)
 		self._pub_f2d_f2o  = DynamicPublisher.create(f2d_lazy, "Odometry", list[float])
 		self._pub_f2d_f2r  = DynamicPublisher.create(f2d_lazy, "Robot", list[float])

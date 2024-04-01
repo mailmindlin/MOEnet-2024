@@ -10,6 +10,7 @@ from .typedef import GenericPublisher, GenericTsValue, GenericTopic
 
 P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
 T = TypeVar("T")
+D = TypeVar("D")
 
 NetworkTableLike = Union[NetworkTableInstance, NetworkTable]
 
@@ -261,6 +262,7 @@ class DynamicSubscriber(Generic[T]):
 		"Start subscribing"
 		# Build topic
 		if self._topic is None:
+			assert self._builder is not None
 			self._topic = self._builder()
 		
 		assert self._raw_subscriber is None
@@ -296,7 +298,7 @@ class DynamicSubscriber(Generic[T]):
 		if len(qv) > 0:
 			self._fresh_data = qv[-1]
 
-	def readQueue(self) -> list[GenericTsValue[P]]:
+	def readQueue(self) -> list[GenericTsValue[T]]:
 		self._pull_queue()
 		res = self._read_queue
 		self._read_queue.clear()
@@ -305,7 +307,7 @@ class DynamicSubscriber(Generic[T]):
 			warnings.warn(f"read queue for NT topic {self._topic.getName()} was truncated", RuntimeWarning)
 		return res
 	
-	def getAtomic(self) -> Optional[GenericTsValue[P]]:
+	def getAtomic(self) -> Optional[GenericTsValue[T]]:
 		if self._raw_subscriber is None:
 			return None
 		else:
@@ -316,27 +318,27 @@ class DynamicSubscriber(Generic[T]):
 			return res
 	
 	@overload
-	def get(self) -> Optional[P]: ...
+	def get(self) -> Optional[T]: ...
 	@overload
-	def get(self, default: T) -> Union[P, T]: ...
-	def get(self, default: Optional[T] = None):
+	def get(self, default: D) -> Union[D, T]: ...
+	def get(self, default: Optional[D] = None):
 		if v := self.getAtomic():
 			return v.value
 		else:
 			return default
 	
 	@overload
-	def get_fresh(self) -> Optional[P]: ...
+	def get_fresh(self) -> Optional[T]: ...
 	@overload
-	def get_fresh(self, default: T) -> Union[P, T]: ...
-	def get_fresh(self, default: Optional[T] = None) -> Union[P, T, None]:
+	def get_fresh(self, default: D) -> Union[D, T]: ...
+	def get_fresh(self, default: Optional[D] = None) -> Union[D, T, None]:
 		"Get a value, but only if it's new"
 		if (v := self.get_fresh_ts()) is not None:
 			return v.value
 		else:
 			return default
 	
-	def get_fresh_ts(self) -> Optional[GenericTsValue[P]]:
+	def get_fresh_ts(self) -> Optional[GenericTsValue[T]]:
 		"Like [get_fresh], but returns a timestamp too"
 		self._pull_queue() # update _fresh_data
 		res = self._fresh_data

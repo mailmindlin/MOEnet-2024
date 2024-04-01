@@ -73,6 +73,14 @@ def sai_camera_pose(cam: 'sai.CameraPose') -> Pose3d:
 class SaiSlamRuntime(NodeRuntime):
 	do_poll = True
 	
+	events = [
+		# 'spectacularAI_depth',
+		# 'spectacularAI_primaryScript',
+		# 'spectacularAI_trackedFeatures',
+		'spectacularAI_imu',
+		# 'spectacularAI_secondaryScript'
+	]
+	
 	def __init__(self, builder: SlamBuilder, context: NodeRuntime.Context, vio_session: 'sai.Session'):
 		super().__init__(context=context)
 		self.vio_session = vio_session

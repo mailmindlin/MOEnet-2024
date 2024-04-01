@@ -152,7 +152,11 @@ class SimplePoseEstimator(Filter[int]):
 			return True
 		
 		# Filter only reasonable 2d poses
-		poses = [ep for ep in poses if is_reasonable(ep.fieldToCam)]
+		poses = [
+			pose
+			for pose in poses
+			if is_reasonable(pose.fieldToCam)
+		]
 
 		if len(poses) == 0:
 			return None

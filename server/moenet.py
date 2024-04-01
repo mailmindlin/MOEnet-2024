@@ -65,7 +65,7 @@ class MoeNet:
 		# Set up NetworkTables
 		self.nt = Comms(self, self.config)
 		self.status = Status.NOT_READY
-		self.sleeping = False
+		self.sleeping: bool = False
 		self.camera_workers = None
 
 		self.web = RemoteWebServer(self)

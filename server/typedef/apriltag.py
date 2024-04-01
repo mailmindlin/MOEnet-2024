@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal, Annotated, Union, TypeVar, Callable
+from typing import TYPE_CHECKING, Literal, Annotated, Union, TypeVar, Callable, Type, cast
 from pydantic import RootModel, BaseModel, Field, Discriminator, Tag
 from pathlib import Path
 import enum, abc
@@ -64,7 +64,13 @@ class AprilTagSai(BaseModel, AprilTagBase):
     tagToWorld: common.Mat44
     def get_sai_matrix(self) -> np.ndarray:
         "Get SpectacularAI tag-to-world matrix"
-        return np.asarray(self.tagToWorld)
+        return np.asarray([
+            [
+                item
+                for item in row.root
+            ]
+            for row in self.tagToWorld.root
+        ])
     def to_wpi(self) -> 'AprilTagWpi':
         matrix = np.asarray(self.tagToWorld, dtype=float)
 
@@ -146,10 +152,9 @@ class AprilTagJsonWpi(BaseModel):
 class _AprilTagField(BaseModel):
     format: Literal["wpi", "sai"]
 
-    @classmethod
+    @staticmethod
     def from_wpilib(field: Union['robotpy_apriltag.AprilTagFieldLayout', 'robotpy_apriltag.AprilTagField']) -> '_AprilTagField':
-        if isinstance(field):
-            pass
+        raise NotImplementedError()
 
     def _resolve_path(self, base: Path | None, relpart: Path) -> Path:
         from util.path import resolve_path
@@ -169,10 +174,11 @@ class _AprilTagField(BaseModel):
         "Validate that this has valid field data"
         self.model_validate(self)
     
-    def convert(self, target: 'F', base: Path, tempdir: Callable[[], Path]) -> 'F':
+    def convert(self, target: Type['F'], base: Path, tempdir: Callable[[], Path]) -> 'F':
         "Convert to another AprilTagField type"
-        if isinstance(self, target):
-            return self
+        current = self.resolve(base)
+        if isinstance(current, target):
+            return current
         
         # Which transforms do we need to do?
         need_load = False
@@ -196,6 +202,8 @@ class _AprilTagField(BaseModel):
         current = self
         if need_load:
             current = self.load(base)
+        else:
+            current = cast(AprilTagFieldInline, current)
         
         # Convert type
         if target_format in (current.format, None):
@@ -210,6 +218,8 @@ class _AprilTagField(BaseModel):
         
         if need_store:
             current = current.store(tempdir)
+        
+        current = current.resolve(base)
         
         return current
     
@@ -276,7 +286,8 @@ class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
 
     @staticmethod
     def from_wpilib(field: Union['robotpy_apriltag.AprilTagFieldLayout', 'robotpy_apriltag.AprilTagField']) -> 'AprilTagFieldInlineWpi':
-        pass
+        raise NotImplementedError()
+    
     def as_inline_sai(self, path: Path | None = None) -> 'AprilTagFieldInlineSai':
         return AprilTagFieldInlineSai(
             field=self.field,
@@ -296,6 +307,11 @@ class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
             prefix='apriltag_',
             suffix='.json',
         ) as f:
+            data = AprilTagJsonWpi(
+                field=self.field,
+                tags=self.tags,
+            )
+            f.write(data.model_dump_json())
             path = Path(f.name)
             pass
         return AprilTagFieldRefWpi(
@@ -343,8 +359,21 @@ class AprilTagFieldInlineSai(_AprilTagFieldInline, _AprilTagFieldSai):
             tagSize=size,
         )
     
-    def store(self, base) -> 'AprilTagFieldRefSai':
-        pass
+    def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRefSai':
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            dir=tempdir(),
+            delete=False,
+            prefix='apriltag_',
+            suffix='.json',
+        ) as f:
+            data = AprilTagJsonSai(root=self.tags)
+            f.write(data.model_dump_json())
+            path = Path(f.name)
+        return AprilTagFieldRefSai(
+            path=path,
+            field=self.field,
+        )
 
 
 class AprilTagFieldRefWpi(_AprilTagFieldRef, _AprilTagFieldWpi):

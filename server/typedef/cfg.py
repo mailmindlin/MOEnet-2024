@@ -5,7 +5,7 @@ import enum
 from pathlib import Path
 from datetime import timedelta
 
-from pydantic import BaseModel, Field, TypeAdapter, Tag, ByteSize
+from pydantic import BaseModel, Field, TypeAdapter, Tag
 from ntcore import NetworkTableInstance
 
 try:

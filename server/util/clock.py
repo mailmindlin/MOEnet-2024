@@ -54,7 +54,7 @@ class OffsetClock(Clock, abc.ABC):
 		self.base = base
 
 	@property
-	def constant_offset(self):
+	def constant_offset(self) -> bool:
 		"Is the offset relative to base constant? Used for optimizations."
 		return False
 	
@@ -62,6 +62,12 @@ class OffsetClock(Clock, abc.ABC):
 	def get_offset_ns(self) -> int:
 		"Get offset, in nanoseconds relative to `base`"
 		pass
+
+	def __hash__(self) -> int:
+		if self.constant_offset:
+			return hash((type(self), self.base, self.get_offset_ns()))
+		else:
+			return hash((type(self), self.base))
 
 	def get_offset(self) -> timedelta:
 		"Get offset relative to `base`"
@@ -82,9 +88,6 @@ class FixedOffsetClock(OffsetClock):
 	
 	def get_offset_ns(self) -> int:
 		return self.offset
-
-	def __hash__(self) -> int:
-		return hash((self.base, self.offset))
 	
 	def __str__(self):
 		return f'{type(self).__name__}({self.base} {"+" if self.offset >= 0 else "-"} {abs(self.offset)}ns)'

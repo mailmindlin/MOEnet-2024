@@ -148,7 +148,7 @@ class SaiSlamRuntime(NodeRuntime):
 			
 			# Ensure we've completed all VIO flushes
 			if self._vio_last_tag < self._vio_require_tag:
-				self.log.info("Skipped vio frame (bad tag)")
+				self.log.info("Skipped vio frame (bad tag) %s %s", self._vio_last_tag, self._vio_require_tag)
 				return
 			
 			# SAI uses device-time, so we have to do some conversion

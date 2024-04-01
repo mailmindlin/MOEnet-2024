@@ -199,7 +199,6 @@ class _AprilTagField(BaseModel):
         if need_store and (target_format is not None) and (self.format != target_format):
             need_load = True
 
-        current = self
         if need_load:
             current = self.load(base)
         else:
@@ -313,7 +312,6 @@ class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
             )
             f.write(data.model_dump_json())
             path = Path(f.name)
-            pass
         return AprilTagFieldRefWpi(
             path=path,
             tagFamily=self.tagFamily,

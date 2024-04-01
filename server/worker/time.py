@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Protocol
 import depthai as dai
-from util.clock import Clock, FixedOffsetClock, WallClock
+from util.clock import Clock, FixedOffsetClock, OffsetClock, WallClock
 from util.decorators import Singleton
 from util.timemap import TimeMap, DynamicOffsetMapper, OffsetClockMapper
 from util.timestamp import Timestamp
@@ -19,11 +19,19 @@ class DaiClock(Clock, Singleton):
 		raw: timedelta = dai.Clock.now()
 		return int(raw.total_seconds() * 1e9)
 
+class DeviceClock(OffsetClock):
+	"Clock that counts NetworkTables server time"
+	def __init__(self, dai: DaiClock) -> None:
+		super().__init__(dai)
+		self.offset = 0
+	def get_offset_ns(self) -> int:
+		return self.offset
+
 class DeviceTimeSync:
 	def __init__(self, reference_clock: Clock | None = None) -> None:
 		self.reference_clock = reference_clock or WallClock()
 		self.dai_clock = DaiClock()
-		self.dev_clock = FixedOffsetClock(self.dai_clock, 0)
+		self.dev_clock = DeviceClock(self.dai_clock)
 		self.map = TimeMap(
 			DynamicOffsetMapper(self.reference_clock, self.dai_clock),
 			OffsetClockMapper(self.dev_clock),
@@ -38,7 +46,10 @@ class DeviceTimeSync:
 		latency = now_dai - ts_dai
 
 		# Update system -> device time
+		last_off = self.dev_clock.offset
 		self.dev_clock.offset = ts_dev.nanos - ts_dai.nanos
+		if last_off != self.dev_clock.offset:
+			print(f"Update dev_clock offset from {last_off} to {self.dev_clock.offset}")
 
 		return now_wall - latency
 
@@ -46,7 +57,7 @@ class DeviceTimeSync:
 		"Convert wall time to device time (useful for SpectacularAI)"
 		wall.assert_src(self.reference_clock)
 		mapper = self.map.get_conversion(self.reference_clock, self.dev_clock)
-		assert mapper is not None, "Unable to find mapping from wall -> device"
+		assert mapper is not None, f"Unable to find mapping from wall -> device {self.map.conversions}"
 		dev = mapper.a_to_b(wall)
 		return dev.as_seconds()
 
@@ -54,6 +65,6 @@ class DeviceTimeSync:
 		"Convert device time to wall time (useful for SpectacularAI)"
 		dev = Timestamp.from_seconds(devtime, self.dev_clock)
 		mapper = self.map.get_conversion(self.dev_clock, self.reference_clock)
-		assert mapper is not None, "Unable to find mapping from device -> wall"
+		assert mapper is not None, f"Unable to find mapping from device -> wall {self.map.conversions}"
 		wall = mapper.a_to_b(dev)
 		return wall

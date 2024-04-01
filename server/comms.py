@@ -217,7 +217,7 @@ class Comms:
 		
 		# Check for sleep
 		if self._sub_sleep.enabled:
-			sleep = self._sub_sleep.get()
+			sleep = self._sub_sleep.get(False)
 			self.moenet.sleeping = sleep
 		
 		# Publish telemetry
@@ -291,7 +291,7 @@ class Comms:
 
 		if self._pub_f2d_dets.enabled:
 			data = [
-				e
+				float(e or 0)
 				for det in (detections.detections or [])
 				if det.positionField is not None
 				for e in (det.positionField.x, det.positionField.y, det.label_id)

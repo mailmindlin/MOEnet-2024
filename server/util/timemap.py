@@ -72,7 +72,7 @@ class TimeMap:
 
 	default: 'TimeMap'
 
-	def __init__(self, *mappers: Sequence[Union['TimeMap', TimeMapper]]):
+	def __init__(self, *mappers: Union['TimeMap', TimeMapper]):
 		self._prev_t = None
 		self.conversions: dict['Clock', dict['Clock', tuple[TimeMapper, bool]]] = dict()
 		for mapper in mappers:

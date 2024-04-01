@@ -200,6 +200,7 @@ class SimplePoseEstimator(Filter[int]):
 	
 	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: MsgAprilTagDetections):
 		"Observe apriltag detections"
+		self.log.info("Observe apriltags %s", detections)
 		field_to_camera = self._apriltags_to_pose(timestamp, robot_to_camera, detections)
 		if field_to_camera is not None:
 			self.observe_f2r(timestamp, robot_to_camera, field_to_camera)		

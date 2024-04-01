@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import depthai as dai
 
@@ -21,19 +21,19 @@ class WebStreamNode(NodeRuntime, NodeBuilder[cfg.WebStreamStageConfig]):
 			return True
 		return super().handle_command(cmd)
 	
-	def start(self, context: NodeRuntime.Context, src: 'ImageOutStage', *args, **kwargs) -> bool:
+	def start(self, context: NodeRuntime.Context, src: 'ImageOutStage', *args, **kwargs) -> Optional[NodeRuntime]:
 		src.add_handler(self.handle_frame)
 		self.enabled = False
 		self.context = context
 		return self
 	
 	def handle_frame(self, frame: dai.ImgFrame):
+		ts = self.context.local_timestamp(frame)
 		if not self.enabled:
 			return
 		
 		self.log.debug(f"Stream %s got frame", self.config.name)
 		recv = self.context.clock.now_ns()
-		ts = self.context.local_timestamp(frame)
 		yield MsgFrame(
 			worker='',
 			stream=self.config.target,

@@ -8,7 +8,7 @@ from wpiutil import wpistruct
 from util.timestamp import Timestamp
 from util.log import child_logger
 from typedef.cfg import LocalConfig, NetworkTablesDirection
-from typedef.geom import Pose3d, Transform3d
+from typedef.geom import Pose3d, Transform3d, Translation3d
 from typedef import net
 from wpi_compat.nt import DynamicPublisher, DynamicSubscriber
 
@@ -37,7 +37,7 @@ class MoenetTelemetry:
 class SimpleObjectDetection:
 	classsification: wpistruct.dataclass.int32
 	confidence: wpistruct.dataclass.double
-	objectPose: Pose3d
+	objectPose: Translation3d
 
 
 class LogHandler(logging.Handler):
@@ -271,14 +271,19 @@ class Comms:
 		self._pub_tf_odom_robot.set(pose)
 
 	def tx_detections(self, detections: net.ObjectDetections):
-		self.log.debug("Sending %d detections", len(detections.detections))
+		self.log.debug("Sending %d detections", len(detections.detections) if detections.detections is not None else 0)
 		self._pub_detections.set([
 			SimpleObjectDetection(
 				classsification=0,
-				confidence=det.confidence,
-				objectPose=det.positionField,
+				confidence=wpistruct.double(det.confidence) if det.confidence is not None else 1.0,
+				objectPose=Translation3d(
+					x=det.positionField.x or 0,
+					y=det.positionField.y or 0,
+					z=det.positionField.z or 0,
+				)
 			)
 			for det in detections.detections or []
+			if det.positionField is not None
 		])
 
 		if self._pub_f2d_dets.enabled:

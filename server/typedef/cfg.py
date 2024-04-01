@@ -35,7 +35,6 @@ class PoseEstimatorConfig(BaseModel):
 	history: timedelta = Field(default=timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
 	force2d: bool = Field(default=True, description="Should we force the pose to fit on the field?")
 	apriltagStrategy: AprilTagStrategy | None = Field(default=AprilTagStrategy.LOWEST_AMBIGUITY)
-	odometryStdDevs: list[float] = Field([])
 	odometryStdDevs: list[float] = Field(default=[])
 
 class PoseEstimatorConfig1(BaseModel):

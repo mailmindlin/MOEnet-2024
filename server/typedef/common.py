@@ -11,10 +11,10 @@ class Mat44(RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]):
 
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"
-	optional: bool = Field(False, description="Is it an error if this camera is not detected?")
-	connection_tries: int = Field(1)
-	connection_delay: timedelta = Field(timedelta(seconds=1))
-	restart_tries: int = Field(2)
+	optional: bool = Field(default=False, description="Is it an error if this camera is not detected?")
+	connection_tries: int = Field(default=1)
+	connection_delay: timedelta = Field(default=timedelta(seconds=1))
+	restart_tries: int = Field(default=2)
 
 
 class OakSelector(BaseModel):
@@ -25,7 +25,7 @@ class OakSelector(BaseModel):
 	protocol: Literal["X_LINK_ANY_PROTOCOL", "X_LINK_IPC", "X_LINK_NMB_OF_PROTOCOLS", "X_LINK_PCIE", "X_LINK_TCP_IP", "X_LINK_USB_CDC", "X_LINK_USB_VSC", None] = Field(None)
 
 	@property
-	def platform_dai(self) -> 'dai.XLinkPlatform':
+	def platform_dai(self) -> 'Optional[dai.XLinkPlatform]':
 		"Get platform as DepthAI type"
 		raw = self.platform
 		if raw is None:
@@ -34,7 +34,7 @@ class OakSelector(BaseModel):
 		return XLinkPlatform.__members__[raw]
 	
 	@property
-	def protocol_dai(self) -> 'dai.XLinkProtocol':
+	def protocol_dai(self) -> 'Optional[dai.XLinkProtocol]':
 		"Get platform as DepthAI type"
 		raw = self.protocol
 		if raw is None:

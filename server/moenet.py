@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 class MoeNet:
 	camera_workers: Optional[WorkerManager]
-	def __init__(self, config_path: str, config: LocalConfig):
+	def __init__(self, config_path: Path, config: LocalConfig):
 		if config.log is not None:
 			from util.log import ColorFormatter
 			level = config.log.level.upper()
@@ -43,7 +43,7 @@ class MoeNet:
 		# Set up DataLog
 		datalog_folder = None
 		if self.config.datalog.enabled:
-			datalog_folder = Path(config_path).parent.resolve() / (self.config.datalog.folder or 'log')
+			datalog_folder = config_path.parent.resolve() / (self.config.datalog.folder or 'log')
 			if not datalog_folder.exists():
 				datalog_folder = None
 		
@@ -189,7 +189,7 @@ class MoeNet:
 		if self.sleeping:
 			# Transition to sleeping
 			if self.status in (Status.READY, Status.INITIALIZING, Status.NOT_READY, Status.ERROR):
-				for worker in self.camera_workers:
+				for worker in self.camera_workers or []:
 					worker.send(wmsg.CmdChangeState(target=wmsg.WorkerState.PAUSED))
 				self.status = Status.SLEEPING
 		else:

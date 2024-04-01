@@ -46,6 +46,7 @@ class DeviceTimeSync:
 		"Convert wall time to device time (useful for SpectacularAI)"
 		wall.assert_src(self.reference_clock)
 		mapper = self.map.get_conversion(self.reference_clock, self.dev_clock)
+		assert mapper is not None, "Unable to find mapping from wall -> device"
 		dev = mapper.a_to_b(wall)
 		return dev.as_seconds()
 
@@ -53,5 +54,6 @@ class DeviceTimeSync:
 		"Convert device time to wall time (useful for SpectacularAI)"
 		dev = Timestamp.from_seconds(devtime, self.dev_clock)
 		mapper = self.map.get_conversion(self.dev_clock, self.reference_clock)
+		assert mapper is not None, "Unable to find mapping from device -> wall"
 		wall = mapper.a_to_b(dev)
-		return wall.as_seconds()
+		return wall

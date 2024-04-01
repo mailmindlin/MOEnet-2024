@@ -86,6 +86,7 @@ def _topic_factory(type: Type[T], mode: Literal['scalar', 'struct', 'proto', Non
 					excs.append(('Not a simple array', e))
 			if mode in ('struct', None):
 				try:
+					from ..struct import get_descriptor
 					get_descriptor(t0)
 				except TypeError as e:
 					excs.append(('Not a struct array', e))
@@ -147,6 +148,7 @@ class DynamicPublisher(Generic[T]):
 		"Start publishing"
 		# Build topic
 		if self._topic is None:
+			assert self._builder is not None
 			self._topic = self._builder()
 		
 		self._publisher = self._topic.publish(self._options)
@@ -205,7 +207,7 @@ class DynamicPublisher(Generic[T]):
 			self.set(value)
 		
 
-class DynamicSubscriber(Generic[P]):
+class DynamicSubscriber(Generic[T]):
 	"NetworkTables subscriber that can easily be enabled/disabled"
 
 	@classmethod

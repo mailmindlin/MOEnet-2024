@@ -75,7 +75,7 @@ class NodeRuntime:
 			self.context = context
 			self.log = context.log
 	
-	def handle_command(self, cmd: AnyCmd):
+	def handle_command(self, cmd: AnyCmd) -> bool:
 		return False
 
 	def poll(self, event: str | None = None) -> Iterable[WorkerMsg]:

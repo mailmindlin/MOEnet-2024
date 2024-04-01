@@ -124,6 +124,8 @@ class DataFusion:
 	
 	@overload
 	def odom_to_robot(self) -> Transform3d: ...
+	@overload
+	def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]: ...
 	def odom_to_robot(self, fresh: bool = False) -> Optional[Transform3d]:
 		"Get the best estimated `odom`→`robot` corrective transform"
 		if fresh and (not self.fresh_o2r):
@@ -139,6 +141,8 @@ class DataFusion:
 	
 	@overload
 	def field_to_robot(self) -> Pose3d: ...
+	@overload
+	def field_to_robot(self, fresh: bool = False) -> Optional[Pose3d]: ...
 	def field_to_robot(self, fresh: bool = False) -> Optional[Pose3d]:
 		"Get the most recent `field`→`robot` transform"
 		if fresh and (not self.fresh_f2r):

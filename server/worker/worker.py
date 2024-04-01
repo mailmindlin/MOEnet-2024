@@ -282,12 +282,14 @@ class CameraWorker:
 					self.log.warning("Unable to switch to %s (current state is %s)", command.target, self.state)
 		elif isinstance(command, CmdPoseOverride):
 			self.log.info("Got command: OVERRIDE POSE")
-			self.pipeline.override_pose(command.pose)
+			# self.pipeline.override_pose(command.pose)
+			self.pipeline.broadcast(command)
 		elif isinstance(command, CmdFlush):
 			self.log.info("Got command: FLUSH")
 			self.flush()
 			# ACK flush
 			self.data_queue.put(MsgFlush(id=command.id))
+			self.pipeline.broadcast(command)
 		elif isinstance(command, CmdEnableStream):
 			self.pipeline.broadcast(command)
 		else:

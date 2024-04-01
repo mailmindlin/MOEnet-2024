@@ -9,7 +9,7 @@ from .types import HasTimestamp
 from .replay import ReplayFilter
 
 M = TypeVar('M', bound=HasTimestamp)
-S = TypeVar('S')
+S = TypeVar('S', bound=HasTimestamp)
 
 @dataclass(order=True)
 class WrapTimestamp(Generic[M]):

@@ -15,12 +15,12 @@ except ImportError:
 
 class ObjectTrackerConfig(BaseModel):
 	"Configuration for tracking object detections over time"
-	min_detections: int = Field(8, gt=0, description="Number of times to have seen an object before accepting it")
-	detected_duration: timedelta = Field(timedelta(seconds=1), description="Length of time to keep an object detecting (seconds)")
-	history_duration: timedelta = Field(timedelta(seconds=8), description="Length of time to retain an object detection (seconds)")
-	clustering_distance: float = Field(0.3, gt=0, description="")
-	min_depth: float = Field(0.5, gt=0, description="")
-	alpha: float = Field(0.2, gt=0, description="")
+	min_detections: int = Field(default=8, gt=0, description="Number of times to have seen an object before accepting it")
+	detected_duration: timedelta = Field(default=timedelta(seconds=1), description="Length of time to keep an object detecting (seconds)")
+	history_duration: timedelta = Field(default=timedelta(seconds=8), description="Length of time to retain an object detection (seconds)")
+	clustering_distance: float = Field(default=0.3, gt=0, description="")
+	min_depth: float = Field(default=0.5, gt=0, description="")
+	alpha: float = Field(default=0.2, gt=0, description="")
 
 class AprilTagStrategy(enum.StrEnum):
 	"How should we handle AprilTag detections?"
@@ -32,10 +32,11 @@ class AprilTagStrategy(enum.StrEnum):
 	"Return the average of the best target poses using ambiguity as weight"
 
 class PoseEstimatorConfig(BaseModel):
-	history: timedelta = Field(timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
-	force2d: bool = Field(True, description="Should we force the pose to fit on the field?")
+	history: timedelta = Field(default=timedelta(seconds=3), description="Length of pose replay buffer (seconds)")
+	force2d: bool = Field(default=True, description="Should we force the pose to fit on the field?")
 	apriltagStrategy: AprilTagStrategy | None = Field(default=AprilTagStrategy.LOWEST_AMBIGUITY)
 	odometryStdDevs: list[float] = Field([])
+	odometryStdDevs: list[float] = Field(default=[])
 
 class PoseEstimatorConfig1(BaseModel):
 	publish_transform: bool = Field(True)
@@ -66,16 +67,17 @@ class PoseEstimatorConfig1(BaseModel):
 class EstimatorConfig(BaseModel):
 	detections: ObjectTrackerConfig = Field(default_factory=ObjectTrackerConfig)
 	pose: PoseEstimatorConfig = Field(default_factory=PoseEstimatorConfig)
+	
 
 
 class WebConfig(BaseModel):
 	"Configure webserver"
-	enabled: bool = Field(True, description="Should we enable the webserver?")
-	host: Optional[str] = Field(None, description="Host for HTTP server")
-	port: Optional[int] = Field(8080, gt=0, description="Port for HTTP server")
-	video_codec: Optional[str] = Field(None, description="Force a specific video codec (e.g. video/H264)")
-	cert_file: Optional[Path] = Field(None, description="SSL certificate file (for HTTPS)")
-	key_file: Optional[Path] = Field(None, description="SSL key file (for HTTPS)")
+	enabled: bool = Field(default=True, description="Should we enable the webserver?")
+	host: Optional[str] = Field(default=None, description="Host for HTTP server")
+	port: Optional[int] = Field(default=8080, gt=0, description="Port for HTTP server")
+	video_codec: Optional[str] = Field(default=None, description="Force a specific video codec (e.g. video/H264)")
+	cert_file: Optional[Path] = Field(default=None, description="SSL certificate file (for HTTPS)")
+	key_file: Optional[Path] = Field(default=None, description="SSL key file (for HTTPS)")
 
 class NetworkTablesDirection(enum.Enum):
 	"Which direction to send data?"
@@ -175,8 +177,8 @@ class LoggerSpec(BaseModel):
 
 class LogConfig(BaseModel):
 	"Configuration for logging output"
-	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field('DEBUG')
-	file: Optional[Path] = Field(None)
+	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG')
+	file: Optional[Path] = Field(default=None)
 	formatters: dict[str, LogFormatterSpec] = Field(default_factory=dict)
 	handlers: dict[str, LogHandlerSpec] = Field(default_factory=dict)
 	loggers: dict[str, LoggerSpec] = Field(default_factory=dict)
@@ -184,12 +186,12 @@ class LogConfig(BaseModel):
 
 class DataLogConfig(BaseModel):
 	"Configuration for datalog"
-	enabled: bool = Field(True)
-	folder: Optional[Path] = Field(None)
-	mkdir: bool = Field(False, description="Make log folder if it doesn't exist?")
-	cleanup: bool = Field(False, description="Should we clean up old log files? (see free_space and max_logs)")
-	free_space: Optional[int] = Field(None, description="Minimum free size before we don't make more logs/clean up old ones")
-	max_logs: Optional[int] = Field(None, description="Maximum number of log files to retain (requires cleanup)")
+	enabled: bool = Field(default=True)
+	folder: Optional[Path] = Field(default=None)
+	mkdir: bool = Field(default=False, description="Make log folder if it doesn't exist?")
+	cleanup: bool = Field(default=False, description="Should we clean up old log files? (see free_space and max_logs)")
+	free_space: Optional[int] = Field(default=None, description="Minimum free size before we don't make more logs/clean up old ones")
+	max_logs: Optional[int] = Field(default=None, description="Maximum number of log files to retain (requires cleanup)")
 
 
 class CameraSelectorDefinition(common.OakSelector):
@@ -205,7 +207,7 @@ class LocalConfig(BaseModel):
 	allow_overwrite: bool = Field(False, description="Allow remote changes to overwrite this config?")
 	nt: NetworkTablesConfig = Field(default_factory=lambda: NetworkTablesConfig(enabled=False), title="NetworkTables", description="NetworkTables data")
 	timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
-	log: LogConfig = Field(default_factory=DataLogConfig)
+	log: LogConfig = Field(default_factory=LogConfig)
 	datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
 	estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
 	camera_selectors: list[CameraSelectorDefinition] = Field(default_factory=list)

@@ -4,7 +4,7 @@ Useful protocols for dealing with NetworkTables types in a generic way
 from typing import Protocol, TypeVar, Any, overload
 from ntcore import PubSubOptions
 
-P = TypeVar("P", bool, int, float, str, list[bool], list[int], list[float], list[str])
+P = TypeVar("P") #, bool, int, float, str, list[bool], list[int], list[float], list[str])
 
 class GenericPublisher(Protocol[P]):
 	"Interface for NetworkTables' XXXPublisher"

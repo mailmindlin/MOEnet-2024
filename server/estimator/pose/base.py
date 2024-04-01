@@ -7,6 +7,7 @@ from util.clock import Clock
 from dataclasses import dataclass
 from enum import IntFlag, auto, Flag
 from abc import ABC, abstractmethod, abstractproperty
+from contextlib import contextmanager
 import logging
 from . import angles
 
@@ -194,8 +195,12 @@ class FilterBase:
 		twist_idxs = block(StateMembers.TWIST)
 		self.dynamic_process_noise_covariance[twist_idxs] = velocity_matrix @ self.process_noise_covariance[twist_idxs] @ velocity_matrix.T
 	
+	@contextmanager
 	def debug_method(self, *args):
-		pass
+		self.log.info("Start method")
+		yield
+		self.log.info("Exit method")
+	
 	def correct(self, measurement: Measurement):
 		"""
 		Carries out the correct step in the predict/update cycle. This

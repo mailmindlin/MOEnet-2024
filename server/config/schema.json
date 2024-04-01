@@ -1685,6 +1685,7 @@
 						"save": "#/$defs/SaveStageConfig",
 						"show": "#/$defs/ShowStageConfig",
 						"slam": "#/$defs/SlamStageConfig",
+						"telemetry": "#/$defs/TelemetryStageConfig",
 						"web": "#/$defs/WebStreamStageConfig"
 					},
 					"propertyName": "stage"
@@ -1722,6 +1723,9 @@
 					},
 					{
 						"$ref": "#/$defs/ImuStageConfig"
+					},
+					{
+						"$ref": "#/$defs/TelemetryStageConfig"
 					}
 				]
 			},
@@ -1949,6 +1953,12 @@
 					"default": null,
 					"title": "Map Load"
 				},
+				"waitForPose": {
+					"default": false,
+					"description": "Wait for external pose before emitting data",
+					"title": "Waitforpose",
+					"type": "boolean"
+				},
 				"apriltags": {
 					"anyOf": [
 						{
@@ -2054,6 +2064,29 @@
 				}
 			},
 			"title": "StereoDepthStageConfig",
+			"type": "object"
+		},
+		"TelemetryStageConfig": {
+			"properties": {
+				"stage": {
+					"const": "telemetry",
+					"description": "Stage name",
+					"title": "Stage"
+				},
+				"enabled": {
+					"default": true,
+					"description": "Is this stage enabled?",
+					"title": "Enabled",
+					"type": "boolean"
+				},
+				"optional": {
+					"default": false,
+					"description": "If there's an error constructing this stage, is that a pipeline failure?",
+					"title": "Optional",
+					"type": "boolean"
+				}
+			},
+			"title": "TelemetryStageConfig",
 			"type": "object"
 		},
 		"Vec4": {

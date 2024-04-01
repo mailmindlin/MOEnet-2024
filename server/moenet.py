@@ -182,6 +182,7 @@ class MoeNet:
 	
 	def poll(self):
 		self.nt.update()
+		# Consume webserver messages
 		for _msg in self.web.poll():
 			pass
 

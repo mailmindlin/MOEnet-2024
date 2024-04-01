@@ -131,7 +131,7 @@ class Comms:
 		self._sub_sleep  = DynamicSubscriber.create(table_lazy, "rio_sleep", bool, False)
 
 		# Field2d
-		f2d_lazy = lambda: self.nt.getTable("SmartDashboard")
+		f2d_lazy = lambda: self.nt.getTable("SmartDashboard/MOEnet")
 		self._pub_f2d_type = DynamicPublisher.create(f2d_lazy, ".type", str)
 		self._pub_f2d_f2o  = DynamicPublisher.create(f2d_lazy, "Odometry", list[float])
 		self._pub_f2d_f2r  = DynamicPublisher.create(f2d_lazy, "Robot", list[float])
@@ -230,6 +230,7 @@ class Comms:
 			timestamp = Timestamp.from_wpi(odom_msg.time)
 			pose = odom_msg.value
 			self.moenet.estimator.observe_f2o(timestamp, pose)
+			# Re-publish to Field2d
 			if self._pub_f2d_f2o.enabled:
 				self._pub_f2d_f2o.set([pose.translation().x, pose.translation().y, pose.rotation().z])
 		

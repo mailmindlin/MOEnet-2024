@@ -103,6 +103,9 @@ class TrackedInterpolation(Tracked[V | T], Generic[K, V, T]):
 		self._bottom, self._top = self._buffer._get_bounds(self.key)
 		self.value = InterpolateResult.wrap(buffer, key, self._bottom, self._top).get(default)
 		self._buffer_modcount = self._buffer._modcount
+	
+	def __repr__(self) -> str:
+		return f'TrackedInterpolation(buffer={self._buffer!r}, key={self.key!r}, default={self.default!r})'
 
 	@property
 	def is_fresh(self):

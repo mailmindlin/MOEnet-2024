@@ -58,6 +58,9 @@ class StaticValue(Tracked[T]):
     def __hash__(self) -> int:
         return hash(self.value)
     
+    def __repr__(self) -> str:
+        return f'StaticValue({self.value!r})'
+    
     def __eq__(self, __value: object) -> bool:
         if isinstance(__value, StaticValue):
             return __value.value == self.value

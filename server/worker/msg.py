@@ -201,6 +201,7 @@ WorkerMsg: TypeAlias = Union[
     MsgDetections,
     MsgPose,
     MsgLog,
+    MsgOdom,
 ]
 "Worker message types"
 

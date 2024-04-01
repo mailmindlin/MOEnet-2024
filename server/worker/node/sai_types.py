@@ -161,27 +161,28 @@ if TYPE_CHECKING:
 
 	class Frame:
 		cameraPose: CameraPose
-		depthScale: Optional[float]
+		# depthScale: Optional[float]
 		image: Any
+		index: int
 
-	class FrameSet:
-		depthFrame: Frame
-		primaryFrame: Frame
-		rgbFrame: Optional[Frame]
-		secondaryFrame: Frame
+	# class FrameSet:
+	# 	depthFrame: Frame
+	# 	primaryFrame: Frame
+	# 	rgbFrame: Optional[Frame]
+	# 	secondaryFrame: Frame
 	
-	class KeyFrame:
-		frameSet: FrameSet
-		id: int
-		pointCloud: Any
+	# class KeyFrame:
+	# 	frameSet: FrameSet
+	# 	id: int
+	# 	pointCloud: Any
 	
-	class Map:
-		keyFrames: dict[int, KeyFrame]
+	# class Map:
+	# 	keyFrames: dict[int, KeyFrame]
 	
-	class MapperOutput:
-		finalMap: bool
-		map: Map
-		updatedKeyFrames: list[int]
+	# class MapperOutput:
+	# 	finalMap: bool
+	# 	map: Map
+	# 	updatedKeyFrames: list[int]
 	
 	class Pipeline:
 		monoLeft: MonoCamera
@@ -203,10 +204,10 @@ else:
 		VioOutput,
 		WgsCoordinates,
 		Frame,
-		FrameSet,
-		KeyFrame,
-		Map,
-		MapperOutput,
+		# FrameSet,
+		# KeyFrame,
+		# Map,
+		# MapperOutput,
 	)
 	from spectacularAI.depthai import (
 		Configuration,

@@ -126,61 +126,61 @@ class SaiSlamRuntime(NodeRuntime):
 			return super().handle_command(cmd)
 	
 	def poll(self, event: str | None = None) -> Iterable[WorkerMsg]:
-		if not self.vio_session.hasOutput():
-			return
-		
-		vio_out = self.vio_session.getOutput()
+		for _ in range(10):
+			if not self.vio_session.hasOutput():
+				return
+			
+			vio_out = self.vio_session.getOutput()
 
-		if vio_out.tag > 0:
-			self.log.info("Got tagged output %s", vio_out.tag)
-			self._vio_last_tag = vio_out.tag
-		
-		# Ensure we've completed all VIO flushes
-		if self._vio_last_tag < self._vio_require_tag:
-			self.log.info("Skipped vio frame (bad tag)")
-			return
-		
-		# SAI uses device-time, so we have to do some conversion
-		timestamp = self.context.tsyn.device_to_wall(vio_out.pose.time)
-		self.log.debug("Pose trail: %d %s %s", len(vio_out.poseTrail), vio_out.poseTrail[0].time if vio_out.poseTrail else -1, self.context.tsyn.dev_clock.now().as_seconds())
-		self.context.tsyn.dev_clock
+			if vio_out.tag > 0:
+				self.log.info("Got tagged output %s", vio_out.tag)
+				self._vio_last_tag = vio_out.tag
+			
+			# Ensure we've completed all VIO flushes
+			if self._vio_last_tag < self._vio_require_tag:
+				self.log.info("Skipped vio frame (bad tag)")
+				return
+			
+			# SAI uses device-time, so we have to do some conversion
+			timestamp = self.context.tsyn.device_to_wall(vio_out.pose.time)
+			self.log.debug("Pose trail: %d t0=%s ct=%s dai=%s", len(vio_out.poseTrail), vio_out.poseTrail[0].time if vio_out.poseTrail else -1, self.context.tsyn.dev_clock.now().as_seconds(), self.context.tsyn.dai_clock.now().as_seconds())
 
-		# Why is orientation covariance 1e-4?
-		# Because I said so
-		ROTATION_COV = 1e-4
-		ANG_VEL_COV = 1e-3
+			# Why is orientation covariance 1e-4?
+			# Because I said so
+			ROTATION_COV = 1e-4
+			ANG_VEL_COV = 1e-3
 
-		# I wish there was a better way to do this, but spectacularAI types are native wrappers,
-		# and they can't be nicely shared between processes
-		pose_cov = np.zeros((6, 6), dtype=np.float32)
-		pose_cov[:3,:3] = np.asarray(vio_out.positionCovariance)
-		pose_cov[3:,3:] = np.eye(3) * ROTATION_COV
-		pose = Pose3dCov(
-			#TODO: define which camera we want
-			# sai_camera_pose(self.vio_session.getRgbCameraPose(vio_out)),
-			sai_camera_pose(vio_out.getCameraPose(0)),
-			pose_cov
-		)
+			# I wish there was a better way to do this, but spectacularAI types are native wrappers,
+			# and they can't be nicely shared between processes
+			pose_cov = np.zeros((6, 6), dtype=np.float32)
+			pose_cov[:3,:3] = np.asarray(vio_out.positionCovariance)
+			pose_cov[3:,3:] = np.eye(3) * ROTATION_COV
+			pose = Pose3dCov(
+				#TODO: define which camera we want
+				# sai_camera_pose(self.vio_session.getRgbCameraPose(vio_out)),
+				sai_camera_pose(vio_out.getCameraPose(0)),
+				pose_cov
+			)
 
-		twist_cov = np.zeros((6, 6), dtype=np.float32)
-		twist_cov[:3,:3] = np.asarray(vio_out.velocityCovariance)
-		twist_cov[3:,3:] = np.eye(3) * ANG_VEL_COV
-		twist = Twist3dCov(
-			Twist3d(
-				# velocity is m/s
-				dx = vio_out.velocity.x,
-				dy = vio_out.velocity.y,
-				dz = vio_out.velocity.z,
-				# angularVelocity is in rad/s
-				rx = vio_out.angularVelocity.x,
-				ry = vio_out.angularVelocity.y,
-				rz = vio_out.angularVelocity.z,
-			),
-			twist_cov
-		)
+			twist_cov = np.zeros((6, 6), dtype=np.float32)
+			twist_cov[:3,:3] = np.asarray(vio_out.velocityCovariance)
+			twist_cov[3:,3:] = np.eye(3) * ANG_VEL_COV
+			twist = Twist3dCov(
+				Twist3d(
+					# velocity is m/s
+					dx = vio_out.velocity.x,
+					dy = vio_out.velocity.y,
+					dz = vio_out.velocity.z,
+					# angularVelocity is in rad/s
+					rx = vio_out.angularVelocity.x,
+					ry = vio_out.angularVelocity.y,
+					rz = vio_out.angularVelocity.z,
+				),
+				twist_cov
+			)
 
-		yield MsgOdom(
-			timestamp=timestamp,
-			pose=pose,
-			twist=twist,
-		)
+			yield MsgOdom(
+				timestamp=timestamp.nanos,
+				pose=pose,
+				twist=twist,
+			)

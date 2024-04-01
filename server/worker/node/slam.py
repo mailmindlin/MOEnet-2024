@@ -119,11 +119,13 @@ class SaiSlamRuntime(NodeRuntime):
 				rot_cov = 0 # TODO
 			
 			# Use AprilTag conversion utils so we don't write this again
+			fake_at = apriltag.AprilTagWpi(ID=0, pose=pose) \
+				.to_sai(apriltag.AprilTagFamily.TAG_16H5, 1.0)
+			fake_mat = fake_at.get_sai_matrix()
+			
 			pose_sai = sai.Pose.fromMatrix(
 				ts_sai,
-				apriltag.AprilTagWpi(ID=0, pose=pose) \
-					.to_sai(apriltag.AprilTagFamily.TAG_16H5, 1.0) \
-					.get_sai_matrix()
+				fake_mat
 			)
 
 			self.vio_session.addAbsolutePose(pose_sai, pose_cov, rot_cov)

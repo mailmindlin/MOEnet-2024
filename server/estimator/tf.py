@@ -74,6 +74,7 @@ class TfTracker:
 		from .util.lerp import as_pose
 		def as_pose_1(transform: Transform3d) -> Pose3d:
 			if transform is None:
-				raise ValueError(f'Empty transform field -> {dst}')
+				# raise ValueError(f'Empty transform field -> {dst}')
+				return Pose3d()
 			return as_pose(transform)
 		return self.track_tf(ReferenceFrame.FIELD, dst, timestamp=timestamp).map(as_pose_1)

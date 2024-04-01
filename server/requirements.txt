@@ -19,6 +19,7 @@ robotpy-apriltag>=2024.3.1.0
 robotpy-navx>=2024.1.0
 robotpy-wpinet>=2024.3.1.0
 robotpy-wpiutil>=2024.3.1.0
+robotpy-wpimath>=2024.3.2.0
 protobuf>=4.25.3
 
 # For video streaming

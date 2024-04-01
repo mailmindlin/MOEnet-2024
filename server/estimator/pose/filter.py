@@ -672,7 +672,7 @@ class PoseEstimator:
 					restored_measurement_count -= 1
 
 				# This will call predict and, if necessary, correct
-				self._filter.processMeasurement(*(measurement.get()));
+				self._filter.processMeasurement(measurement)
 
 				# Store old states and measurements if we're smoothing
 				if self.config.smooth_lagged_data:

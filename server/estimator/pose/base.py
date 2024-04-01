@@ -252,7 +252,7 @@ class FilterBase:
 		Does some final preprocessing, carries out the predict/update cycle
 		@param[in] measurement - The measurement object to fuse into the filter
 		"""
-		with self.debug_method(measurement.source_name):
+		with self.debug_method(measurement.source.name):
 			delta = timedelta(0)
 
 			# If we've had a previous reading, then go through the predict/update
@@ -292,7 +292,7 @@ class FilterBase:
 							else self.estimate_error_covariance[i, j]
 						)
 
-				self.is_initialized = True;
+				self.is_initialized = True
 
 			if delta.total_seconds() > 0:
 				# Update the last measurement and update time.

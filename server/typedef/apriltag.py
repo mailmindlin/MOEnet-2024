@@ -78,7 +78,7 @@ class AprilTagSai(BaseModel, AprilTagBase):
         [x,y,z] = matrix[:3,3]
 
         r = Rotation.from_matrix(r_matrix)
-        [i, j, k, w] = r.as_quat()
+        [i, j, k, w] = r.as_quat(False)
 
         position = geom.Translation3d(x, y, z)
         rotation = geom.Rotation3d(geom.Quaternion(w, i, j, k))#TODO: we might be able to the matrix constructor

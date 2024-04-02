@@ -13,6 +13,7 @@ S = TypeVar('S', bound=HasTimestamp)
 
 @dataclass(order=True)
 class WrapTimestamp(Generic[M]):
+    "Wrap a Tracked so it can be sorted"
     ts: Timestamp
     inner: Tracked[M]
 
@@ -22,12 +23,14 @@ class CascadingReplayFilter(ReplayFilter[M, S]):
             measurement = StaticValue(measurement)
         measurement = measurement.refresh()
         
-        return super().observe(WrapTimestamp(measurement.value.ts, measurement))
+        wrapped = WrapTimestamp(measurement.value.ts, measurement)
+        return super().observe(wrapped)
     
     def _inner_observe(self, measurement: WrapTimestamp[M]):
         return super()._inner_observe(measurement.inner.value)
     
-    def predict(self, now: Timestamp, _delta: timedelta = None):
+    def predict(self, now: Timestamp, delta: timedelta | None = None):
+        # Check if any of our historical measurements were updated
         for tracked in list(self._measurement_history):
             tracked: WrapTimestamp[M]
             # Historical measurement was updated
@@ -37,4 +40,4 @@ class CascadingReplayFilter(ReplayFilter[M, S]):
                 assert tracked.inner.value.ts == tracked.ts
                 self._measurement_queue.push(tracked)
         
-        return super().predict(now, _delta)
+        return super().predict(now, delta)

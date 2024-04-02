@@ -9,13 +9,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from typedef.common import OakSelector, RetryConfig
-from typedef.geom import Pose3d, Translation3d, Twist3d, Transform3d
+from typedef.geom import Pose3d, Translation3d, Transform3d
 from typedef.geom_cov import Pose3dCov, Twist3dCov
 from typedef.pipeline import PipelineConfigWorker
 
-Mat33 = np.ndarray[float, tuple[Literal[3], Literal[3]]]
-Mat44 = np.ndarray[float, tuple[Literal[4], Literal[4]]]
-Mat66 = np.ndarray[float, tuple[Literal[6], Literal[6]]]
+Mat33 = np.ndarray[tuple[Literal[3], Literal[3]], np.dtype[np.floating]]
+Mat44 = np.ndarray[tuple[Literal[4], Literal[4]], np.dtype[np.floating]]
+Mat66 = np.ndarray[tuple[Literal[6], Literal[6]], np.dtype[np.floating]]
 
 class WorkerInitConfig(BaseModel):
     "Config for worker.main"
@@ -94,7 +94,7 @@ class AprilTagDetection:
     tag_id: int
     hamming: int
     decision_margin: float
-    corners: np.ndarray[float, tuple[Literal[4], Literal[2]]]
+    corners: np.ndarray[tuple[Literal[4], Literal[2]], np.dtype[np.float32]]
     homography: Mat33
 
     # We define these functions to comply with the shape of `robotpy_apriltag.AprilTagDetection``

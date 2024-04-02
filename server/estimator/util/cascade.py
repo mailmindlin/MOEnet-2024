@@ -1,10 +1,11 @@
-from typing import TypeVar, Generic, Callable
+from typing import TypeVar, Generic, Callable, Type, cast
 import abc
 
 T = TypeVar('T')
 R = TypeVar('R')
 class Tracked(Generic[T], abc.ABC):
-    value: T
+    @abc.abstractproperty
+    def value(self) -> T: ...
 
     is_static = False
 
@@ -24,8 +25,12 @@ class Tracked(Generic[T], abc.ABC):
 class PushValue(Tracked[T]):
     def __init__(self, value: T):
         super().__init__()
-        self.value = value
+        self._value = value
         self.value_next = value
+    
+    @property
+    def value(self):
+        return self._value
     
     def update(self, value_next: T):
         self.value_next = value_next
@@ -34,14 +39,18 @@ class PushValue(Tracked[T]):
     def is_fresh(self):
         return self.value == self.value_next
 
-    def refresh(self) -> Tracked[int]:
-        self.value = self.value_next
+    def refresh(self) -> Tracked[T]:
+        self._value = self.value_next
         return self
 
 class StaticValue(Tracked[T]):
     def __init__(self, value: T) -> None:
         super().__init__()
-        self.value = value
+        self._value = value
+    
+    @property
+    def value(self):
+        return self._value
     
     is_static = True
 
@@ -73,14 +82,15 @@ class StaticValue(Tracked[T]):
         else:
             return False
 
-undefined = object()
+class undefined(): pass
+
 class Derived(Tracked[T]):
-    def __init__(self, func: Callable, *args: Tracked):
+    def __init__(self, func: Callable[..., T], *args: Tracked):
         super().__init__()
         self._func = func
         self._args = args
         self._last_args = None
-        self._last_value = undefined
+        self._last_value: Type[undefined] | T = undefined
     
     @property
     def is_static(self):
@@ -98,14 +108,17 @@ class Derived(Tracked[T]):
     
     @property
     def value(self) -> T:
-        if self._last_value is undefined:
+        v = self._last_value
+        if v is undefined:
             self._last_args = [arg.value for arg in self._args]
             try:
                 self._last_value = self._func(*self._last_args)
+                return self._last_value
             except:
                 print("Error computing", repr(self))
                 raise
-        return self._last_value
+        else:
+            return cast(T, v)
     
     def refresh(self) -> Tracked[T]:
         replace = False

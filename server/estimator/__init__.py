@@ -89,9 +89,11 @@ class DataFusion:
 	
 	def observe_f2r_override(self, pose: Pose3d, timestamp: Timestamp):
 		self.pose_estimator.observe
+		"Observe robot pose override"
 		pass
 
 	def observe_f2r(self, camera: 'WorkerHandle', msg: MsgPose):
+		"Observe SLAM absolute pose"
 		timestamp = Timestamp.from_nanos(msg.timestamp, WallClock())
 		#TODO: track camera?
 		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value

@@ -63,7 +63,8 @@ class CamerasTracker:
 			tracker = self._nt_lookup[nt_camera_name]
 		except KeyError:
 			self.log.warning('No dynamic pose for camera %s', nt_camera_name)
-		return 
+		else:
+			tracker.buffer.add(timestamp, robot_to_camera)
 
 	def robot_to_camera(self, camera_id: int, timestamp: Timestamp | None) -> Tracked[Transform3d]:
 		"Find robot-to-camera transform"

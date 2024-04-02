@@ -41,15 +41,15 @@ ReferenceFrame.ODOM = ReferenceFrame(ReferenceFrameKind.ODOM)
 
 class TfProvider(Protocol):
 	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d]:
-		pass
+		...
 
 
 class TfTracker:
 	def __init__(self, *providers: tuple[ReferenceFrameKind, ReferenceFrameKind, TfProvider]) -> None:
 		self.providers = list(providers)
 
-	def track_all(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[list[tuple[ReferenceFrame, Transform3d]]]:
-		pass
+	# def track_all(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[list[tuple[ReferenceFrame, Transform3d]]]:
+	# 	pass
 
 	def get_provider(self, src: ReferenceFrameKind, dst: ReferenceFrameKind) -> TfProvider:
 		for src_kind, dst_kind, provider in self.providers:

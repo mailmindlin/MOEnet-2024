@@ -245,7 +245,7 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 	def validate_delta(self, delta: timedelta):
 		return self._filter.validate_delta(delta)
 	
-	def predict(self, now: Timestamp, _delta: timedelta = None):
+	def predict(self, now: Timestamp, delta: timedelta | None = None):
 		self.log.debug("Predict to %s", now)
 		if self.enabled:
 			# Now we'll integrate any measurements we've received if requested,

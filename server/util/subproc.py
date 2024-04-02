@@ -2,13 +2,12 @@ from typing import TYPE_CHECKING, Optional, TypeVar, Callable, Type, Any, Generi
 from multiprocessing import Process, get_context
 from abc import ABC, abstractproperty
 from queue import Full, Empty
-import time
+import logging
 from datetime import timedelta
 
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
-	import logging
 	from multiprocessing.context import BaseContext
 	from multiprocessing.queues import Queue
 	from multiprocessing.process import BaseProcess
@@ -24,8 +23,10 @@ C = TypeVar('C')
 R = TypeVar('R')
 "Result message types"
 
+M1 = TypeVar('M1', bound=M)
+
 class Subprocess(Generic[M, C, R], ABC):
-	proc: Process
+	proc: 'BaseProcess | None'
 	cmd_queue: 'Queue[C]'
 	msg_queue: 'Queue[M]'
 
@@ -37,13 +38,13 @@ class Subprocess(Generic[M, C, R], ABC):
 		else:
 			self._ctx = ctx
 		
-		self.log = log
+		self.log = log or logging.getLogger(name)
 		self.name = name
 		self.daemon = daemon
 
 		self.cmd_queue = self._make_queue(cmd_queue)
 		self.msg_queue = self._make_queue(msg_queue)
-		self._handlers: list[tuple[Type[Any], Callable[[Any], None]]] = []
+		self._handlers: list[tuple[Type[Any], Callable[[Any], Any | None]]] = []
 		self.proc = None
 	
 	def _make_queue(self, arg: Union['Queue[T]', int, None]) -> 'Queue[T]':
@@ -54,7 +55,7 @@ class Subprocess(Generic[M, C, R], ABC):
 		else:
 			return arg
 	
-	def add_handler(self, msg: Type[M], callback: Callable[[M], R | None]):
+	def add_handler(self, msg: Type[M1], callback: Callable[[M1], R | None]):
 		"Register a callback to handle messages of a specific type"
 		self._handlers.append((msg, callback))
 	
@@ -74,7 +75,7 @@ class Subprocess(Generic[M, C, R], ABC):
 		raise NotImplementedError()
 	
 	@abstractproperty
-	def target(self): ...
+	def target(self) -> Callable[..., None]:  ...
 	
 	def _make_process(self) -> 'BaseProcess':
 		return self._ctx.Process(

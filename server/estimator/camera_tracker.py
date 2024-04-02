@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from datetime import timedelta
 from logging import Logger
 
@@ -12,6 +12,7 @@ from .util.cascade import Tracked, StaticValue
 from .tf import ReferenceFrame, ReferenceFrameKind
 
 class StaticCameraTracker:
+	"Track a static camera (always returns a StaticValue)"
 	def __init__(self, robot_to_camera: Transform3d) -> None:
 		self.robot_to_camera = robot_to_camera
 	
@@ -19,11 +20,12 @@ class StaticCameraTracker:
 		return StaticValue(self.robot_to_camera)
 
 class DynamicCameraTracker:
+	"Track a dynamic camera (interpolates over time)"
 	def __init__(self, historyLength: timedelta, robot_to_camera: Transform3d) -> None:
 		self.robot_to_camera = robot_to_camera
 		from .util.interpolated import InterpolatingBuffer
 		from .util.lerp import lerp_transform3d
-		self.buffer: InterpolatingBuffer[Timestamp, Transform3d, timedelta] = InterpolatingBuffer(historyLength, lerp_transform3d)
+		self.buffer = InterpolatingBuffer[Timestamp, Transform3d, timedelta](historyLength, lerp_transform3d)
 	
 	def sample(self, timestamp: Timestamp | None) -> Tracked[Transform3d]:
 		if timestamp is None:
@@ -32,15 +34,20 @@ class DynamicCameraTracker:
 			return self.buffer.track(timestamp, self.robot_to_camera)
 
 class CamerasTracker:
-	def __init__(self, log: Logger, historyLength: timedelta, workers: 'WorkerManager | None' = None):
+	"Track robot-to-camera transforms"
+	def __init__(self, historyLength: timedelta, *, log: Logger, workers: 'WorkerManager | None' = None):
 		self.log = log.getChild('camtrack')
 		self.historyLength = historyLength
 		self._camera_poses: list[StaticCameraTracker | DynamicCameraTracker] = list()
+		"Camera trackers"
 		self._nt_lookup: dict[str, DynamicCameraTracker] = dict()
+		"NetworkTable lookups"
+
 		if workers is not None:
 			self.reset(workers)
 	
 	def reset(self, workers: 'WorkerManager'):
+		"Reset with new workers"
 		self._camera_poses.clear()
 		self._nt_lookup.clear()
 		for worker in workers:
@@ -56,9 +63,11 @@ class CamerasTracker:
 			tracker = self._nt_lookup[nt_camera_name]
 		except KeyError:
 			self.log.warning('No dynamic pose for camera %s', nt_camera_name)
-		return 
+		else:
+			tracker.buffer.add(timestamp, robot_to_camera)
 
 	def robot_to_camera(self, camera_id: int, timestamp: Timestamp | None) -> Tracked[Transform3d]:
+		"Find robot-to-camera transform"
 		tracker = self._camera_poses[camera_id]
 		return tracker.sample(timestamp)
 	

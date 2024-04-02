@@ -52,7 +52,7 @@ class Timestamp:
 		if isinstance(micros, cls):
 			micros.assert_src(clock)
 			return micros
-		return cls.from_wpi(micros, clock=clock)
+		return cls.from_wpi(int(micros), clock=clock)
 
 	__slots__ = ('nanos', 'clock')
 	__match_args__ = ('nanos', 'clock')
@@ -89,7 +89,7 @@ class Timestamp:
 		pass
 	
 	def offset(self, offset: timedelta) -> 'Timestamp':
-		return Timestamp(self.nanos + (offset.total_seconds() * 1e9), clock=self.clock)
+		return Timestamp(self.nanos + int(offset.total_seconds() * 1_000_000_000), clock=self.clock)
 	
 	def offset_ns(self, offset: int, clock: Optional['Clock'] = None) -> 'Timestamp':
 		return Timestamp(self.nanos + offset, clock=clock or self.clock)
@@ -133,6 +133,7 @@ class Timestamp:
 			return self.offset(-other)
 		if isinstance(other, Timestamp):
 			if other.clock != self.clock:
+				print('ts sub bad clock', self.clock, other.clock)
 				return NotImplemented
 			return self.difference(other)
 		return NotImplemented
@@ -140,7 +141,7 @@ class Timestamp:
 	def __hash__(self) -> int:
 		return hash((self.nanos, self.clock))
 	
-	def __eq__(self, other: 'Timestamp'):
+	def __eq__(self, other: object):
 		if isinstance(other, Timestamp):
 			if self.nanos != other.nanos:
 				return False

@@ -49,7 +49,7 @@ class WMsgStreamCtl(BaseModel):
     name: str
     enable: bool = Field(True)
 
-WMsgAny = RootModel[Union[WMsgRequestConfig, WMsgRequestStreams, WMsgStreamCtl]]
+WMsgAny = Union[WMsgRequestConfig, WMsgRequestStreams, WMsgStreamCtl]
 
 class WCmdResponse(BaseModel, Generic[R]):
     "Response to a [WMsgRequest]"

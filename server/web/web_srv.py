@@ -46,6 +46,7 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
         self.start()
     
     def close_queues(self):
+        assert self.vid_queue is not None
         self.vid_queue.close()
         return super().close_queues()
     

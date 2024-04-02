@@ -1,6 +1,5 @@
-from typing import TypeVar, Callable, Generic, Protocol, Self, overload, Any, cast
-from collections.abc import Hashable
-from sortedcontainers import SortedDict
+from typing import TYPE_CHECKING, TypeVar, Callable, Generic, Protocol, Self, overload, Any
+from collections.abc import Hashable, ItemsView
 import enum
 from dataclasses import dataclass
 
@@ -10,18 +9,29 @@ from .cascade import Tracked
 
 undefined = object()
 
+if TYPE_CHECKING:
+	SK = TypeVar('SK')
+	SV = TypeVar('SV')
+	class SortedDict(dict[SK, SV]):
+		def peekitem(self, idx: int = -1) -> tuple[SK, SV]: ...
+		def bisect_right(self, value: SK) -> int: ...
+else:
+	from sortedcontainers import SortedDict
+
+
 class Comparable(Protocol):
-	pass
+    def __lt__(self, other: Self, /) -> bool: ...
 
 D = TypeVar('D', bound=Comparable)
 
 
 class Key(Hashable, Comparable, Protocol[D]):
+	"Key type"
 	@overload
-	def __sub__(self, other: D) -> Self: ...
+	def __sub__(self, other: D, /) -> Self: ...
 	@overload
-	def __sub__(self, other: Self) -> D: ...
-	# def __sub__(self, other: Self | D) -> Self | D: ...
+	def __sub__(self, other: Self, /) -> D: ...
+	def __sub__(self, other: Self | D, /) -> Self | D: ...
 
 K = TypeVar('K', bound=Key)
 V = TypeVar('V')
@@ -29,7 +39,7 @@ T = TypeVar('T')
 
 class InterpolateResult(Generic[V]):
 	@staticmethod
-	def wrap(buffer: 'InterpolatingBuffer[K, V, D]', key: K, bottomBound: tuple[K,V]|None, topBound: tuple[K,V]|None):
+	def wrap(buffer: 'InterpolatingBuffer[K, V, D]', key: K, bottomBound: tuple[K,V] | None, topBound: tuple[K,V] | None):
 		# Return null if neither sample exists, and the opposite bound if the other is null
 		if (topBound is not None) and (bottomBound is not None):
 			if topBound[0] == key:
@@ -59,6 +69,7 @@ class InterpolateResult(Generic[V]):
 	def get(self, default: T) -> V | T: ...
 
 class InterpolateEmpty(InterpolateResult[V]):
+	"Empty InterpolateResult"
 	def get(self, default: T) -> T:
 		return default
 
@@ -95,6 +106,7 @@ class InterpolateBetween(InterpolateResult[V], Generic[K, V, D]):
 		)
 
 class TrackedInterpolation(Tracked[V | T], Generic[K, V, T]):
+	"Track a"
 	def __init__(self, buffer: 'InterpolatingBuffer[K, V, Any]', key: K, default: T) -> None:
 		super().__init__()
 		self._buffer = buffer
@@ -169,13 +181,14 @@ class InterpolatingBuffer(Generic[K, V, D]):
 		self._snapshots[key] = value
 		self._modcount += 1
 	
-	def _get_bounds(self, key: K) -> tuple[tuple[K,V]|None,tuple[K,V]|None]:
+	def _get_bounds(self, key: K) -> tuple[tuple[K,V] | None, tuple[K,V] | None]:
 		# Special case for when the requested time is the same as a sample
 		key_idx = self._snapshots.bisect_right(key)
 		if key_idx > 0:
-			bottomBound: tuple[K,V] = self._snapshots.peekitem(key_idx - 1)
+			bottomBound = self._snapshots.peekitem(key_idx - 1)
+			bottomKey, _ = bottomBound
 			# If an exact match exists, it will be in bottomBound
-			if bottomBound[0] == key:
+			if bottomKey == key:
 				return bottomBound, bottomBound
 		else:
 			bottomBound = None
@@ -184,7 +197,7 @@ class InterpolatingBuffer(Generic[K, V, D]):
 			# Index is to the right of any value
 			topBound = None
 		else:
-			topBound: tuple[K,V] = self._snapshots.peekitem(key_idx)
+			topBound = self._snapshots.peekitem(key_idx)
 		return bottomBound, topBound
 	
 	def _get_ex(self, key: K):
@@ -212,12 +225,18 @@ class InterpolatingBuffer(Generic[K, V, D]):
 	@overload
 	def track(self, key: K) -> Tracked[V | None]: ...
 	@overload
+	def track(self, key: K, default: V) -> Tracked[V]: ...
+	@overload
 	def track(self, key: K, default: T) -> Tracked[V | T]: ...
-	def track(self, key: K, default: T = None) -> Tracked[V | T | None]:
+	def track(self, key: K, default: T | None = None) -> Tracked[V | T | None]:
 		return TrackedInterpolation(self, key, default)
 	
-	def latest(self, default: T = None) -> Tracked[V | None]:
-		pass
+	@overload
+	def latest(self) -> Tracked[V | None]: ...
+	@overload
+	def latest(self, default: T) -> Tracked[V | T]: ...
+	def latest(self, default: T = None) -> Tracked[V | T]:
+		raise NotImplementedError()
 		
-	def getInternalBuffer(self) -> list[tuple[K, V]]:
+	def getInternalBuffer(self) -> ItemsView[K, V]:
 		return self._snapshots.items()

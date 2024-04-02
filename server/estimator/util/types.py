@@ -5,7 +5,8 @@ from util.timestamp import Timestamp
 
 
 class HasTimestamp(Protocol):
-	ts: Timestamp
+	@property
+	def ts(self) -> Timestamp: ...
 
 
 M = TypeVar('M', bound=HasTimestamp)

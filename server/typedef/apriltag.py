@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import robotpy_apriltag
     import depthai as dai
 
-FLIP_SAI = True
+FLIP_SAI = False
 "We're supposed to flip SAI coordinates, but idk"
 
 class AprilTagFamily(enum.StrEnum):
@@ -72,19 +72,19 @@ class AprilTagSai(BaseModel, AprilTagBase):
             for row in self.tagToWorld.root
         ])
     def to_wpi(self) -> 'AprilTagWpi':
-        matrix = np.asarray(self.tagToWorld, dtype=float)
+        matrix = self.tagToWorld.to_numpy()
 
         r_matrix = matrix[:3, :3]
         [x,y,z] = matrix[:3,3]
 
         r = Rotation.from_matrix(r_matrix)
-        [i, j, k, w] = r.as_quat()
+        [i, j, k, w] = r.as_quat(False)
 
         position = geom.Translation3d(x, y, z)
         rotation = geom.Rotation3d(geom.Quaternion(w, i, j, k))#TODO: we might be able to the matrix constructor
 
         tagToField = geom.Transform3d(position, rotation)
-        fieldToTag = tagToField.inverse() if FLIP_SAI else fieldToTag
+        fieldToTag = tagToField.inverse() if FLIP_SAI else tagToField
         return AprilTagWpi(
             ID=self.id,
             pose=geom.Pose3d(fieldToTag.translation(), fieldToTag.rotation())
@@ -404,7 +404,7 @@ class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
         data = self._load_data(base)
         return AprilTagFieldInlineSai(
             field=self.field,
-            tags=data,
+            tags=data.root,
         )
     
     def _load_data(self, base: Path | None = None):
@@ -457,10 +457,10 @@ class AprilTagFieldNamedWpilib(enum.StrEnum):
                 length=field_wpilib.getFieldLength(),
                 width=field_wpilib.getFieldWidth(),
             ),
-            tags=[
+            tags=sorted([
                 AprilTagWpi.from_wpilib(tag)
                 for tag in field_wpilib.getTags()
-            ],
+            ], key=lambda tag: tag.ID),
             tagFamily=self.tagFamily(),
             tagSize=self.tagSize(),
         )

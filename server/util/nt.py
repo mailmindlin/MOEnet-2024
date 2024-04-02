@@ -1,4 +1,5 @@
-from .clock import OffsetClock, WpiClock
+from .clock import OffsetClock
+from ..wpi_compat.clock import WpiClock
 from .timemap import OffsetClockMapper
 from ntcore import NetworkTableInstance, Event, EventFlags, TimeSyncEventData
 
@@ -14,8 +15,12 @@ class NetworkTableClock(OffsetClock):
 	def _time_sync(self, event: Event):
 		if not event.is_(EventFlags.kTimeSync):
 			return
+		
 		data: TimeSyncEventData = event.data
 		self._offset_micros = data.serverTimeOffset
+
+	def get_offset_ns(self) -> int:
+		return self._offset_micros * 1_000
 	
 	def close(self):
 		self._nt.removeListener(self._listener_handle)

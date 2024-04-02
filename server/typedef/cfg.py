@@ -89,64 +89,46 @@ class NetworkTablesDirection(enum.Enum):
 
 class NetworkTablesConfig(BaseModel):
 	"Configure NetworkTables. Must be provided locally"
-	enabled: bool = Field(True, description="Should anything be sent to NetworkTables?")
+	enabled: bool = Field(default=True, description="Should anything be sent to NetworkTables?")
 
 	# Connection info
-	team: int = Field(365, description="FRC team number")
-	port: int = Field(NetworkTableInstance.kDefaultPort4, description="Which port should we connect to?")
-	host: Optional[str] = Field(None, description="NetworkTables host IP")
-	client_id: str = Field("MOEnet", description="Client connection name")
+	team: int = Field(default=365, description="FRC team number")
+	port: int = Field(default=NetworkTableInstance.kDefaultPort4, description="Which port should we connect to?")
+	host: Optional[str] = Field(default=None, description="NetworkTables host IP")
+	client_id: str = Field(default="MOEnet", description="Client connection name")
 	
-	table: str = Field("moenet", description="Root table name")
+	table: str = Field(default="moenet", description="Root table name")
 
-	log_level: str = Field("error", description="Minimum level to send logs")
-	log_lines: int = Field(10, description="Number of log lines to retain")
+	log_level: str = Field(default="error", description="Minimum level to send logs")
+	log_lines: int = Field(default=10, description="Number of log lines to retain")
 
 	# Subscriptions
-	subscribeSleep: bool = Field(True, description="Should we listen for sleep control at `/moenet/rio_request_sleep`?")
-	subscribeConfig: bool = Field(True, description="Should we listen for config updates at `/moenet/rio_dynamic_config`?")
+	subscribeSleep: bool = Field(default=True, description="Should we listen for sleep control at `/moenet/rio_request_sleep`?")
+	subscribeConfig: bool = Field(default=True, description="Should we listen for config updates at `/moenet/rio_dynamic_config`?")
 
 	# Utility publications
-	publishLog: bool = Field(True, description="Should we publish logs to `/moenet/client_log`?")
-	publishPing: bool = Field(True, description="Should we publish ping updates to `/moenet/client_ping`?")
-	publishErrors: bool = Field(True, description="Should we publish errors updates to `/moenet/client_error`?")
-	publishStatus: bool = Field(True)
-	publishConfig: bool = Field(True, description="Should we publish this config to `/moenet/client_config`?")
-	publishSystemInfo: bool = Field(True, description="Should we publish system info to `/moenet/client_telemetry`?")
-	publishDetections: bool = Field(True, description="Publish object detections to `/moenet/client_detections`")
+	publishLog: bool = Field(default=True, description="Should we publish logs to `/moenet/client_log`?")
+	publishPing: bool = Field(default=True, description="Should we publish ping updates to `/moenet/client_ping`?")
+	publishErrors: bool = Field(default=True, description="Should we publish errors updates to `/moenet/client_error`?")
+	publishStatus: bool = Field(default=True)
+	publishConfig: bool = Field(default=True, description="Should we publish this config to `/moenet/client_config`?")
+	publishSystemInfo: bool = Field(default=True, description="Should we publish system info to `/moenet/client_telemetry`?")
+	publishDetections: bool = Field(default=True, description="Publish object detections to `/moenet/client_detections`")
 
 	# Transforms
 	tfFieldToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> robot transform (absolute pose)")
 	tfFieldToOdom: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> odom transform (odometry estimate)")
 	tfOodomToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="odom->robot transform (odometry correction)")
-	subscribePoseOverride: bool = Field(True, description="Allow the Rio to override poses")
-	publishField2dF2O: bool = Field(False, description="Publish Field2d widget (field->odom)")
-	publishField2dF2R: bool = Field(False, description="Publish Field2d widget (field->robot)")
-	publishField2dDets: bool = Field(False, description="Publish Field2d widget (field->notes)")
-
-
-class ObjectDetectionDefinitionBase(BaseModel):
-	"Configure an object detection pipeline"
-	id: str
-	blobPath: Path = Field(description="Path to NN blob")
-
-class ObjectDetectionDefinitionRef(ObjectDetectionDefinitionBase):
-	configPath: Optional[Path] = Field(description="Path to NN config")
-	"Configuration path (relative to config file)"
-
-class ObjectDetectionDefinitionInline(ObjectDetectionDefinitionBase):
-	config: Optional[pipeline.NNConfig] = Field(description="Inline NN config")
-
-ObjectDetectionDefinition = TypeAdapter(Union[
-	Annotated[ObjectDetectionDefinitionInline, Tag("inline")],
-	Annotated[ObjectDetectionDefinitionRef, Tag("reference")],
-])
+	subscribePoseOverride: bool = Field(default=True, description="Allow the Rio to override poses")
+	publishField2dF2O: bool = Field(default=False, description="Publish Field2d widget (field->odom)")
+	publishField2dF2R: bool = Field(default=False, description="Publish Field2d widget (field->robot)")
+	publishField2dDets: bool = Field(default=False, description="Publish Field2d widget (field->notes)")
 
 
 class NavXConfig(BaseModel):
 	"NavX configuration"
-	port: Literal["usb", "usb1", "usb2"] = Field("usb", description="NavX connection")
-	update_rate: int = Field(60, description="NavX poll rate (in hertz)", gt=0, le=255)
+	port: Literal["usb", "usb1", "usb2"] = Field(default="usb", description="NavX connection")
+	update_rate: int = Field(default=60, description="NavX poll rate (in hertz)", gt=0, le=255)
 
 PipelineConfig = pipeline.PipelineConfig
 
@@ -214,16 +196,14 @@ class LocalConfig(BaseModel):
 	pipelines: list[PipelineDefinition] = Field(default_factory=list, description="Reusable pipelines")
 	web: WebConfig = Field(default_factory=lambda: WebConfig(enabled=False))
 
-	def merge(self, update: 'RemoteConfig') -> 'LocalConfig':
-		"Merge in a remote configuration"
-		result = self.model_copy()
-		if update.slam is not None:
-			result.slam = update.slam
-		# if update.cameras is not None:
-		#     for i, camera in enumerate(update.cameras):
-		#         if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, (AprilTagFieldFRCRef, AprilTagFieldSAIRef)):
-		#             raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
-		#     result.cameras = update.cameras
+	# def merge(self, update: 'RemoteConfig') -> 'LocalConfig':
+	# 	"Merge in a remote configuration"
+	# 	result = self.model_copy()
+	# 	if update.cameras is not None:
+	# 	    for i, camera in enumerate(update.cameras):
+	# 	        if isinstance(camera.slam, SlamConfig) and isinstance(camera.slam.apriltag, (AprilTagFieldFRCRef, AprilTagFieldSAIRef)):
+	# 	            raise ValueError(f'Invalid remote config: camera #{i} has a file reference')
+	# 	    result.cameras = update.cameras
 
 
 class RemoteConfig(BaseModel):

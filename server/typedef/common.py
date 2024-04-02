@@ -1,13 +1,27 @@
 from typing import Literal, Optional, TYPE_CHECKING
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, RootModel, conlist
 from datetime import timedelta
 if TYPE_CHECKING:
 	import depthai as dai
+	import numpy as np
 
 class Vec4(RootModel[tuple[float, float, float, float]]):
-	pass
+	"Vector of length 4"
+	def to_numpy(self) -> 'np.ndarray[tuple[Literal[4]], np.dtype[np.floating]]':
+		import numpy as np
+		return np.asarray(self.root)
+
 class Mat44(RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]):
-	pass
+	"Matrix of size 4x4"
+	def to_numpy(self) -> 'np.ndarray[tuple[Literal[4], Literal[4]], np.dtype[np.floating]]':
+		import numpy
+		return numpy.asarray([
+			[
+				item
+				for item in row.root
+			]
+			for row in self.root
+		])
 
 class RetryConfig(BaseModel):
 	"Configure restart/retry logic"
@@ -18,9 +32,9 @@ class RetryConfig(BaseModel):
 
 
 class OakSelector(BaseModel):
-	ordinal: Optional[int] = Field(None, description="Pick the n-th camera found (unstable, starts at 1)", ge=1)
-	mxid: Optional[str] = Field(None, description="Filter camera by mxid")
-	devname: Optional[str] = Field(None, description="Filter camera by device name")
+	ordinal: Optional[int] = Field(default=None, description="Pick the n-th camera found (unstable, starts at 1)", ge=1)
+	mxid: Optional[str] = Field(default=None, description="Filter camera by mxid")
+	devname: Optional[str] = Field(default=None, description="Filter camera by device name")
 	platform: Literal["X_LINK_ANY_PLATFORM", "X_LINK_MYRIAD_2", "X_LINK_MYRIAD_X", None] = Field(None)
 	protocol: Literal["X_LINK_ANY_PROTOCOL", "X_LINK_IPC", "X_LINK_NMB_OF_PROTOCOLS", "X_LINK_PCIE", "X_LINK_TCP_IP", "X_LINK_USB_CDC", "X_LINK_USB_VSC", None] = Field(None)
 

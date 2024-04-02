@@ -23,7 +23,7 @@ class Snapshot:
 
 
 class WpiPoseEstimatorInner(ReplayableFilter[OdometryMeasurement | VisionMeasurement, Snapshot]):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         self.state = Snapshot(
             ts=None,

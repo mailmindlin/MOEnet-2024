@@ -32,7 +32,7 @@ class SimplePoseEstimator(Filter[int]):
 		self.datalog = datalog
 		self.config = config
 
-		if self.datalog is not None:
+		if datalog is not None:
 			self.logFieldToRobot = StructLogEntry(datalog, 'raw/fieldToRobot', Pose3d)
 			self.logFieldToOdom = StructLogEntry(datalog, 'raw/fieldToOdom', Pose3d)
 

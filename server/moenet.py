@@ -199,7 +199,8 @@ class MoeNet:
 		# Process packets from cameras
 		active = True
 		assert self.camera_workers is not None
-		while active:
+		t0 = self.clock.now()
+		while active and (self.clock.now() - t0).total_seconds() < 0.25:
 			active = False
 			for worker in self.camera_workers:
 				for packet in worker.poll():

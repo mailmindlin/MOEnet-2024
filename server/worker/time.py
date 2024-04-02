@@ -48,8 +48,8 @@ class DeviceTimeSync:
 		# Update system -> device time
 		last_off = self.dev_clock.offset
 		self.dev_clock.offset = ts_dev.nanos - ts_dai.nanos
-		if last_off != self.dev_clock.offset:
-			print(f"Update dev_clock offset from {last_off} to {self.dev_clock.offset}")
+		if abs(last_off - self.dev_clock.offset) > 1e3:
+			print(f"Update dev_clock offset from {last_off} to {self.dev_clock.offset} ({self.dev_clock.offset - last_off}) packet type {str(type(packet))}")
 
 		return now_wall - latency
 

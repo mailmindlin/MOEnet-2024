@@ -46,7 +46,7 @@ class NodeBuilder(Generic[S], ABC):
 	def build(self, pipeline: dai.Pipeline, *args, **kwargs):
 		pass
 
-	def start(self, ctx: 'NodeRuntime.Context', *args, **kwargs) -> Optional['NodeRuntime']:
+	def start(self, context: 'NodeRuntime.Context', *args, **kwargs) -> Optional['NodeRuntime']:
 		return None
 
 class NodeRuntime:

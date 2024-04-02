@@ -20,7 +20,7 @@ class SlamBuilder(NodeBuilder[cfg.WorkerSlamStageConfig]):
 		config = self.config
 		if not (config.vio or config.slam):
 			# What's the point?
-			self.log.info("Skipping SLAM (no vio or slam)")
+			if self.log: self.log.info("Skipping SLAM (no vio or slam)")
 			raise StageSkip()
 		
 		sai_config = sai.Configuration()

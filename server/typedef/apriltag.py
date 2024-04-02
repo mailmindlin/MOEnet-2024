@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import robotpy_apriltag
     import depthai as dai
 
-FLIP_SAI = True
+FLIP_SAI = False
 "We're supposed to flip SAI coordinates, but idk"
 
 class AprilTagFamily(enum.StrEnum):

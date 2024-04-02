@@ -1,7 +1,4 @@
-from typing import TYPE_CHECKING
 from logging import Logger
-if TYPE_CHECKING:
-	from .camera_tracker import CamerasTracker
 from datetime import timedelta
 from dataclasses import dataclass
 
@@ -15,7 +12,7 @@ from util.timestamp import Timestamp
 from .tf import TfTracker, ReferenceFrame
 from .util.cascade_replay import CascadingReplayFilter
 from .util.cascade import Tracked, Derived
-from .util.replay import ReplayableFilter, ReplayFilter
+from .util.replay import ReplayableFilter
 
 class TrackedObject:
 	def __init__(self, id: int, timestamp: Timestamp, position: Translation3d, label: str, confidence: float):
@@ -91,6 +88,10 @@ class Snapshot:
 		self.tracked_objects = MultiDict()
 		self.last_measurement_ts = Timestamp.invalid()
 		self.config = config
+	
+	@property
+	def ts(self):
+		return self.last_measurement_ts
 	
 	def copy(self):
 		res = Snapshot(self.config)
@@ -198,7 +199,7 @@ class ObjectTracker:
 		field_to_robot = self.tf.track_pose(ReferenceFrame.ROBOT, timestamp)
 		robot_to_camera = self.tf.track_tf(ReferenceFrame.ROBOT, dets_frame, timestamp)
 		field_to_camera = Derived[Pose3d](Pose3d.__add__, field_to_robot, robot_to_camera)
-
+	
 		self._filter.observe(
 			ObjectDetectionMeasurement.derived(
 				timestamp,

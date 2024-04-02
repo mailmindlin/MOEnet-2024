@@ -67,11 +67,11 @@ class DataFusion:
 			self.log_o2r = StructLogEntry(self.datalog, 'filt/odomToRobot', Transform3d)
 			self.log_objdet = StructArrayLogEntry(self.datalog, 'filt/fieldToDetections', Pose3d)
 			self.log_objdet_full = ProtoLogEntry(self.datalog, 'filt/detections', net.ObjectDetections)
-			self.logFpsF2R = DoubleLogEntry(datalog, 'fps/field_to_robot')
-			self.logFpsF2O = DoubleLogEntry(datalog, 'fps/field_to_odom')
-			self.logFpsApriltag = DoubleLogEntry(datalog, 'fps/apriltag')
-			self.logFpsDetections = DoubleLogEntry(datalog, 'fps/detections')
-			now = clock.now()
+			self.logFpsF2R = DoubleLogEntry(self.datalog, 'fps/field_to_robot')
+			self.logFpsF2O = DoubleLogEntry(self.datalog, 'fps/field_to_odom')
+			self.logFpsApriltag = DoubleLogEntry(self.datalog, 'fps/apriltag')
+			self.logFpsDetections = DoubleLogEntry(self.datalog, 'fps/detections')
+			now = self.clock.now()
 			self._last_f2r_ts = now
 			self._last_f2o_ts = now
 			self._last_apr_ts = now

@@ -84,7 +84,7 @@ class AprilTagSai(BaseModel, AprilTagBase):
         rotation = geom.Rotation3d(geom.Quaternion(w, i, j, k))#TODO: we might be able to the matrix constructor
 
         tagToField = geom.Transform3d(position, rotation)
-        fieldToTag = tagToField.inverse() if FLIP_SAI else fieldToTag
+        fieldToTag = tagToField.inverse() if FLIP_SAI else tagToField
         return AprilTagWpi(
             ID=self.id,
             pose=geom.Pose3d(fieldToTag.translation(), fieldToTag.rotation())

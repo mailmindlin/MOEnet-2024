@@ -44,6 +44,7 @@ class SlamBuilder(NodeBuilder[cfg.WorkerSlamStageConfig]):
 		self.vio_pipeline = sai.Pipeline(pipeline, sai_config)
 	
 	def start(self, context: NodeRuntime.Context, *args, **kwargs) -> 'SaiSlamRuntime':
+		self.vio_pipeline.hooks.trackedFeatures = lambda packet: context.local_timestamp(packet) and None
 		vio_session = self.vio_pipeline.startSession(context.device)
 		
 		return SaiSlamRuntime(

@@ -54,6 +54,7 @@ def rot3_flatten(rotation: Rotation3d) -> Rotation3d:
 T = TypeVar('T')
 N = TypeVar('N', bound=int)
 
+
 def mahalanobisDistance2(mean_diff: np.ndarray[tuple[N], np.dtype[np.floating]], cov_sum: np.ndarray[tuple[N, N], np.dtype[np.floating]]) -> float:
 	"Squared mahalanobis distance"
 	cov_inv = np.linalg.inv(cov_sum)
@@ -281,6 +282,26 @@ class Translation3dCov(LinearCovariantBase[Translation3d, Literal[3]]):
 			self.mean.toTranslation2d(),
 			self.cov[:2, :2],
 		)
+	
+	def mahalanobisDistanceTo(self, other: Self | Translation3d, only2d: bool = False) -> float:
+		"Returns the Mahalanobis distance from this PDF to some other point"
+		if isinstance(other, Translation3d):
+			mean2 = other
+			cov2 = np.zeros_like(self.cov)
+		else:
+			mean2 = other.mean
+			cov2 = other.cov
+		
+		# Difference in means
+		deltaX = (mean2 - self.mean).toVector()
+		cov = self.cov + cov2
+		
+		if only2d:
+			cov = cov[:2,:2]
+			deltaX = deltaX[:2]
+		
+		cov_inv = np.linalg.inv(cov)
+		return np.sqrt(deltaX.T @ cov_inv @ deltaX)
 
 def quat_normalizationJacobian(quat: Quaternion) -> np.ndarray[tuple[Literal[4], Literal[4]], np.dtype[np.float64]]:
 	"""

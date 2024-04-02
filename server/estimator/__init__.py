@@ -1,4 +1,5 @@
-from typing import Optional, overload, TYPE_CHECKING
+from os import times
+from typing import Optional, overload, TYPE_CHECKING, Protocol
 import logging
 from collections import OrderedDict
 
@@ -8,7 +9,6 @@ from wpiutil.log import DataLog, DoubleLogEntry
 from .util.cascade import Tracked
 from worker.msg import MsgPose, MsgDetections, MsgAprilTagDetections, MsgOdom
 from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
-from typedef.geom import Transform3d, Pose3d
 from typedef import net, cfg
 from typedef.geom import Transform3d, Pose3d
 from typedef.geom_cov import Pose3dCov
@@ -45,7 +45,7 @@ class DataFusion:
 		self.clock = clock or WallClock()
 		self.config = config
 
-		self.camera_tracker = CamerasTracker(self.log.getChild('cam'), config.pose.history)
+		self.camera_tracker = CamerasTracker(config.pose.history, log=self.log.getChild('cam'))
 		self.pose_estimator = SimplePoseEstimator(config.pose, self.clock, log=self.log.getChild('pose'), datalog=self.datalog)
 		# Robot pose transforms
 		tf_robot = TfTracker(

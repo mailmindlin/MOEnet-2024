@@ -132,8 +132,13 @@ class AprilTagRuntimeBase(NodeRuntime):
 			fieldToTag = self.atfl.getTagPose(det.getId())
 		
 		if self.config.undistort:
-			corners = det.getCorners(np.empty(9, dtype=np.float32))
+			corners = np.asanyarray(det.getCorners((0,0,0,0,0,0,0,0)), dtype=np.float32)
+			assert np.shape(corners) == (4, 2), f"Corners 0: {np.shape(corners)}"
 			corners = cv2.undistortImagePoints(corners, self.camera_matrix, self.camera_distortion)
+			# Idk why, but OpenCV keeps adding a dim
+			if np.shape(corners) == (4, 1, 2):
+				corners = corners[:,0,:]
+			assert np.shape(corners) == (4, 2), f"Corners 1: {np.shape(corners)}"
 			# Recompute homography
 			H = self._homography_from_corners(corners)
 			det = AprilTagDetection(
@@ -336,7 +341,7 @@ class AprilTagRuntimeBase(NodeRuntime):
 			yy/zz
 		)
 	
-	def _homography_from_corners(self, corners: Union[tuple[dai.Point2f, ...], np.ndarray[float, tuple[Literal[4], Literal[2]]]]):
+	def _homography_from_corners(self, corners: Union[tuple[dai.Point2f, ...], np.ndarray[tuple[Literal[4], Literal[2]], np.dtype[np.floating]]]):
 		"Reconstruct homography matrix from corners"
 		corr_arr = np.zeros((4, 4), dtype=np.float32)
 		corr_arr[(0,3),0] = -1

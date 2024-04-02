@@ -143,7 +143,8 @@ class XOutNode(NodeBuilder[S], NodeRuntime, Generic[T, S], ABC):
 		return [self.xout.getStreamName()]
 	
 	def handle(self, packet: T):
-		pass
+		return
+		yield
 
 	def poll(self, event: str | None = None):
 		if packet := self.queue.tryGet():

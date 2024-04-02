@@ -100,7 +100,7 @@ class MoeNetPipeline:
 				res = stage
 		return res 
 	
-	def _config_for_name(self, name: str, optional: bool) -> cfg.PipelineStage:
+	def _config_for_name(self, name: str, optional: bool) -> cfg.PipelineStageWorker:
 		for stage_config in self.config:
 			if stage_config.name == name:
 				return stage_config

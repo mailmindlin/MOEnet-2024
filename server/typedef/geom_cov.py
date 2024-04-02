@@ -555,7 +555,178 @@ class Pose3dQuatCov(CovariantWrapper[Pose3d, Literal[7]]):
 			quat.Z(),
 			quat.W(),
 		], dtype=np.float64)
+	
+	@property
+	def rotation(self):
+		return self.mean.rotation()
+	
+	@property
+	def translation(self):
+		return self.mean.translation()
+	
+	@staticmethod
+	def jacobiansPoseComposition(x: Pose3d, u: Pose3d | Transform3d):
+		x_quat = x.rotation().getQuaternion()
+		qr = x_quat.W()
+		qx = x_quat.X()
+		qx2 = np.square(qx)
+		qy = x_quat.Y()
+		qy2 = np.square(qy)
+		qz = x_quat.Z()
+		qz2 = np.square(qz)
 
+		u_trl = u.translation()
+		ax = u_trl.x
+		ay = u_trl.y
+		az = u_trl.z
+		u_quat = u.rotation().getQuaternion()
+		q2r = u_quat.W()
+		q2x = u_quat.X()
+		q2y = u_quat.Y()
+		q2z = u_quat.Z()
+
+		x_plus_u = x + Transform3d(u.translation(), u.rotation());	 # for the normalization Jacobian
+		norm_jacob = quat_normalizationJacobian(x_plus_u.rotation().getQuaternion())
+
+		norm_jacob_x = quat_normalizationJacobian(x_quat)
+
+		# df_dx ===================================================
+		df_dx = np.zeros((7, 7), dtype=np.float64)
+
+		# first part 3x7:  df_{qr} / dp
+		df_dx[:3, :3] = np.eye(3)
+
+		vals2 = np.array([
+			[
+				(-qz * ay + qy * az),
+				(qy * ay + qz * az),
+				(-2 * qy * ax + qx * ay + qr * az),
+				(-2 * qz * ax - qr * ay + qx * az),
+			],
+			[
+				(qz * ax - qx * az),
+				(qy * ax - 2 * qx * ay - qr * az),
+				(qx * ax + qz * az),
+				(qr * ax - 2 * qz * ay + qy * az),
+			],
+			[
+				(-qy * ax + qx * ay),
+				(qz * ax + qr * ay - 2 * qx * az),
+				(-qr * ax + qz * ay - 2 * qy * az),
+				(qx * ax + qy * ay),
+			]
+		])
+		vals2 *= 2.0
+		df_dx[0:3, 3:7] = vals2 @ norm_jacob_x
+		
+		# second part:
+		aux44_data = np.array([
+			[q2r, -q2x, -q2y, -q2z],
+			[q2x, q2r, q2z,  -q2y],
+			[q2y, -q2z, q2r, q2x],
+			[q2z, q2y, -q2x, q2r],
+		])
+		df_dx[3:7,3:7] = norm_jacob @ aux44_data
+
+		# df_du ===================================================
+		df_du = np.zeros((7, 7), dtype=np.float64)
+
+		# first part 3x3:  df_{qr} / da
+		df_du[0, 0] = 1 - 2 * (qy2 + qz2)
+		df_du[0, 1] = 2 * (qx * qy - qr * qz)
+		df_du[0, 2] = 2 * (qr * qy + qx * qz)
+
+		df_du[1, 0] = 2 * (qr * qz + qx * qy)
+		df_du[1, 1] = 1 - 2 * (qx2 + qz2)
+		df_du[1, 2] = 2 * (qy * qz - qr * qx)
+
+		df_du[2, 0] = 2 * (qx * qz - qr * qy)
+		df_du[2, 1] = 2 * (qr * qx + qy * qz)
+		df_du[2, 2] = 1 - 2 * (qx2 + qy2)
+
+		# Second part:
+		aux44_data = np.array([
+			[qr, -qx, -qy, -qz],
+			[qx, qr,	-qz, qy],
+			[qy, qz,	 qr,  -qx],
+			[qz, -qy, qx,	 qr]
+		])
+		df_du[3:7,3:7] = norm_jacob @ aux44_data
+
+		return (df_dx, df_du, x_plus_u)
+	
+	def __add__(self, other: Self | Pose3d | Transform3d) -> 'Pose3dQuatCov':
+		if isinstance(other, (Pose3d, Transform3d)):
+			df_dx, df_du, mean = self.jacobiansPoseComposition(self.mean, other)
+			# cov = H1*this->cov*H1' + H2*Ap.cov*H2'
+			cov = df_dx @ self.cov @ df_dx.T
+			return Pose3dQuatCov(
+				mean,
+				cov
+			)
+		elif isinstance(other, Pose3dQuatCov):
+			df_dx, df_du, mean = self.jacobiansPoseComposition(self.mean, other.mean)
+			# cov = H1*this->cov*H1' + H2*Ap.cov*H2'
+			cov = df_dx @ self.cov @ df_dx.T
+			cov += df_du @ other.cov @ df_du.T
+			return Pose3dQuatCov(
+				mean,
+				cov
+			)
+		return NotImplemented
+	
+	def __sub__(self, other: 'Pose3dQuatCov | Pose3d | Transform3d') -> 'Pose3dQuatCov':
+		if isinstance(other, Pose3d):
+			other = Transform3d(other.translation(), other.rotation())
+		if isinstance(other, Transform3d):
+			return self + other.inverse()
+		elif isinstance(other, Pose3dQuatCov):
+			return self + other.inverse()
+		return NotImplemented
+	
+	def mahalanobisDistanceTo(self, other: 'Pose3dQuatCov') -> float:
+		cov = self.cov + other.cov
+		return mahalanobisDistance(self.mean_vec() - other.mean_vec(), cov)
+	
+	def inverseJacobian(self) -> np.ndarray[tuple[Literal[7], Literal[7]], np.dtype[np.floating]]:
+		l, _, jacobian_df_pose = pose3_inverseComposePoint(self.mean, Translation3d(), out_jacobian_df_dpose=True)
+		assert jacobian_df_pose is not None
+		jacob = np.zeros((7, 7), dtype=float)
+		jacob[:3, :] = jacobian_df_pose
+		jacob[3, 3] = 1
+		jacob[4, 4] = -1
+		jacob[5, 5] = -1
+		jacob[6, 6] = -1
+		norm_jacob = quat_normalizationJacobian(self.mean.rotation().getQuaternion())
+		jacob[3:,3:] *= norm_jacob #TODO: I can't tell if this is supposed to be element-wise or a matmul
+		return jacob
+	
+	def inverse(self) -> 'Pose3dQuatCov':
+		# https://github.com/MRPT/mrpt/blob/4c9da0fb51e50148d28c46964bd698688c727f47/libs/poses/src/CPose3DQuatPDFGaussian.cpp#L281
+		#TODO: Just use wpilib inverse
+		l, _, _ = pose3_inverseComposePoint(self.mean, Translation3d())
+		
+		jacob = self.inverseJacobian()
+
+		# C(0:2,0:2): H C H^t
+		cov = jacob @ self.cov @ jacob.T
+
+		# Mean:
+		mean = Pose3d(
+			l,
+			-self.mean.rotation(),
+		)
+		
+		return Pose3dQuatCov(mean, cov)
+	
+	__neg__ = inverse
+	
+	def changeCoordinatesReference(self, newReferenceBase: Pose3d) -> 'Pose3dQuatCov':
+		df_dx, df_du, mean = self.jacobiansPoseComposition(newReferenceBase, self.mean)
+		cov = df_du @ self.cov @ df_du.T
+		return Pose3dQuatCov(mean, cov)
+	
+	
 class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 	STATE_LEN: ClassVar[int] = 6
 	@classmethod
@@ -580,6 +751,7 @@ class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 	@property
 	def rotation(self):
 		return self.mean.rotation()
+	
 	@property
 	def translation(self):
 		return Translation3dCov(
@@ -604,6 +776,9 @@ class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 			rot.Z(),
 		], dtype=np.float64)
 
+	def relativeTo(self, other: Pose3d) -> Self:
+		tf = Transform3d(other, self.mean)
+		return self.transformBy()
 	def transformBy(self, tf: Transform3d) -> 'Pose3dCov':
 		rot = rot3_to_mat6(tf.rotation())
 		cov_rotated = rot @ self.cov @ rot.T

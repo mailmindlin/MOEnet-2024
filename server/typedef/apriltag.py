@@ -457,10 +457,10 @@ class AprilTagFieldNamedWpilib(enum.StrEnum):
                 length=field_wpilib.getFieldLength(),
                 width=field_wpilib.getFieldWidth(),
             ),
-            tags=[
+            tags=sorted([
                 AprilTagWpi.from_wpilib(tag)
                 for tag in field_wpilib.getTags()
-            ],
+            ], key=lambda tag: tag.ID),
             tagFamily=self.tagFamily(),
             tagSize=self.tagSize(),
         )

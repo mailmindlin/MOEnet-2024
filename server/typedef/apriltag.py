@@ -404,7 +404,7 @@ class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
         data = self._load_data(base)
         return AprilTagFieldInlineSai(
             field=self.field,
-            tags=data,
+            tags=data.root,
         )
     
     def _load_data(self, base: Path | None = None):

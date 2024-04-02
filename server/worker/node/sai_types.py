@@ -1,10 +1,10 @@
 "Helper to add typedefs arount SpectacularAI"
 
-from typing import TYPE_CHECKING, Any, Optional, ClassVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, ClassVar
 if TYPE_CHECKING:
 	import numpy as np
 	from depthai.node import MonoCamera, StereoDepth, ColorCamera
-	from depthai import Device, Pipeline as DaiPipeline
+	from depthai import Device, Pipeline as DaiPipeline, IMUData, ImgFrame, TrackedFeatures
 
 	class Configuration:
 		accFrequencyHz: int
@@ -184,11 +184,20 @@ if TYPE_CHECKING:
 	# 	map: Map
 	# 	updatedKeyFrames: list[int]
 	
+	class Hooks:
+		imu: Callable[[IMUData], None] | None
+		monoPrimary: Callable[[ImgFrame], None] | None
+		monoSecondary: Callable[[ImgFrame], None] | None
+		depth: Callable[[ImgFrame], None] | None
+		color: Callable[[ImgFrame], None] | None
+		trackedFeatures: Callable[[TrackedFeatures], None] | None
+	
 	class Pipeline:
 		monoLeft: MonoCamera
 		monoRight: MonoCamera
 		stereo: StereoDepth
 		color: ColorCamera
+		hooks: Hooks
 
 		def __init__(self, pipeline: DaiPipeline, config: Configuration): ...
 
@@ -212,5 +221,6 @@ else:
 	from spectacularAI.depthai import (
 		Configuration,
 		Session,
-		Pipeline
+		Pipeline,
+		Hooks,
 	)

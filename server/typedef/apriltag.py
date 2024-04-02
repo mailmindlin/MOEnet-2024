@@ -72,7 +72,7 @@ class AprilTagSai(BaseModel, AprilTagBase):
             for row in self.tagToWorld.root
         ])
     def to_wpi(self) -> 'AprilTagWpi':
-        matrix = np.asarray(self.tagToWorld, dtype=float)
+        matrix = self.tagToWorld.to_numpy()
 
         r_matrix = matrix[:3, :3]
         [x,y,z] = matrix[:3,3]

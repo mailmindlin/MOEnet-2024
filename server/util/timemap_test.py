@@ -51,7 +51,7 @@ class TimeMapTest(TestCase):
 		assert conv.clock_a == c_m
 		assert conv.clock_b == c_w
 	
-	def test_search_simple(self):
+	def test_search_2(self):
 		c0 = MonoClock()
 		c1 = FixedOffsetClock(c0, 100)
 		c2 = FixedOffsetClock(c1, 200)

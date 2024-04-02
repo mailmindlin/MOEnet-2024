@@ -26,6 +26,7 @@ class TimeMapper(ABC):
 		return self
 
 	def __exit__(self, *args):
+		assert self._cm_map is not None
 		self._cm_map.__exit__()
 		del self._cm_map
 
@@ -67,10 +68,8 @@ class TimeMapper(ABC):
 M = TypeVar('M', bound=TimeMapper)
 class TimeMap:
 	@classproperty
-	def default(cls):
+	def default(cls) -> 'TimeMap':
 		return MAP_CTX.get()
-
-	default: 'TimeMap'
 
 	def __init__(self, *mappers: Union['TimeMap', TimeMapper]):
 		self._prev_t = None
@@ -90,6 +89,7 @@ class TimeMap:
 		return self
 
 	def __exit__(self, *args):
+		assert self._prev_t is not None
 		MAP_CTX.reset(self._prev_t)
 		del self._prev_t
 	
@@ -146,7 +146,7 @@ class TimeMap:
 
 	def get_conversion(self, src: 'Clock', dst: 'Clock') -> Optional[TimeMapper]:
 		import heapq
-		prev: dict['Clock', tuple[int, Optional[TimeMapper]]] = dict()
+		prev: dict['Clock', tuple[int, TimeMapper]] = dict()
 		# prev[src] = (0, None)
 		queue: list[tuple[int,'Clock']] = [(0, src)]
 		if src == dst:
@@ -157,6 +157,7 @@ class TimeMap:
 				return prev[node][0]
 			except KeyError:
 				return float('inf')
+		
 		while len(queue) > 0:
 			dist, node = heapq.heappop(queue)
 			# Nodes can get added to the priority queue multiple times. We only

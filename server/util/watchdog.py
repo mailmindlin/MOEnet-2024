@@ -16,7 +16,7 @@ class Watchdog:
 	"Watchdog for loop timing"
 	min: timedelta
 	"Minimum time to take"
-	max: timedelta
+	max: timedelta | None
 	"Maximum time to take (logs error if exceeded)"
 
 	def __init__(self, name: str, *, min: timedelta | float | None = None, max: timedelta | float | None = None, clock: Clock | None = None, log: Optional['logging.Logger'] = None, log_overrun: bool = True) -> None:
@@ -75,8 +75,8 @@ class Watchdog:
 			if remaining > 0:
 				return { 'block': True, 'timeout': remaining }
 			else:
-				return { 'block': False }
-		return {}
+				return { 'block': False, 'timeout': None }
+		return { 'block': None, 'timeout': None }
 	
 	def skip(self):
 		self._skip = True

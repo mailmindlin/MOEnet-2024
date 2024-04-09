@@ -256,11 +256,11 @@ class CameraWorker:
 			elif isinstance(packet, MsgFrame):
 				packet.worker = self.config.name
 				packet.timestamp_insert = time.time_ns()
-				try:
-					self.video_queue.put(packet, timeout=0.1)
-				except Full:
-					self.log.info('Drop frame (%d frames)', self.video_queue.qsize())
-					pass
+				if self.video_queue:
+					try:
+						self.video_queue.put(packet, timeout=0.1)
+					except Full:
+						self.log.info('Drop frame (%d frames)', self.video_queue.qsize())
 				continue
 			self.data_queue.put(packet)
 	
@@ -370,6 +370,6 @@ if __name__ == '__main__':
 		def put(self, data):
 			time.sleep(0.01)
 	try:
-		main(config, FakeQueue(), FakeQueue())
+		main(config, FakeQueue(), FakeQueue(), FakeQueue())
 	finally:
 		print("Bye")

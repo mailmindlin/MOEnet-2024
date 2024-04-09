@@ -1,13 +1,17 @@
-from typing import Optional, overload, TYPE_CHECKING
+from os import times
+from typing import Optional, overload, TYPE_CHECKING, Protocol
 import logging
 from collections import OrderedDict
 
 from wpiutil.log import DataLog, DoubleLogEntry
 
+
+from .util.cascade import Tracked
 from worker.msg import MsgPose, MsgDetections, MsgAprilTagDetections, MsgOdom
 from wpi_compat.datalog import StructLogEntry, StructArrayLogEntry, ProtoLogEntry
-from typedef.geom import Transform3d, Pose3d
 from typedef import net, cfg
+from typedef.geom import Transform3d, Pose3d
+from typedef.geom_cov import Pose3dCov
 from util.log import child_logger
 from util.clock import Clock, WallClock
 from util.timemap import TimeMapper, IdentityTimeMapper
@@ -15,12 +19,15 @@ from util.timestamp import Timestamp
 
 from .pose_simple import SimplePoseEstimator
 from .tracker import ObjectTracker
-from .tf import TfTracker, ReferenceFrameKind
+from .tf import TfTracker, ReferenceFrameKind, TfProvider
 from .camera_tracker import CamerasTracker
 
 if TYPE_CHECKING:
 	from worker.controller import WorkerManager, WorkerHandle
 
+class PoseEstimator(TfProvider, Protocol):
+	def observe_f2r(self, timestamp: Timestamp, robot_to_camera: Tracked[Transform3d], field_to_camera: Pose3dCov): ...
+	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: MsgAprilTagDetections): ...
 
 class DataFusion:
 	"""
@@ -29,7 +36,7 @@ class DataFusion:
 	 - Object detections (camera -> object)
 	 - 
 	"""
-	pose_estimator: SimplePoseEstimator
+	pose_estimator: PoseEstimator
 	object_tracker: ObjectTracker
 
 	def __init__(self, config: cfg.EstimatorConfig, clock: Optional[Clock] = None, *, log: Optional[logging.Logger], datalog: Optional[DataLog] = None) -> None:
@@ -38,7 +45,7 @@ class DataFusion:
 		self.clock = clock or WallClock()
 		self.config = config
 
-		self.camera_tracker = CamerasTracker(self.log.getChild('cam'), config.pose.history)
+		self.camera_tracker = CamerasTracker(config.pose.history, log=self.log.getChild('cam'))
 		self.pose_estimator = SimplePoseEstimator(config.pose, self.clock, log=self.log.getChild('pose'), datalog=self.datalog)
 		# Robot pose transforms
 		tf_robot = TfTracker(
@@ -67,11 +74,11 @@ class DataFusion:
 			self.log_o2r = StructLogEntry(self.datalog, 'filt/odomToRobot', Transform3d)
 			self.log_objdet = StructArrayLogEntry(self.datalog, 'filt/fieldToDetections', Pose3d)
 			self.log_objdet_full = ProtoLogEntry(self.datalog, 'filt/detections', net.ObjectDetections)
-			self.logFpsF2R = DoubleLogEntry(datalog, 'fps/field_to_robot')
-			self.logFpsF2O = DoubleLogEntry(datalog, 'fps/field_to_odom')
-			self.logFpsApriltag = DoubleLogEntry(datalog, 'fps/apriltag')
-			self.logFpsDetections = DoubleLogEntry(datalog, 'fps/detections')
-			now = clock.now()
+			self.logFpsF2R = DoubleLogEntry(self.datalog, 'fps/field_to_robot')
+			self.logFpsF2O = DoubleLogEntry(self.datalog, 'fps/field_to_odom')
+			self.logFpsApriltag = DoubleLogEntry(self.datalog, 'fps/apriltag')
+			self.logFpsDetections = DoubleLogEntry(self.datalog, 'fps/detections')
+			now = self.clock.now()
 			self._last_f2r_ts = now
 			self._last_f2o_ts = now
 			self._last_apr_ts = now
@@ -89,17 +96,21 @@ class DataFusion:
 	
 	def observe_f2r_override(self, pose: Pose3d, timestamp: Timestamp):
 		self.pose_estimator.observe
+		"Observe robot pose override"
 		pass
 
 	def observe_f2r(self, camera: 'WorkerHandle', msg: MsgPose):
+		"Observe SLAM absolute pose"
 		timestamp = Timestamp.from_nanos(msg.timestamp, WallClock())
 		#TODO: track camera?
-		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
+		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp)
+		
+		pose = Pose3dCov(msg.pose, msg.poseCovariance)
 
-		self.pose_estimator.observe_f2r(robot_to_camera, msg)
+		self.pose_estimator.observe_f2r(timestamp, robot_to_camera, pose)
 
 		if self.datalog is not None:
-			simple_f2o = msg.pose.transformBy(robot_to_camera.inverse())
+			simple_f2o = msg.pose.transformBy(robot_to_camera.value.inverse())
 			self.log_f2o.append(simple_f2o)
 			
 			delta = timestamp - self._last_f2r_ts
@@ -110,6 +121,7 @@ class DataFusion:
 		self.fresh_o2r = True
 	
 	def observe_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
+		"Observe robot odometry"
 		if self.datalog:
 			delta = timestamp - self._last_f2o_ts
 			self._last_f2o_ts = timestamp
@@ -119,7 +131,7 @@ class DataFusion:
 		self.fresh_f2o = True
 		self.fresh_o2r = True
 	
-	def observe_odom(self, odom: MsgOdom):
+	def observe_odom(self, camera: 'WorkerHandle', odom: MsgOdom):
 		pass
 	
 	@overload

@@ -46,7 +46,7 @@ class NodeBuilder(Generic[S], ABC):
 	def build(self, pipeline: dai.Pipeline, *args, **kwargs):
 		pass
 
-	def start(self, ctx: 'NodeRuntime.Context', *args, **kwargs) -> Optional['NodeRuntime']:
+	def start(self, context: 'NodeRuntime.Context', *args, **kwargs) -> Optional['NodeRuntime']:
 		return None
 
 class NodeRuntime:
@@ -143,7 +143,8 @@ class XOutNode(NodeBuilder[S], NodeRuntime, Generic[T, S], ABC):
 		return [self.xout.getStreamName()]
 	
 	def handle(self, packet: T):
-		pass
+		return
+		yield
 
 	def poll(self, event: str | None = None):
 		if packet := self.queue.tryGet():

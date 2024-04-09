@@ -20,5 +20,6 @@ class IMUStage(XOutNode[dai.IMUData, cfg.TelemetryStageConfig]):
 		self.node = syslog
 		return self.node.out
 	
-	def handle(self, packet: dai.SystemInformation):
+	def handle(self, packet: dai.IMUData):
+		return
 		yield

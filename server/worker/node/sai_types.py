@@ -1,10 +1,10 @@
 "Helper to add typedefs arount SpectacularAI"
 
-from typing import TYPE_CHECKING, Any, Optional, ClassVar
+from typing import TYPE_CHECKING, Any, Callable, Optional, ClassVar
 if TYPE_CHECKING:
 	import numpy as np
 	from depthai.node import MonoCamera, StereoDepth, ColorCamera
-	from depthai import Device, Pipeline as DaiPipeline
+	from depthai import Device, Pipeline as DaiPipeline, IMUData, ImgFrame, TrackedFeatures
 
 	class Configuration:
 		accFrequencyHz: int
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 		"Path to .json file with AprilTag information. AprilTag detection is enabled when not empty. For the file format see: https://github.com/SpectacularAI/docs/blob/main/pdf/april_tag_instructions.pdf. Note: sets useSlam=true"
 		def asDict(self) -> dict:
 			"Dictionary representation of this configuration."
-			pass
+			...
 		def update(self, **kwargs):
 			"Update the contents of this object with kwargs corresponding to a subset of the member names"
 			pass
@@ -134,8 +134,6 @@ if TYPE_CHECKING:
 		longitude: float
 	
 	class Session:
-		def hasOutput(self) -> bool:
-			pass
 		def addAbsolutePose(self, arg0: Pose, arg1: list[list[float[3]][3]], arg2: float) -> None:
 			"Add external pose information.VIO will correct its estimates to match the pose."
 		def addGnss(self, /, arg0: float, arg1: WgsCoordinates, arg2: list[list[float[3]][3]]) -> None:
@@ -149,15 +147,19 @@ if TYPE_CHECKING:
 
 		def getOutput(self) -> VioOutput:
 			"Removes the first unread output from an internal queue and returns it"
+			...
 
 		def getRgbCameraPose(self, /, arg0: VioOutput) -> CameraPose:
 			"Get the CameraPose corresponding to the OAK RGB camera at a certain VioOutput."
+			...
 
 		def hasOutput(self) -> bool:
 			"Check if there is new output available"
+			...
 
 		def waitForOutput(self) -> VioOutput:
 			"Waits until there is new output available and returns it"
+			...
 
 	class Frame:
 		cameraPose: CameraPose
@@ -184,11 +186,20 @@ if TYPE_CHECKING:
 	# 	map: Map
 	# 	updatedKeyFrames: list[int]
 	
+	class Hooks:
+		imu: Callable[[IMUData], None] | None
+		monoPrimary: Callable[[ImgFrame], None] | None
+		monoSecondary: Callable[[ImgFrame], None] | None
+		depth: Callable[[ImgFrame], None] | None
+		color: Callable[[ImgFrame], None] | None
+		trackedFeatures: Callable[[TrackedFeatures], None] | None
+	
 	class Pipeline:
 		monoLeft: MonoCamera
 		monoRight: MonoCamera
 		stereo: StereoDepth
 		color: ColorCamera
+		hooks: Hooks
 
 		def __init__(self, pipeline: DaiPipeline, config: Configuration): ...
 
@@ -212,5 +223,6 @@ else:
 	from spectacularAI.depthai import (
 		Configuration,
 		Session,
-		Pipeline
+		Pipeline,
+		Hooks,
 	)

@@ -1,10 +1,14 @@
-from typing import TypeVar, Type, Annotated, Any, Callable
+from typing import TypeVar, Type, Annotated, Any, Callable, Protocol, ClassVar, Self
 from pydantic import GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 from typing_extensions import TypeAliasType
 
-T = TypeVar('T')
+class DaiEnum(Protocol):
+	__members__: ClassVar[dict[str, Self]]
+	value: int
+
+T = TypeVar('T', bound=DaiEnum)
 def wrap_dai_enum(dai_enum: Type[T]) -> Type[T]:
 	"Wrap DepthAI enum as Pydantic type"
 	members: dict[str, T] = dai_enum.__members__

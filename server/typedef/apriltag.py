@@ -394,6 +394,17 @@ class AprilTagFieldRefWpi(_AprilTagFieldRef, _AprilTagFieldWpi):
         text = self._load_raw(base)
         data = AprilTagJsonWpi.model_validate_json(text)
         return data
+    
+    def __eq__(self, __value: object) -> bool:
+        if isinstance(__value, AprilTagFieldRefWpi):
+            other = __value
+            return (
+                other.tagFamily == self.tagFamily
+                and other.tagSize == self.tagSize
+                and other.path == self.path
+            )
+        
+        return super().__eq__(__value)
 
 class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
     "Reference to an AprilTag JSON file (in SpectacularAI format)"

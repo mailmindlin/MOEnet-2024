@@ -25,7 +25,7 @@ class AprilTagFamily(enum.StrEnum):
     TAG_CIR21H7 = 'tagCircle21h7'
     TAG_STAND41H12 = 'tagStandard41h12'
 
-    def as_dai(self) -> 'dai.AprilTagConfig.Family':
+    def as_dai(self) -> 'dai.RawAprilTagConfig.Family':
         match self:
             case AprilTagFamily.TAG_16H5:
                 return dai.AprilTagConfig.Family.TAG_16H5
@@ -46,7 +46,9 @@ class AprilTagBase(abc.ABC):
     id: int
 
     def to_wpilib(self) -> 'robotpy_apriltag.AprilTag':
-        pass
+        "Convert to `robotpy-apriltag` object"
+        return self.to_wpi().to_wpilib()
+
     @abc.abstractmethod
     def to_wpi(self) -> 'AprilTagWpi':
         assert isinstance(self, AprilTagWpi)
@@ -255,7 +257,7 @@ class _AprilTagFieldRef(_AprilTagField, abc.ABC):
         super().validate(base)
         self._load_data(base)
     
-    def store(self, tempdir: Callable[[], Path]) -> '_AprilTagFieldRef':
+    def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRef':
         return self
     
     def resolve(self, base: Path | None = None) -> '_AprilTagFieldRef':

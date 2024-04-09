@@ -1,7 +1,7 @@
 from pathlib import Path
 import os.path
 
-def resolve_path(base: Path, relpart: str | Path):
+def resolve_path(base: Path | None, relpart: str | Path):
     if isinstance(relpart, str):
         relpart = Path(relpart)
     

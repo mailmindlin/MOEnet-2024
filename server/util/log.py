@@ -14,14 +14,14 @@ class ColorFormatter(logging.Formatter):
     bold_red = "\x1b[31;1m"
     green = '\x1b[0;32m'
     reset = "\x1b[0m"
-    format = "[%(levelname)s]%(name)s:%(message)s"
+    formatp = "[%(levelname)s]%(name)s:%(message)s"
 
     FORMATS = {
-        logging.DEBUG: grey + format + reset,
-        logging.INFO: green + format + reset,
-        logging.WARNING: yellow + format + reset,
-        logging.ERROR: red + format + reset,
-        logging.CRITICAL: bold_red + format + reset
+        logging.DEBUG: grey + formatp + reset,
+        logging.INFO: green + formatp + reset,
+        logging.WARNING: yellow + formatp + reset,
+        logging.ERROR: red + formatp + reset,
+        logging.CRITICAL: bold_red + formatp + reset
     }
 
     def format(self, record):

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Sequence, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Sequence, Optional, TypeVar, Union, Generic
 from abc import ABC, abstractmethod
 from functools import cached_property
 import operator, contextvars
@@ -9,13 +9,17 @@ if TYPE_CHECKING:
 	from .clock import Clock, OffsetClock
 	from .timestamp import Timestamp
 
-class TimeMapper(ABC):
+CA = TypeVar('CA', bound='Clock')
+CB = TypeVar('CB', bound='Clock')
+C = TypeVar('C', bound='Clock')
+
+class TimeMapper(ABC, Generic[CA, CB]):
 	"Identity time mapper"
-	clock_a: 'Clock'
-	clock_b: 'Clock'
+	clock_a: CA
+	clock_b: CB
 	_cm_map: Optional['TimeMap']
 
-	def __init__(self, clock_a: 'Clock', clock_b: 'Clock') -> None:
+	def __init__(self, clock_a: CA, clock_b: CB) -> None:
 		super().__init__()
 		self.clock_a = clock_a
 		self.clock_b = clock_b
@@ -53,11 +57,11 @@ class TimeMapper(ABC):
 		ts_b.assert_src(self.clock_b)
 		return ts_b.offset_ns(-self.get_offset(), clock=self.clock_a)
 	
-	def __neg__(self) -> 'TimeMapper':
+	def __neg__(self) -> 'TimeMapper[CB, CA]':
 		"Invert"
 		return InverseTimeMapper(self)
 	
-	def __shr__(self, rhs: 'TimeMapper') -> 'ChainedTimeMapper':
+	def __shr__(self, rhs: 'TimeMapper[CB, C]') -> 'TimeMapper[CA, C]':
 		"Chain TimeMappers"
 		if isinstance(rhs, TimeMapper):
 			assert self.clock_b == rhs.clock_a
@@ -117,11 +121,11 @@ class TimeMap:
 			from_b[mapper.clock_a] = (-mapper, True)
 		return did_replace
 	
-	def get_direct(self, src: 'Clock', dst: 'Clock') -> Optional[TimeMapper]:
+	def get_direct(self, src: CA, dst: CB) -> Optional[TimeMapper[CA, CB]]:
 		# Try forwards
 		if from_a := self.conversions.get(src, None):
 			if a_to_b := from_a.get(dst, None):
-				return a_to_b
+				return a_to_b[0]
 		
 		# Try identity
 		if src == dst:
@@ -130,7 +134,7 @@ class TimeMap:
 		# Try backwards
 		if from_b := self.conversions.get(dst, None):
 			if b_to_a := from_b.get(src, None):
-				return self.cached(-b_to_a)
+				return self.cached(-b_to_a[0])
 		# No direct path found
 		return None
 	

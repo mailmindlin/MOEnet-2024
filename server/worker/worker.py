@@ -286,7 +286,6 @@ class CameraWorker:
 			self.pipeline.broadcast(command)
 		elif isinstance(command, CmdFlush):
 			self.log.info("Got command: FLUSH")
-			self.flush()
 			# ACK flush
 			self.data_queue.put(MsgFlush(id=command.id))
 			self.pipeline.broadcast(command)
@@ -294,10 +293,6 @@ class CameraWorker:
 			self.pipeline.broadcast(command)
 		else:
 			self.log.warning("Unknown command: %s", repr(command))
-	
-	def flush(self):
-		"Flush all data from device"
-		self.pipeline.flush()
 	
 	def __exit__(self, *args):
 		self.state = WorkerState.STOPPING

@@ -11,23 +11,32 @@ interface State {
     value: string,
     valueRaw: string,
     isValid: boolean,
+    editingRaw: boolean,
     cancel: AbortController,
 }
+
 
 export default class EditConfig extends React.Component<Props, State> {
     static readonly pattern: URLPattern = new URLPattern({ pathname: '/configraw' });
     static readonly title: string = 'Raw Config';
     static readonly base: string = '/configraw';
+    private readonly suffix: string;
+
     constructor(props: Props) {
         super(props);
-
+        this.suffix = `${Math.floor(Math.random() * 1e6)}`;
         this.state = {
             schema: {},
             value: '{}',
             valueRaw: '{}',
+            editingRaw: true,
             isValid: true,
             cancel: new AbortController(),
         }
+    }
+
+    private uniqueId(name: string): string {
+        return `${name}${this.suffix}`;
     }
 
     componentDidMount(): void {
@@ -82,16 +91,35 @@ export default class EditConfig extends React.Component<Props, State> {
         this.setState(({ value: valueOld }) => (value == valueOld ? { valueRaw: valueRaw, value: valueOld, isValid: true } : { value, valueRaw: valueRaw2, isValid: true }));
     }
 
+    handleEditingRawChange = (e: ChangeEvent<HTMLInputElement>) => {
+        this.setState({ editingRaw: e.currentTarget.checked });
+    }
+
     render(): React.ReactNode {
         return (
             <div>
-                <pre
-                    style={{width: "100%", display: "block"}}
-                    contentEditable
-                    onInput={this.handleValueChange}
+                <label
+                    htmlFor={this.uniqueId('editingRaw')}
                 >
-                    {this.state.valueRaw}
-                </pre>
+                    Edit raw?
+                </label>
+                <input
+                    id={this.uniqueId('editingRaw')}
+                    type='checkbox'
+                    checked={this.state.editingRaw}
+                    onChange={this.handleEditingRawChange}
+                />
+                { this.state.editingRaw && (
+                    <pre
+                        style={{width: "100%", display: "block"}}
+                        contentEditable
+                        onInput={this.handleValueChange}
+                    >
+                        {this.state.valueRaw}
+                    </pre>
+                )}
+                { this.state.editingRaw || (<></>
+                )}
                 <button
                     disabled={!this.state.isValid}
                 >

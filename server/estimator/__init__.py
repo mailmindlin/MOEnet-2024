@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 class PoseEstimator(TfProvider, Protocol):
 	def observe_f2r(self, timestamp: Timestamp, robot_to_camera: Tracked[Transform3d], field_to_camera: Pose3dCov): ...
-	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: MsgAprilTagDetections): ...
+	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Tracked[Transform3d], detections: MsgAprilTagDetections): ...
 
 class DataFusion:
 	"""
@@ -95,8 +95,8 @@ class DataFusion:
 		self.camera_tracker.reset(cameras)
 	
 	def observe_f2r_override(self, pose: Pose3d, timestamp: Timestamp):
-		self.pose_estimator.observe
 		"Observe robot pose override"
+		#TODO
 		pass
 
 	def observe_f2r(self, camera: 'WorkerHandle', msg: MsgPose):
@@ -132,6 +132,7 @@ class DataFusion:
 		self.fresh_o2r = True
 	
 	def observe_odom(self, camera: 'WorkerHandle', odom: MsgOdom):
+		timestamp = Timestamp.from_nanos(odom.timestamp, WallClock())
 		pass
 	
 	@overload

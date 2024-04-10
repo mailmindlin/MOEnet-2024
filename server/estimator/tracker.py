@@ -9,9 +9,9 @@ from worker.msg import ObjectDetection as MsgObjectDetection
 from typedef.geom import Transform3d, Translation3d, Rotation3d, Pose3d
 from typedef.cfg import ObjectTrackerConfig
 from util.timestamp import Timestamp
-from .tf import TfTracker, ReferenceFrame
+from .tf import TfTracker, ReferenceFrame, TfProvider, ReferenceFrameKind
 from .util.cascade_replay import CascadingReplayFilter
-from .util.cascade import Tracked, Derived
+from .util.cascade import Tracked, Derived, StaticValue
 from .util.replay import ReplayableFilter
 
 class TrackedObject:
@@ -88,6 +88,13 @@ class Snapshot:
 		self.tracked_objects = MultiDict()
 		self.last_measurement_ts = Timestamp.invalid()
 		self.config = config
+	
+	def items(self):
+		return [
+			obj
+			for obj in self.tracked_objects.values()
+			if obj.n_detections >= self.config.min_detections
+		]
 	
 	@property
 	def ts(self):
@@ -181,13 +188,17 @@ class ObjectTrackerFilter(ReplayableFilter[ObjectDetectionMeasurement, Snapshot]
 		self.state = Snapshot(self.config)
 
 	def items(self):
-		return [
-			obj
-			for obj in self.state.tracked_objects.values()
-			if obj.n_detections >= self.config.min_detections
-		]
+		return self.state.items()
 
-class ObjectTracker:
+def fetch_item(state: Snapshot, idx: int) -> Transform3d | None:
+	for i, item in enumerate(state.items()):
+		if i == idx or idx == -1:
+			return item.pose - Pose3d()
+	return None
+
+class ObjectTracker(TfProvider):
+	"Track object detections"
+
 	def __init__(self, config: ObjectTrackerConfig, tf: TfTracker, log: Logger) -> None:
 		self.config = config
 		self.tf = tf # tf provides field->robot and robot->camera
@@ -207,6 +218,14 @@ class ObjectTracker:
 				field_to_camera,
 			)
 		)
+	
+	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d | None]:
+		match (src, dst):
+			case (ReferenceFrame.FIELD, ReferenceFrame(kind=ReferenceFrameKind.DETECTION, idx=idx)):
+				return self._filter.track_state() \
+					.map(lambda state: fetch_item(state, idx))
+		
+		return NotImplemented
 	
 	def predict(self, now: Timestamp):
 		self._filter.predict(now)

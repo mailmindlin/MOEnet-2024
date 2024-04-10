@@ -216,10 +216,12 @@ class InterpolatingBuffer(Generic[K, V, D]):
 	@overload
 	def get(self, /, key: K, default: V) -> V: ...
 	def get(self, /, key: K, default: V | None = None) -> V | None:
+		"Get (interpolated) value for timestamp"
 		res = self._get_ex(key)
 		return res.get(default)
 	
 	def sample(self, key: K) -> V | None:
+		"Get (interpolated) value for timestamp"
 		return self.get(key)
 
 	@overload
@@ -238,5 +240,5 @@ class InterpolatingBuffer(Generic[K, V, D]):
 	def latest(self, default: T = None) -> Tracked[V | T]:
 		raise NotImplementedError()
 		
-	def getInternalBuffer(self) -> ItemsView[K, V]:
-		return self._snapshots.items()
+	def getInternalBuffer(self) -> list[tuple[K, V]]:
+		return list(self._snapshots.items())

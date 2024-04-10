@@ -4,7 +4,7 @@ from ntcore import PubSubOptions
 
 class DpubTest(NtTestCase):
 	def test_start_disabled(self):
-		with DynamicPublisher(lambda: self.server.getIntegerTopic("test").publish()) as pub:
+		with DynamicPublisher[int](lambda: self.server.getIntegerTopic("test")) as pub:
 			self.assertFalse(pub.enabled, "Starts disabled")
 	
 	def test_enable(self):

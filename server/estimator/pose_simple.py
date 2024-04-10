@@ -4,10 +4,11 @@ import logging
 
 from wpiutil.log import DataLog
 
-from worker.msg import AprilTagPose, MsgAprilTagDetections, PnpPose
+from worker.msg import MsgAprilTagDetections, PnpPose
 from typedef.cfg import PoseEstimatorConfig, AprilTagStrategy
 from wpi_compat.datalog import StructLogEntry
 from typedef.geom import Transform3d, Pose3d, Translation3d, Rotation3d
+from typedef.geom_cov import Pose3dCov
 from util.clock import Clock
 from util.timestamp import Timestamp
 from util.log import child_logger
@@ -23,7 +24,7 @@ def as_tf_maybe(pose: Pose3d | None) -> Transform3d | None:
 		return None
 	return as_transform(pose)
 
-class SimplePoseEstimator(Filter[int]):
+class SimplePoseEstimator:
 	"""
 	We need to merge together (often) conflicting views of the world.
 	"""
@@ -102,30 +103,32 @@ class SimplePoseEstimator(Filter[int]):
 		# Return zero if we don't have any info
 		return self.buf_field_to_odom.get(time, Pose3d())
 	
-	def track_tf(self, src: 'ReferenceFrame', dst: 'ReferenceFrame', ts: Timestamp) -> Tracked[Transform3d | None]:
+	def track_tf(self, src: 'ReferenceFrame', dst: 'ReferenceFrame', timestamp: Timestamp | None = None) -> Tracked[Transform3d | None]:
 		from .tf import ReferenceFrameKind
 		match src.kind:
 			case ReferenceFrameKind.FIELD:
 				match dst.kind:
 					case ReferenceFrameKind.ROBOT:
-						if ts is None:
+						if timestamp is None:
 							return self.buf_field_to_robot.latest().map(as_tf_maybe)
 						else:
-							return self.buf_field_to_robot.track(ts).map(as_tf_maybe)
+							return self.buf_field_to_robot.track(timestamp).map(as_tf_maybe)
 					case ReferenceFrameKind.ODOM:
-						if ts is None:
+						if timestamp is None:
 							return self.buf_field_to_odom.latest().map(as_tf_maybe)
 						else:
-							return self.buf_field_to_odom.track(ts).map(as_tf_maybe)
+							return self.buf_field_to_odom.track(timestamp).map(as_tf_maybe)
 			case ReferenceFrameKind.ODOM:
 				match dst.kind:
 					case ReferenceFrameKind.ROBOT:
 						pass #TODO
 		return NotImplemented
 	
-	def observe_f2r(self, timestamp: Timestamp, robot_to_camera: Transform3d, field_to_camera: Pose3d):
+	def observe_f2r(self, timestamp: Timestamp, robot_to_camera: Tracked[Transform3d], field_to_camera: Pose3dCov):
 		"Record SLAM pose"
-		field_to_robot = field_to_camera.transformBy(robot_to_camera.inverse())
+		
+		robot_to_camera_val = robot_to_camera.value
+		field_to_robot = field_to_camera.transformBy(robot_to_camera_val.inverse()).mean
 
 		if self.datalog is not None:
 			self.logFieldToRobot.append(field_to_robot, timestamp.as_wpi())
@@ -198,12 +201,12 @@ class SimplePoseEstimator(Filter[int]):
 		
 		return res
 	
-	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Transform3d, detections: MsgAprilTagDetections):
+	def observe_apriltags(self, timestamp: Timestamp, robot_to_camera: Tracked[Transform3d], detections: MsgAprilTagDetections):
 		"Observe apriltag detections"
 		self.log.info("Observe apriltags %s", detections)
-		field_to_camera = self._apriltags_to_pose(timestamp, robot_to_camera, detections)
+		field_to_camera = self._apriltags_to_pose(timestamp, robot_to_camera.value, detections)
 		if field_to_camera is not None:
-			self.observe_f2r(timestamp, robot_to_camera, field_to_camera)		
+			self.observe_f2r(timestamp, robot_to_camera, Pose3dCov(field_to_camera))		
 	
 	def observe_f2o(self, timestamp: Timestamp, field_to_odom: Pose3d):
 		"Record odometry pose"

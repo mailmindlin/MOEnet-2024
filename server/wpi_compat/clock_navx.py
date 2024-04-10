@@ -1,5 +1,5 @@
+from typing import Literal
 from threading import Lock
-
 
 from navx import AHRS
 import wpilib._wpilib
@@ -8,12 +8,20 @@ from util.clock import OffsetClock, Clock
 from util.timemap import OffsetClockMapper
 from typedef.cfg import NavXConfig
 
+def _map_port(port: Literal['usb', 'usb1', 'usb2']) -> wpilib._wpilib.SerialPort.Port:
+	match port:
+		case 'usb':
+			return wpilib._wpilib.SerialPort.Port.kUSB
+		case 'usb1':
+			return wpilib._wpilib.SerialPort.Port.kUSB1
+		case 'usb2':
+			return wpilib._wpilib.SerialPort.Port.kUSB2
 
 class NavXClock(OffsetClock):
 	def __init__(self, clock: Clock, config: NavXConfig) -> None:
 		super().__init__(clock)
-		port = wpilib._wpilib.SerialPort.Port.kUSB
-		self.navx = AHRS(config.port, AHRS.SerialDataType.kProcessedData, config.update_rate)
+		port = _map_port(config.port)
+		self.navx = AHRS(port, AHRS.SerialDataType.kProcessedData, config.update_rate)
 		self._offset_lock = Lock()
 		self._offset = 0
 		def update_offset(packet, sensor_ts: int, sys_ts: int):
@@ -30,7 +38,7 @@ class NavXClock(OffsetClock):
 		return offset_ms * 1_000_000
 	
 	def close(self):
-		self.navx.close()
+		del self.navx
 
 class NavXTimeMapper(OffsetClockMapper):
 	def __init__(self, clock: Clock, config: NavXConfig):

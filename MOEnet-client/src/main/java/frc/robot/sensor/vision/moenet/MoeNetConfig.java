@@ -34,7 +34,7 @@ public class MoeNetConfig {
         @JsonProperty("publishDetections") public boolean publishDetections = true;
         @JsonProperty("tfFieldToRobot")    public TransformDirection tfFieldToRobot = TransformDirection.CAM_TO_RIO;
         @JsonProperty("tfFieldToOdom")     public TransformDirection tfFieldToOdom = TransformDirection.CAM_TO_RIO;
-        @JsonProperty("tfOodomToRobot")    public TransformDirection tfOodomToRobot = TransformDirection.CAM_TO_RIO;
+        @JsonProperty("tfOdomToRobot")    public TransformDirection tfOdomToRobot = TransformDirection.CAM_TO_RIO;
 
         public NetoworkTableConfig() {}
         public NetoworkTableConfig(NetoworkTableConfig src) {
@@ -50,7 +50,7 @@ public class MoeNetConfig {
             this.publishDetections = src.publishDetections;
             this.tfFieldToRobot = Objects.requireNonNull(src.tfFieldToRobot, "tfFieldToRobot");
             this.tfFieldToOdom = Objects.requireNonNull(src.tfFieldToOdom, "tfFieldToOdom");
-            this.tfOodomToRobot = Objects.requireNonNull(src.tfOodomToRobot, "tfOodomToRobot");
+            this.tfOdomToRobot = Objects.requireNonNull(src.tfOdomToRobot, "tfOdomToRobot");
         }
 
         @Override

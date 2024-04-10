@@ -187,14 +187,14 @@ class Comms:
 		self._pub_telem.enabled = ntc.publishSystemInfo
 		self._pub_tf_field_odom.enabled   = (ntc.tfFieldToOdom  == NetworkTablesDirection.PUBLISH)
 		self._pub_tf_field_robot.enabled  = (ntc.tfFieldToRobot == NetworkTablesDirection.PUBLISH)
-		self._pub_tf_odom_robot.enabled   = (ntc.tfOodomToRobot == NetworkTablesDirection.PUBLISH)
+		self._pub_tf_odom_robot.enabled   = (ntc.tfOdomToRobot == NetworkTablesDirection.PUBLISH)
 
 		self._pub_detections.enabled      = ntc.publishDetections
 		self._pub_detections_full.enabled = ntc.publishDetections
 
 		self._sub_tf_field_odom.enabled = (ntc.tfFieldToOdom == NetworkTablesDirection.SUBSCRIBE)
 		self._sub_tf_field_robot.enabled = (ntc.tfFieldToRobot == NetworkTablesDirection.SUBSCRIBE)
-		self._sub_tf_odom_robot.enabled = (ntc.tfOodomToRobot == NetworkTablesDirection.SUBSCRIBE)
+		self._sub_tf_odom_robot.enabled = (ntc.tfOdomToRobot == NetworkTablesDirection.SUBSCRIBE)
 		self._sub_pose_override.enabled = ntc.subscribePoseOverride
 
 		self._pub_f2d_type.enabled = (ntc.publishField2dF2R or ntc.publishField2dF2O or ntc.publishField2dDets)

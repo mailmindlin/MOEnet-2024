@@ -1462,7 +1462,7 @@
 					"default": "pub",
 					"description": "field -> odom transform (odometry estimate)"
 				},
-				"tfOodomToRobot": {
+				"tfOdomToRobot": {
 					"allOf": [
 						{
 							"$ref": "#/$defs/NetworkTablesDirection"

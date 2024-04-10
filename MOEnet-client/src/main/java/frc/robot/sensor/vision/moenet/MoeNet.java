@@ -198,7 +198,7 @@ public class MoeNet implements AutoCloseable {
 		var config = this.getConfig();
 		if (config.isEmpty())
 			return;
-		if (config.get().nt.tfOodomToRobot == TransformDirection.RIO_TO_CAM) {
+		if (config.get().nt.tfOdomToRobot == TransformDirection.RIO_TO_CAM) {
 			this.tfOdomRobot.set(odomToRobot);
 		}
 	}
@@ -232,7 +232,7 @@ public class MoeNet implements AutoCloseable {
 
 	public Optional<Timestamped<Transform3d>> getOdomToRobot() {
 		var config = this.getConfig();
-		if (config.isEmpty() || config.get().nt.tfOodomToRobot == TransformDirection.CAM_TO_RIO) {
+		if (config.isEmpty() || config.get().nt.tfOdomToRobot == TransformDirection.CAM_TO_RIO) {
 			var entry = this.tfOdomRobot.getAtomic();
 			if (entry.timestamp > this.lastOdomToRobotTs) {
 				this.lastOdomToRobotTs = entry.timestamp;

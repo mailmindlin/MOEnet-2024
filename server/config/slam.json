@@ -19,7 +19,7 @@
 		"publishPing": true,
 		"tfFieldToOdom": "sub",
 		"tfFieldToRobot": "pub",
-		"tfOodomToRobot": "pub",
+		"tfOdomToRobot": "pub",
 		"publishField2dF2R": true
 	},
 	"pipelines": [

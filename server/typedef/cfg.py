@@ -118,7 +118,6 @@ class NetworkTablesConfig(BaseModel):
 	# Transforms
 	tfFieldToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> robot transform (absolute pose)")
 	tfFieldToOdom: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> odom transform (odometry estimate)")
-	tfOodomToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="odom->robot transform (odometry correction)")
 	subscribePoseOverride: bool = Field(default=True, description="Allow the Rio to override poses")
 	publishField2dF2O: bool = Field(default=False, description="Publish Field2d widget (field->odom)")
 	publishField2dF2R: bool = Field(default=False, description="Publish Field2d widget (field->robot)")

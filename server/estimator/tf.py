@@ -40,7 +40,7 @@ ReferenceFrame.ROBOT = ReferenceFrame(ReferenceFrameKind.ROBOT)
 ReferenceFrame.ODOM = ReferenceFrame(ReferenceFrameKind.ODOM)
 
 class TfProvider(Protocol):
-	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d]:
+	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d | None]:
 		...
 
 
@@ -58,7 +58,7 @@ class TfTracker:
 		else:
 			raise ValueError()
 
-	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d]:
+	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d | None]:
 		if src == dst:
 			# Identity
 			return StaticValue(Transform3d())
@@ -72,7 +72,7 @@ class TfTracker:
 	def track_pose(self, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Pose3d]:
 		"Special case where we track_tf relative to the field"
 		from .util.lerp import as_pose
-		def as_pose_1(transform: Transform3d) -> Pose3d:
+		def as_pose_1(transform: Transform3d | None) -> Pose3d:
 			if transform is None:
 				# raise ValueError(f'Empty transform field -> {dst}')
 				return Pose3d()

@@ -32,7 +32,7 @@ SCALAR_FACTORIES: dict[type, TopicFactory] = {
 	wpistruct.double: _topic_f64,
 }
 ARRAY_FACTORIES: dict[type, Callable[[NetworkTableLike, str], GenericTopic]] = {
-	bool: lambda nt, path: nt.getBooleanArray(path),
+	bool: lambda nt, path: nt.getBooleanArrayTopic(path),
 	int: lambda nt, path: nt.getIntegerArrayTopic(path),
 	np.float32: lambda nt, path: nt.getFloatArrayTopic(path),
 	str: lambda nt, path: nt.getStringArrayTopic(path),
@@ -303,6 +303,7 @@ class DynamicSubscriber(Generic[T]):
 		res = self._read_queue
 		self._read_queue.clear()
 		if self._read_queue_truncated:
+			assert self._topic is not None
 			import warnings
 			warnings.warn(f"read queue for NT topic {self._topic.getName()} was truncated", RuntimeWarning)
 		return res

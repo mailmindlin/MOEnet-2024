@@ -31,7 +31,7 @@ class MoeNetPipeline:
 		self.poll_stages: list[NodeRuntime] = list()
 		self.event_targets: dict[str, NodeRuntime] = dict()
 
-		def register(name: str, cfg: Type[S], builder_path: tuple[str]):
+		def register(name: str, cfg: Type[S], builder_path: tuple[str, ...]):
 			self._msg_types[name] = cfg
 
 			# Stages might have heavy dependencies, so don't load them until/unless necessary

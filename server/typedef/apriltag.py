@@ -431,6 +431,11 @@ class AprilTagFieldNamedWpilib(enum.StrEnum):
     FRC_2022 = "2022RapidReact"
     FRC_2023 = "2023ChargedUp"
     FRC_2024 = "2024Crescendo"
+
+    def convert(self, target: Type['F'], base: Path, tempdir: Callable[[], Path]) -> 'F':
+        loaded = self.load()
+        return loaded.convert(target, base, tempdir)
+    
     def as_wpilib(self):
         "Get associated wpilib AprilTagField"
         from robotpy_apriltag import AprilTagField

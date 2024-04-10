@@ -19,6 +19,7 @@ class ReplayableFilter(Filter[M], ABC, Generic[M, S]):
 	"Timestamp of last processed measurement"
 	is_initialized: bool = True
 	sensor_timeout: timedelta
+	"Sensor timeout (if measurements are recieved longer in the past than this timeout, they are ignored)"
 	
 	@abstractmethod
 	def snapshot(self) -> S:
@@ -64,7 +65,10 @@ class FilterHistoryBuffer(Generic[M, S]):
 
 class ReplayFilter(Filter[M], Generic[M, S]):
 	"""
-	A lot of """
+	A lot of filters might recieve measurements out of order, but need to process them in order.
+
+	This class helps build filters that can be rolled back and replayed when out-of-order measurements are observed.
+	"""
 	def __init__(self, filter: ReplayableFilter[M, S], history_length: timedelta, *, log: Logger, smooth_lagged_data: bool = False, predict_to_current_time: bool = True):
 		self.log = log
 		self._filter = filter
@@ -86,15 +90,18 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 		self.log.debug("Popped %s measurements and %s states from their queues", popped_measurements, popped_states)
 	
 	def clear(self):
+		"Clear all history"
 		self._measurement_queue.clear()
 		self._filter_state_history.clear()
 		self._measurement_history.clear()
 		self._filter.clear()
 	
 	def observe(self, measurement: M):
+		"Observe a new measurement"
 		self._measurement_queue.push(measurement)
 	
 	def revert_to(self, time: Timestamp) -> bool:
+		"Revert to the state as of `time`. Returns true if we were able to revert back to that time."
 		self.log.debug("Requested time was %s to revert", time)
 		# Walk back through the queue until we reach a filter state whose time stamp
 		# is less than or equal to the requested time. Since every saved state after
@@ -137,6 +144,7 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 		return success
 
 	def _snapshot_filter(self):
+		"Take a snapshot of the inner filter"
 		state = self._filter.snapshot()
 		self._filter_state_history.append(state)
 		self.log.debug("Saved state with timestamp %s to history. %s measurements are in the queue. %s", state.ts, len(self._filter_state_history), state)
@@ -147,8 +155,8 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 	def _integrate_measurements(self, now: Timestamp):
 		"""
 		Processes all measurements in the measurement queue, in temporal order
-
-		@param[in] now - The time at which to carry out integration (the current time)
+		
+		:param now The time at which to carry out integration (the current time)
 		"""
 		predict_to_current_time = self.predict_to_current_time
 		# If we have any measurements in the queue, process them

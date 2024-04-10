@@ -2,22 +2,25 @@ from typing import TypeVar, Generic, Callable, Type, cast
 import abc
 
 T = TypeVar('T')
+Tcov = TypeVar('Tcov', covariant=True)
 R = TypeVar('R')
-class Tracked(Generic[T], abc.ABC):
-    @abc.abstractproperty
-    def value(self) -> T: ...
+class Tracked(Generic[Tcov], abc.ABC):
+    @property
+    @abc.abstractmethod
+    def value(self) -> Tcov: ...
 
     is_static = False
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def is_fresh(self) -> bool:
         return False
 
-    def refresh(self) -> 'Tracked[T]':
+    def refresh(self) -> 'Tracked[Tcov]':
         assert self.is_fresh
         return self
 
-    def map(self, func: Callable[[T], R]) -> 'Tracked[R]':
+    def map(self, func: Callable[[Tcov], R]) -> 'Tracked[R]':
         if self.is_static and self.is_fresh:
             return StaticValue(func(self.value))
         return Derived(func, self)

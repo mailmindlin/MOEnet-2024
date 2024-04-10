@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal, Annotated, Union, TypeVar, Callable, Type, cast
+from typing import TYPE_CHECKING, Literal, Annotated, Union, TypeVar, Callable, Type, cast, Any
 from pydantic import RootModel, BaseModel, Field, Discriminator, Tag
 from pathlib import Path
 import enum, abc
@@ -258,7 +258,7 @@ class _AprilTagFieldRef(_AprilTagField, abc.ABC):
         self._load_data(base)
     
     def store(self, tempdir: Callable[[], Path]) -> 'AprilTagFieldRef':
-        return self
+        return cast(AprilTagFieldRef, self)
     
     def resolve(self, base: Path | None = None) -> '_AprilTagFieldRef':
         return self.model_copy(
@@ -274,8 +274,8 @@ class _AprilTagFieldRef(_AprilTagField, abc.ABC):
             return f.read()
     
     @abc.abstractmethod
-    def _load_data(self, base: Path | None = None):
-        pass
+    def _load_data(self, base: Path | None = None) -> Any:
+        ...
 
 
 class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
@@ -397,16 +397,16 @@ class AprilTagFieldRefWpi(_AprilTagFieldRef, _AprilTagFieldWpi):
         data = AprilTagJsonWpi.model_validate_json(text)
         return data
     
-    def __eq__(self, __value: object) -> bool:
-        if isinstance(__value, AprilTagFieldRefWpi):
-            other = __value
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, AprilTagFieldRefWpi):
+            _other = other
             return (
-                other.tagFamily == self.tagFamily
-                and other.tagSize == self.tagSize
-                and other.path == self.path
+                _other.tagFamily == self.tagFamily
+                and _other.tagSize == self.tagSize
+                and _other.path == self.path
             )
         
-        return super().__eq__(__value)
+        return super().__eq__(other)
 
 class AprilTagFieldRefSai(_AprilTagFieldRef, _AprilTagFieldSai):
     "Reference to an AprilTag JSON file (in SpectacularAI format)"

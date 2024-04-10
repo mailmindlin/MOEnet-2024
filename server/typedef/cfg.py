@@ -118,6 +118,7 @@ class NetworkTablesConfig(BaseModel):
 	# Transforms
 	tfFieldToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> robot transform (absolute pose)")
 	tfFieldToOdom: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="field -> odom transform (odometry estimate)")
+	tfOdomToRobot: NetworkTablesDirection = Field(default=NetworkTablesDirection.PUBLISH, description="odom->robot transform (odometry correction)")
 	subscribePoseOverride: bool = Field(default=True, description="Allow the Rio to override poses")
 	publishField2dF2O: bool = Field(default=False, description="Publish Field2d widget (field->odom)")
 	publishField2dF2R: bool = Field(default=False, description="Publish Field2d widget (field->robot)")
@@ -184,14 +185,14 @@ class CameraSelectorDefinition(common.OakSelector):
 
 class LocalConfig(BaseModel):
 	"Local config data"
-	allow_overwrite: bool = Field(False, description="Allow remote changes to overwrite this config?")
+	allow_overwrite: bool = Field(default=False, description="Allow remote changes to overwrite this config?")
 	nt: NetworkTablesConfig = Field(default_factory=lambda: NetworkTablesConfig(enabled=False), title="NetworkTables", description="NetworkTables data")
-	timer: Union[Literal["system"], NavXConfig] = Field("system", description="Timer for synchronizing with RoboRIO")
+	timer: Union[Literal["system"], NavXConfig] = Field(default="system", description="Timer for synchronizing with RoboRIO")
 	log: LogConfig = Field(default_factory=LogConfig)
 	datalog: DataLogConfig = Field(default_factory=lambda: DataLogConfig(enabled=False))
 	estimator: EstimatorConfig = Field(default_factory=EstimatorConfig)
 	camera_selectors: list[CameraSelectorDefinition] = Field(default_factory=list)
-	cameras: list[CameraConfig] = Field(None, description="Configuration for individual cameras")
+	cameras: list[CameraConfig] = Field(default_factory=list, description="Configuration for individual cameras")
 	pipelines: list[PipelineDefinition] = Field(default_factory=list, description="Reusable pipelines")
 	web: WebConfig = Field(default_factory=lambda: WebConfig(enabled=False))
 

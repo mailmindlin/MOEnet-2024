@@ -24,7 +24,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.sensor.time.TimeUtil;
 import frc.robot.sensor.time.Timestamped;
-import frc.robot.sensor.vision.VisionSystem.State;
+import frc.robot.sensor.vision.VisionSystem.Status;
 import frc.robot.sensor.vision.io.InstantProto;
 import frc.robot.sensor.vision.io.InstantStruct;
 import frc.robot.sensor.vision.io.Mat66Struct;
@@ -38,7 +38,7 @@ public class MoeNet implements AutoCloseable {
 	public static final long TIMEOUT_US = 5_000_000; // 5 seconds
 	public static final String DEFAULT_NAME = "moenet";
 	
-	private State state = State.NOT_READY;
+	private Status state = Status.NOT_READY;
 
 	private final NetworkTableInstance nt;
 	private final String name;
@@ -138,31 +138,33 @@ public class MoeNet implements AutoCloseable {
 		this.pubConfig.set(configString);
 	}
 
-	public State getState() {
+	public Status getState() {
 		long stateId = this.subStatus.get(0);
 		switch ((int) stateId) {
 			case 0:
-				return State.NOT_READY;
+				return Status.NOT_READY;
 			case 1:
-				return State.INITIALIZING;
+				return Status.INITIALIZING;
 			case 2:
-				return State.READY;
+				return Status.READY;
 			case 3:
-				return State.SLEEPING;
+				return Status.SLEEPING;
 			case 4:
-				return State.ERROR;
+				return Status.ERROR;
 			case 5:
-				return State.FATAL;
+				return Status.FATAL;
 			default:
 				DriverStation.reportWarning("Unknown MOEnet state: " + stateId, false);
-				return State.ERROR;
+				return Status.ERROR;
 		}
 	}
 
 	public boolean isConnected() {
 		var lastPing = this.subPing.getAtomic(0);
+		// Check if any data
 		if (lastPing.timestamp == 0)
 			return false;
+		
 		// NT timestamp is in microseconds
 		var now = (long) (Timer.getFPGATimestamp() * 1_000_000);
 		return (now - lastPing.timestamp) < TIMEOUT_US;

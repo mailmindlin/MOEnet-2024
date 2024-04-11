@@ -26,8 +26,7 @@ class WorkerInitConfig(BaseModel):
     maxRefresh: float = Field(20, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
     dynamic_pose: Optional[str] = Field(None)
-    pipeline: PipelineConfigWorker = Field(default_factory=PipelineConfigWorker)
-
+    pipeline: PipelineConfigWorker = Field(default_factory=lambda: PipelineConfigWorker([]))
 
 class WorkerState(IntEnum):
     INITIALIZING = auto()
@@ -132,7 +131,7 @@ class MsgDetections(BaseModel):
     "Wall time (ns)"
     detections: list[ObjectDetection]
 
-    def __iter__(self):
+    def __iter__(self): # type: ignore
         return iter(self.detections)
 
 @dataclass

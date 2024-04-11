@@ -24,11 +24,11 @@ class Mat44(RootModel[tuple[Vec4, Vec4, Vec4, Vec4]]):
 		])
 
 class RetryConfig(BaseModel):
-	"Configure restart/retry logic"
+	"Configure camera restart/retry logic"
 	optional: bool = Field(default=False, description="Is it an error if this camera is not detected?")
 	connection_tries: int = Field(default=1)
 	connection_delay: timedelta = Field(default=timedelta(seconds=1))
-	restart_tries: int = Field(default=2)
+	restart_tries: int | None = Field(default=None)
 
 
 class OakSelector(BaseModel):

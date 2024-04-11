@@ -1,10 +1,9 @@
 from __future__ import annotations
 from multiprocessing.context import BaseContext
 from multiprocessing.queues import Queue
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 import logging
-from multiprocessing import Process, get_context
-from queue import Empty
+from multiprocessing import get_context
 from pathlib import Path
 from logging import Logger
 
@@ -21,6 +20,11 @@ if TYPE_CHECKING:
 	from queue import Queue
 
 class WorkerManager:
+	"""
+	Helper for managing camera worker processes.
+	
+	There's lots of ways a process can fail, so we only talk to the cameras in their own subprocess.
+	"""
 	def __init__(self, log: Logger, config: LocalConfig, config_path: Optional[Path] = None, datalog: Optional['DataLog'] = None, vidq: Optional['Queue'] = None) -> None:
 		self.log = log.getChild('worker')
 		self.config = WorkerConfigResolver(self.log, config, config_path)
@@ -82,13 +86,13 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 
 		self.datalog = datalog
 		if datalog is not None:
-			logConfig = StringLogEntry(self.datalog, f'worker/{name}/config')
+			logConfig = StringLogEntry(datalog, f'worker/{name}/config')
 			logConfig.append(config.model_dump_json())
 			logConfig.finish()
 			del logConfig
 
-			self.logStatus = IntegerLogEntry(self.datalog, f'worker/{name}/status')
-			self.logLog = StringLogEntry(self.datalog, f'worker/{name}/log')
+			self.logStatus = IntegerLogEntry(datalog, f'worker/{name}/status')
+			self.logLog = StringLogEntry(datalog, f'worker/{name}/log')
 
 		self.config = config
 		self.video_queue = vidq
@@ -107,12 +111,12 @@ class WorkerHandle(Subprocess[worker.WorkerMsg, worker.AnyCmd, worker.AnyMsg]):
 		self.add_handler(worker.MsgChangeState, self._handle_changestate)
 
 	def _get_args(self):
-		return (
+		return [
 			self.config,
 			self.msg_queue,
 			self.cmd_queue,
 			self.video_queue,
-		)
+		]
 	@property
 	def target(self):
 		from worker.worker import main as worker_main

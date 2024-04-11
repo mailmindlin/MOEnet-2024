@@ -1,10 +1,6 @@
-from typing import TypeVar
 from unittest import TestCase
 from . import apriltag
 from pathlib import Path
-from tempfile import TemporaryDirectory
-
-T = TypeVar('T')
 
 class TestNamedField(TestCase):
     def test_2024(self):
@@ -32,7 +28,21 @@ class TestNamedField(TestCase):
             self.assertEqual(t1, t2, f"Tag {i}")
         
         self.assertEqual(field_wpi, ref_wpi)
-    
+    def test_conversion_roundtrip(self):
+        file_wpi = apriltag.AprilTagFieldRefWpi(
+            path=Path('apriltag/2024-crescendo.json'),
+            tagFamily=apriltag.AprilTagFamily.TAG_36H11,
+            tagSize=0.1651,
+        )
+        wpi = file_wpi.load(Path(__file__).parent / '../config')
+        wpi1 = file_wpi.load(Path(__file__).parent / '../config')
+
+        self.assertEqual(wpi, wpi1)
+
+        sai = wpi1.as_inline_sai()
+        wpi2 = sai.as_inline_wpi()
+        self.assertEqual(wpi, wpi2)
+
     def test_conversion(self):
         file_wpi = apriltag.AprilTagFieldRefWpi(
             path=Path('apriltag/2024-crescendo.json'),

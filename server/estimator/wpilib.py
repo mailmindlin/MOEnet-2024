@@ -7,46 +7,46 @@ from typedef.geom import Twist2d, Pose2d, Rotation2d
 
 @dataclasses.dataclass
 class OdometryMeasurement:
-    ts: Timestamp
-    twist: Twist2d
-    gyroAngle: Rotation2d | None = None
+	ts: Timestamp
+	twist: Twist2d
+	gyroAngle: Rotation2d | None = None
 
 @dataclasses.dataclass
 class VisionMeasurement:
-    ts: Timestamp
-    pose: Pose2d
+	ts: Timestamp
+	pose: Pose2d
 
 
 @dataclasses.dataclass
 class Snapshot:
-    ts: Timestamp
-    pose: Pose2d
+	ts: Timestamp
+	pose: Pose2d
 
 
 class WpiPoseEstimatorInner(ReplayableFilter[OdometryMeasurement | VisionMeasurement, Snapshot]):
-    def __init__(self):
-        super().__init__()
-        self.state = Snapshot(
-            ts=Timestamp.invalid(),
-            pose=Pose2d(),
-        )
-        qStdDevs = np.array([0.03, 0.03, 0.03], dtype=float)
-        self.q = np.diag(np.square(qStdDevs))
+	def __init__(self):
+		super().__init__()
+		self.state = Snapshot(
+			ts=Timestamp.invalid(),
+			pose=Pose2d(),
+		)
+		qStdDevs = np.array([0.03, 0.03, 0.03], dtype=float)
+		self.q = np.diag(np.square(qStdDevs))
 
-    def snapshot(self) -> Snapshot:
-        return dataclasses.replace(self.state)
-    
-    def restore(self, state: Snapshot):
-        self.state = dataclasses.replace(state)
-    
-    def observe(self, measurement: OdometryMeasurement | VisionMeasurement):
-        if isinstance(measurement, OdometryMeasurement):
-            pass
-    
-    def predict(self, now: Timestamp, delta: timedelta):
-        pass
+	def snapshot(self) -> Snapshot:
+		return dataclasses.replace(self.state)
+	
+	def restore(self, state: Snapshot):
+		self.state = dataclasses.replace(state)
+	
+	def observe(self, measurement: OdometryMeasurement | VisionMeasurement):
+		if isinstance(measurement, OdometryMeasurement):
+			pass
+	
+	def predict(self, now: Timestamp, delta: timedelta):
+		pass
 
 class WpiPoseEstimator:
-    def __init__(self) -> None:
-        pass
+	def __init__(self) -> None:
+		pass
 

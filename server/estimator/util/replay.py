@@ -63,7 +63,7 @@ class FilterHistoryBuffer(Generic[M, S]):
 	def _clear_expired_history(self, cutoff_time: Timestamp):
 		return _pop_before(self._filter_state_history, cutoff_time)
 
-class ReplayFilter(Filter[M], Generic[M, S]):
+class ReplayFilter[M: HasTimestamp, S: HasTimestamp](Filter[M]):
 	"""
 	A lot of filters might recieve measurements out of order, but need to process them in order.
 
@@ -236,7 +236,7 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 		else:
 			self.log.debug("Filter not yet initialized.")
 
-		if self._filter.is_initialized and predict_to_current_time  and self._filter.last_measurement_ts.is_valid:
+		if self._filter.is_initialized and predict_to_current_time and self._filter.last_measurement_ts.is_valid:
 			last_update_delta = now - self._filter.last_measurement_ts
 			self.log.info("Predicting delta %s", last_update_delta)
 
@@ -245,6 +245,8 @@ class ReplayFilter(Filter[M], Generic[M, S]):
 
 			# Update the last measurement time and last update time
 			# self._filter.last_measurement_ts += last_update_delta
+		else:
+			self.log.debug("Skip predict step: %s %s %s", self._filter.is_initialized, predict_to_current_time, self._filter.last_measurement_ts.is_valid)
 
 	def _differentiate_measurements(self, now: Timestamp):
 		if self._filter.is_initialized:

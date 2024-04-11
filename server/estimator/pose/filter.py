@@ -17,7 +17,7 @@ from util.timestamp import Timestamp, Stamped
 from util.clock import WallClock
 from .base import ControlMembers, StateMembers, Measurement, block
 from .ekf import EKF
-from .queue import Heap
+from ..util.heap import Heap
 
 def update_counts(acc: dict[StateMembers, int], updates: StateMembers, mask: StateMembers, map: StateMembers | None = None):
 	if map is None:

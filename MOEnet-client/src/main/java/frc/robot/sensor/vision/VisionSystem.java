@@ -1,7 +1,7 @@
 package frc.robot.sensor.vision;
 
 public interface VisionSystem extends AutoCloseable {
-    public static enum State {
+    public static enum Status {
         /**
          * The camera system hasn't started yet
          */
@@ -28,7 +28,8 @@ public interface VisionSystem extends AutoCloseable {
         FATAL,
     }
 
-    State getState();
+    /** Get current status */
+    Status getStatus();
 
     boolean isConnected();
     boolean canSleep();

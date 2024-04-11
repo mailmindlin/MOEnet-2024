@@ -13,6 +13,9 @@ import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import edu.wpi.first.math.geometry.Transform3d;
 
 public class MoeNetConfig {
+    /**
+     * Which direction to send transformations
+     */
     public static enum TransformDirection {
         @JsonProperty("sub") RIO_TO_CAM,
         @JsonProperty("pub") CAM_TO_RIO,

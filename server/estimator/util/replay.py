@@ -220,8 +220,9 @@ class ReplayFilter[M: HasTimestamp, S: HasTimestamp](Filter[M]):
 					self._measurement_history.append(measurement)
 
 					# We should only save the filter state once per unique timstamp
-					if len(self._measurement_queue) == 0 or self._measurement_queue.peek().ts != self._filter.last_measurement_ts:
-						self._snapshot_filter()
+					if head := self._measurement_queue.peek():
+						if head.ts != self._filter.last_measurement_ts:
+							self._snapshot_filter()
 		elif self._filter.is_initialized and self._filter.last_measurement_ts.is_valid:
 			# In the event that we don't get any measurements for a long time,
 			# we still need to continue to estimate our state. Therefore, we

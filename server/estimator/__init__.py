@@ -19,7 +19,7 @@ from util.timestamp import Timestamp
 
 from .pose_simple import SimplePoseEstimator
 from .tracker import ObjectTracker
-from .tf import TfTracker, ReferenceFrameKind, TfProvider
+from .tf import TfTracker, ReferenceFrameKind, TfProvider, ReferenceFrame
 from .camera_tracker import CamerasTracker
 
 if TYPE_CHECKING:
@@ -143,7 +143,7 @@ class DataFusion:
 		"Get the best estimated `odom`→`robot` corrective transform"
 		if fresh and (not self.fresh_o2r):
 			return None
-		res = self.pose_estimator.odom_to_robot()
+		res = self.pose_estimator.track_tf(ReferenceFrame.ODOM, ReferenceFrame.ROBOT).value
 		if res is None:
 			return None
 		if fresh:
@@ -161,9 +161,10 @@ class DataFusion:
 		if fresh and (not self.fresh_f2r):
 			return None
 		ts = self.clock.now()
-		res = self.pose_estimator.field_to_robot(ts)
+		res = self.pose_estimator.track_tf(ReferenceFrame.FIELD, ReferenceFrame.ROBOT, ts).value
 		if res is None:
 			return None
+		res = Pose3d().transformBy(res) # Convert to pose
 		if fresh:
 			self.fresh_f2r = False
 			if self.datalog is not None:
@@ -172,7 +173,7 @@ class DataFusion:
 	
 	def record_apriltag(self, camera: 'WorkerHandle', apriltags: MsgAprilTagDetections):
 		timestamp = Timestamp.from_nanos(apriltags.timestamp, clock=WallClock())
-		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp).value
+		robot_to_camera = self.camera_tracker.robot_to_camera(camera.idx, timestamp)
 		if self.datalog:
 			delta = timestamp - self._last_apr_ts
 			self._last_apr_ts = timestamp

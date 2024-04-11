@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, overload, Optional, Literal, Union, TypeVar, Generic
+from typing import TYPE_CHECKING, overload, Optional, Literal, Union, cast
 from functools import total_ordering
 from datetime import timedelta
 import warnings
@@ -27,7 +27,7 @@ class Timestamp:
 
 	@classmethod
 	def invalid(cls, clock: Optional['Clock'] = None) -> 'Timestamp':
-		return cls(0, clock=clock)
+		return cls(cast(int, float('nan')), clock=clock)
 
 	@classmethod
 	def from_seconds(cls, seconds: float, clock: Optional['Clock'] = None) -> 'Timestamp':
@@ -61,7 +61,7 @@ class Timestamp:
 	clock: Optional['Clock']
 
 	def __init__(self, nanos: int, clock: Optional['Clock'] = None):
-		self.nanos = int(nanos)
+		self.nanos = nanos if (nanos != nanos) else int(nanos)
 		self.clock = clock
 	
 	def before(self):
@@ -70,7 +70,7 @@ class Timestamp:
 		return Timestamp(self.nanos + 1, clock=self.clock)
 	@property
 	def is_valid(self) -> bool:
-		return self.nanos != 0
+		return self.nanos == self.nanos
 	
 	def as_seconds(self) -> float:
 		"Get time in fractional seconds"
@@ -121,14 +121,14 @@ class Timestamp:
 		return NotImplemented
 	
 	@overload
-	def __sub__(self, /, other: timedelta) -> 'Timestamp':
+	def __sub__(self, other: 'Timestamp', /) -> timedelta:
+		"Compute the difference between two timestamps"
+	@overload
+	def __sub__(self, other: timedelta, /) -> 'Timestamp':
 		"Apply negative offset"
 		...
 	
-	@overload
-	def __sub__(self, /, other: 'Timestamp') -> timedelta:
-		"Compute the difference between two timestamps"
-	def __sub__(self, /, other):
+	def __sub__(self, other, /):
 		if isinstance(other, timedelta):
 			return self.offset(-other)
 		if isinstance(other, Timestamp):
@@ -172,6 +172,8 @@ class Timestamp:
 		return self.as_seconds()
 	
 	def __str__(self):
+		if not self.is_valid:
+			return f'Timestamp.invalid()'
 		if self.clock is None:
 			return f'Timestamp({self.nanos:,})'
 		else:
@@ -179,8 +181,15 @@ class Timestamp:
 	__repr__ = __str__
 
 
-T = TypeVar('T')
-class Stamped(Generic[T]):
+class Stamped[T]:
 	def __init__(self, value: T, ts: Timestamp):
 		self.ts = ts
 		self.value = value
+	
+	def __repr__(self) -> str:
+		return f'Stamped({self.value!r}, {self.ts})'
+
+	def __eq__(self, value: object) -> bool:
+		if isinstance(value, Stamped):
+			return self.ts == value.ts and self.value == value.value
+		return super().__eq__(value)

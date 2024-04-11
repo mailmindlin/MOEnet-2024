@@ -8,10 +8,10 @@ from datetime import timedelta
 from pydantic import BaseModel, Field, TypeAdapter, Tag
 from ntcore import NetworkTableInstance
 
-try:
-	from . import common, geom, pipeline
-except ImportError:
-	import common, geom, pipeline
+from . import common, geom, pipeline
+# try:
+# except ImportError:
+# 	import common, geom, pipeline
 
 class ObjectTrackerConfig(BaseModel):
 	"Configuration for tracking object detections over time"
@@ -21,6 +21,7 @@ class ObjectTrackerConfig(BaseModel):
 	clustering_distance: float = Field(default=0.3, gt=0, description="")
 	min_depth: float = Field(default=0.5, gt=0, description="")
 	alpha: float = Field(default=0.2, gt=0, description="")
+	raw: bool = Field(default=False, description="Forward raw detections")
 
 class AprilTagStrategy(enum.StrEnum):
 	"How should we handle AprilTag detections?"
@@ -147,18 +148,24 @@ class CameraConfig(BaseModel):
 	pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
 class LogFormatterSpec(BaseModel):
-	format: str
-	datefmt: str | None = Field(None)
+	"Define a logging formatter"
+	format: str | None = Field(default=None)
+	datefmt: str | None = Field(default=None)
+	style: str | None = Field(default=None)
+	validate: bool = Field(default=False) # type: ignore
 
 class LogHandlerSpec(BaseModel):
-	formatter: str | LogFormatterSpec | None = Field(None)
+	formatter: str | LogFormatterSpec | None = Field(default=None, description="Formatter to use")
+	handler: str = Field(default=None)
+	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG', description="Logging level to handle")
+	filters: list[str] = Field(default_factory=list)
 
 class LoggerSpec(BaseModel):
 	handlers: list[str | LogHandlerSpec] = Field(default_factory=list)
 
 class LogConfig(BaseModel):
 	"Configuration for logging output"
-	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG')
+	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG', description="Default logging level")
 	file: Optional[Path] = Field(default=None)
 	formatters: dict[str, LogFormatterSpec] = Field(default_factory=dict)
 	handlers: dict[str, LogHandlerSpec] = Field(default_factory=dict)

@@ -1,4 +1,4 @@
-from typing import Protocol, TypeVar, Generic
+from typing import Protocol
 from datetime import timedelta
 from abc import ABC, abstractmethod
 from util.timestamp import Timestamp
@@ -9,10 +9,7 @@ class HasTimestamp(Protocol):
 	def ts(self) -> Timestamp: ...
 
 
-M = TypeVar('M', bound=HasTimestamp)
-# S = TypeVar('S', bound=HasTimestamp)
-
-class Filter(ABC, Generic[M]):
+class Filter[M: HasTimestamp](ABC):
 	def validate_delta(self, delta: timedelta):
 		pass
 
@@ -27,7 +24,7 @@ class Filter(ABC, Generic[M]):
 	def predict(self, now: Timestamp, delta: timedelta):
 		pass
 	
-T = TypeVar('T')
-class InterpolableData(Generic[T]):
+
+class InterpolableData[T]:
 	def sample(self, timstamp: Timestamp) -> T | None:
 		pass

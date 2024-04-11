@@ -7,7 +7,7 @@ class TestStatic(TestCase):
 
 		self.assertTrue(t.is_fresh)
 		self.assertTrue(t.is_static)
-		self.assertEqual(t.value, 5.0)
+		self.assertEqual(t.current, 5.0)
 		self.assertEqual(t.refresh(), t)
 	
 	def test_map(self):
@@ -16,7 +16,7 @@ class TestStatic(TestCase):
 
 		self.assertTrue(r.is_fresh)
 		self.assertTrue(r.is_static)
-		self.assertEqual(r.value, 25.0)
+		self.assertEqual(r.current, 25.0)
 		self.assertEqual(r.refresh(), r)
 
 class TestDerive(TestCase):
@@ -24,26 +24,26 @@ class TestDerive(TestCase):
 		a = PushValue(5)
 		assert a.is_fresh
 		assert not a.is_static
-		assert a.value == 5
+		assert a.current == 5
 
 		b = a.map(lambda x: x * x)
 		assert b.is_fresh
 		assert not b.is_static
-		assert b.value == 25
+		assert b.current == 25
 
 		a.value_next = 6
 		assert not b.is_fresh
 		assert not a.is_fresh
 		# Check no auto-refresh
-		assert a.value == 5
-		assert b.value == 25
+		assert a.current == 5
+		assert b.current == 25
 
 		a = a.refresh()
-		assert a.value == 6
+		assert a.current == 6
 		assert a.is_fresh
-		assert b.value == 25
+		assert b.current == 25
 		assert not b.is_fresh
 
 		b = b.refresh()
-		assert b.value == 36
+		assert b.current == 36
 		assert b.is_fresh

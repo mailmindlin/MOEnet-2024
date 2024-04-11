@@ -25,4 +25,4 @@ class Heap(Generic[T]):
         return len(self.data)
 
     def clear(self):
-        pass
+        self.data.clear()

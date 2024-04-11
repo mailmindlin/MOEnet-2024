@@ -3,12 +3,13 @@ import dataclasses
 import numpy as np
 from .util.replay import ReplayableFilter
 from util.timestamp import Timestamp
-from typedef.geom import Twist2d, Pose2d
+from typedef.geom import Twist2d, Pose2d, Rotation2d
 
 @dataclasses.dataclass
 class OdometryMeasurement:
     ts: Timestamp
     twist: Twist2d
+    gyroAngle: Rotation2d | None = None
 
 @dataclasses.dataclass
 class VisionMeasurement:
@@ -26,7 +27,7 @@ class WpiPoseEstimatorInner(ReplayableFilter[OdometryMeasurement | VisionMeasure
     def __init__(self):
         super().__init__()
         self.state = Snapshot(
-            ts=None,
+            ts=Timestamp.invalid(),
             pose=Pose2d(),
         )
         qStdDevs = np.array([0.03, 0.03, 0.03], dtype=float)
@@ -39,7 +40,8 @@ class WpiPoseEstimatorInner(ReplayableFilter[OdometryMeasurement | VisionMeasure
         self.state = dataclasses.replace(state)
     
     def observe(self, measurement: OdometryMeasurement | VisionMeasurement):
-        pass
+        if isinstance(measurement, OdometryMeasurement):
+            pass
     
     def predict(self, now: Timestamp, delta: timedelta):
         pass

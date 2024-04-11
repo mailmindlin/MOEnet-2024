@@ -11,8 +11,9 @@ from typedef.cfg import ObjectTrackerConfig
 from util.timestamp import Timestamp
 from .tf import TfTracker, ReferenceFrame, TfProvider, ReferenceFrameKind
 from .util.cascade_replay import CascadingReplayFilter
-from .util.cascade import Tracked, Derived, StaticValue
+from .util.cascade import Tracked, Derived
 from .util.replay import ReplayableFilter
+from .util.interpolated import InterpolatingView, SortedSequenceAdapter
 
 class TrackedObject:
 	def __init__(self, id: int, timestamp: Timestamp, position: Translation3d, label: str, confidence: float):
@@ -107,6 +108,9 @@ class Snapshot:
 		for k, v in self.tracked_objects.items():
 			res.tracked_objects.add(k, v.copy())
 		return res
+	
+	def interpolate(self, other: 'Snapshot', t: float) -> 'Snapshot':
+		return self
 	
 	def cleanup(self, t: Timestamp):
 		"Remove objects that haven't been seen for a while"
@@ -222,8 +226,10 @@ class ObjectTracker(TfProvider):
 	def track_tf(self, src: ReferenceFrame, dst: ReferenceFrame, timestamp: Timestamp | None = None) -> Tracked[Transform3d | None]:
 		match (src, dst):
 			case (ReferenceFrame.FIELD, ReferenceFrame(kind=ReferenceFrameKind.DETECTION, idx=idx)):
-				return self._filter.track_state() \
-					.map(lambda state: fetch_item(state, idx))
+				#TODO: we need to forward modcount
+				states_interp = InterpolatingView(SortedSequenceAdapter(self._filter._filter_state_history, lambda snapshot: snapshot.ts), Snapshot.interpolate)
+				tracked = states_interp.track(timestamp) if timestamp is not None else states_interp.latest()
+				return tracked.map(lambda state: fetch_item(state, idx))
 		
 		return NotImplemented
 	

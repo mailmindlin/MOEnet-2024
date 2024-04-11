@@ -1,30 +1,40 @@
 import React, { ChangeEvent } from 'react';
+import Tooltip from '../../components/Tooltip';
 
-export function Binding<V>(value: V, onChange?: (next: V) => void) {
+type FilterKeys<V extends object, T> = Exclude<{ [k in keyof V]: V[k] extends T | null | undefined ? k : never }[keyof V], undefined>;
+
+export interface Binding<V extends object> {
+	Checkbox<K extends FilterKeys<V, boolean>>(props: Omit<BoundCheckboxProps<V, K>, 'value' | 'onChange'>): JSX.Element;
+	Select<K extends FilterKeys<V, string>>(props: Omit<BoundSelectProps<V, K>, 'value' | 'onChange'>): JSX.Element;
+	Number<K extends FilterKeys<V, number>>(props: Omit<BoundNumericInputProps<V, K>, 'value' | 'onChange'>): JSX.Element;
+	Text<K extends FilterKeys<V, string>>(props: Omit<BoundTextInputProps<V, K>, 'value' | 'onChange'>): JSX.Element;
+}
+
+export function Binding<V extends object>(value: V, onChange?: (next: V) => void): Binding<V> {
 	// This is a pain, but we need to do this to keep the return type constant
 	const vRef = React.useRef({value, onChange});
 	vRef.current = {value, onChange};
 
 	return React.useMemo(() => {
-		function Checkbox<K extends keyof V>(props: Omit<BoundCheckboxProps<V, K>, 'value' | 'onChange'>) {
+		function Checkbox<K extends FilterKeys<V, boolean>>(props: Omit<BoundCheckboxProps<V, K>, 'value' | 'onChange'>) {
 			return BoundCheckbox({
 				...props,
 				...vRef.current,
 			});
 		}
-		function Select<K extends keyof V>(props: Omit<BoundSelectProps<V, K>, 'value' | 'onChange'>) {
+		function Select<K extends FilterKeys<V, string>>(props: Omit<BoundSelectProps<V, K>, 'value' | 'onChange'>) {
 			return BoundSelect({
 				...props,
 				...vRef.current,
 			});
 		}
-		function Number<K extends keyof V>(props: Omit<BoundNumericInputProps<V, K>, 'value' | 'onChange'>) {
+		function Number<K extends FilterKeys<V, number>>(props: Omit<BoundNumericInputProps<V, K>, 'value' | 'onChange'>) {
 			return BoundNumericInput({
 				...props,
 				...vRef.current,
 			});
 		}
-		function Text<K extends keyof V>(props: Omit<BoundTextInputProps<V, K>, 'value' | 'onChange'>) {
+		function Text<K extends FilterKeys<V, string>>(props: Omit<BoundTextInputProps<V, K>, 'value' | 'onChange'>) {
 			return BoundTextInput({
 				...props,
 				...vRef.current,
@@ -39,36 +49,22 @@ export function Binding<V>(value: V, onChange?: (next: V) => void) {
 	}, [vRef]);
 }
 
-
 type UpdateCallback<V> = ((next: V) => void) | ((cb: ((next: V) => V) | V) => void);
-export function bindChangeHandler<V, K extends keyof V>(value: V, key: K, onChange?: UpdateCallback<V>, nullable?: boolean): ((next: ChangeEvent<any> | V[K]) => void) | undefined {
+
+export function bindChangeHandler<V extends object, T, E, A extends any[]>(value: V, key: FilterKeys<V, T>, onChange: UpdateCallback<V> | undefined, mapper: (raw: E, ...arg1: A) => T, ...mapperArgs: A): ((next: E) => void) | undefined {
 	if (!onChange)
 		return React.useCallback(undefined as any, [onChange, value]);
 	
-	return React.useCallback((e: ChangeEvent<HTMLInputElement> | V[K]) => {
-		let kv: any = e;
-		if ((e as ChangeEvent).currentTarget) {
-			const ct = (e as ChangeEvent<HTMLInputElement>).currentTarget;
-			if (!ct.checkValidity()) {
-				ct.reportValidity();
-			}
-			switch (ct.type) {
-				case 'number':
-					kv = ct.valueAsNumber;
-					if (Number.isNaN(kv))
-						kv = null;
-					break;
-				case 'checkbox':
-					kv = ct.checked;
-					break;
-				default:
-					kv = ct.value;
-			}
-			if (kv === '$null' || (nullable && kv == ''))
-				kv = null;
-			console.log(kv);
+	return React.useCallback((e: E) => {
+		let kv;
+		try {
+			kv = mapper(e, ...mapperArgs);
+		} catch (e) {
+			if (e instanceof RangeError)
+				return;
+			throw e;
 		}
-		console.log('onChange', onChange, key, value, kv);
+
 		onChange!({
 			...value,
 			[key]: kv,
@@ -76,9 +72,11 @@ export function bindChangeHandler<V, K extends keyof V>(value: V, key: K, onChan
 	}, [onChange, value]);
 }
 
-interface BoundSelectProps<V, K extends keyof V> {
-	label: string;
+interface BoundSelectProps<V extends object, K extends FilterKeys<V, string>> {
+	label: React.ReactNode;
+	/** Current (parent) value */
 	value: V;
+	/** Key in parent */
 	name: K;
 	disabled?: boolean;
 	defaultValue?: string;
@@ -87,7 +85,27 @@ interface BoundSelectProps<V, K extends keyof V> {
 	nullable?: boolean;
 }
 
-export function BoundSelect<V, K extends keyof V>(props: BoundSelectProps<V, K>) {
+function handleSelectChange<T>(e: ChangeEvent<HTMLSelectElement>, nullable: boolean | undefined): T {
+	const ct = e.currentTarget;
+	if (!ct.checkValidity()) {
+		ct.reportValidity();
+		throw new RangeError();
+	}
+
+	nullable ??= false;
+	let value: string | null = ct.value;
+	if (nullable) {
+		switch (value) {
+			case '$null':
+			case '$undefined':
+				value = null;
+				break;
+		}
+	}
+	return value as T;
+}
+
+export function BoundSelect<V extends object, K extends FilterKeys<V, string>>(props: BoundSelectProps<V, K>) {
 	const id = React.useId();
 
 	const disabled = (!props.onChange) || props.disabled;
@@ -98,7 +116,7 @@ export function BoundSelect<V, K extends keyof V>(props: BoundSelectProps<V, K>)
 			id={id}
 			value={props.value[props.name] as string ?? ''}
 			disabled={disabled}
-			onChange={bindChangeHandler(props.value, props.name, props.onChange)}
+			onChange={bindChangeHandler(props.value, props.name, props.onChange, handleSelectChange, props.nullable)}
 		>
 			{props.children}
 		</select>
@@ -120,7 +138,22 @@ interface BoundNumericInputProps<V, K extends keyof V> {
 	nullable?: boolean;
 }
 
-export function BoundNumericInput<V, K extends keyof V>(props: BoundNumericInputProps<V, K>) {
+function handleNumericChange<T>(e: ChangeEvent<HTMLInputElement>, nullable: boolean): T {
+	const ct = e.currentTarget;
+	if (!ct.checkValidity()) {
+		ct.reportValidity();
+		throw new RangeError();
+	}
+
+	nullable ??= false;
+	if ((nullable ?? false) && ct.value === '')
+		return (null as any);
+
+	const value = ct.valueAsNumber;
+	return value as T;
+}
+
+export function BoundNumericInput<V extends object, K extends FilterKeys<V, number>>(props: BoundNumericInputProps<V, K>) {
 	const id = React.useId()
 
 	const disabled = (!props.onChange) || props.disabled;
@@ -133,7 +166,7 @@ export function BoundNumericInput<V, K extends keyof V>(props: BoundNumericInput
 		var extraProps = extraProps1;
 	}
 
-	const changeHandler = bindChangeHandler(props.value, props.name, props.onChange, props.nullable);
+	const changeHandler = bindChangeHandler(props.value, props.name, props.onChange, handleNumericChange, props.nullable ?? false);
 
 	return (<div>
 		<Tooltip help={props.help}>
@@ -152,7 +185,7 @@ export function BoundNumericInput<V, K extends keyof V>(props: BoundNumericInput
 	</div>);
 }
 
-interface BoundTextInputProps<V, K extends keyof V> {
+interface BoundTextInputProps<V extends object, K extends FilterKeys<V, string>> {
 	label: string;
 	value: V;
 	name: K;
@@ -163,7 +196,20 @@ interface BoundTextInputProps<V, K extends keyof V> {
 	onChange?: UpdateCallback<V>;
 }
 
-export function BoundTextInput<V, K extends keyof V>(props: BoundTextInputProps<V, K>) {
+function handleTextChange<T>(e: ChangeEvent<HTMLInputElement>, nullable: boolean): T {
+	const ct = e.currentTarget;
+	if (!ct.checkValidity()) {
+		ct.reportValidity();
+		throw new RangeError();
+	}
+
+	if (nullable && ct.value === '')
+		return (null as any);
+
+	return (ct.value) as T;
+}
+
+export function BoundTextInput<V extends object, K extends FilterKeys<V, string>>(props: BoundTextInputProps<V, K>) {
 	const id = React.useId();
 
 	const disabled = (!props.onChange) || props.disabled;
@@ -185,7 +231,7 @@ export function BoundTextInput<V, K extends keyof V>(props: BoundTextInputProps<
 				value={props.value[props.name] as string | undefined ?? ''}
 				placeholder={props.placeholder}
 				disabled={disabled}
-				onChange={bindChangeHandler(props.value, props.name, props.onChange, props.nullable)}
+				onChange={bindChangeHandler(props.value, props.name, props.onChange, handleTextChange, props.nullable ?? false)}
 				{...extraProps}
 			/>
 		</Tooltip>
@@ -201,7 +247,13 @@ interface BoundCheckboxProps<V extends object, K extends FilterKeys<V, boolean>>
 	defaultValue?: boolean;
 	onChange?(value: V): void;
 }
-export function BoundCheckbox<V, K extends keyof V>(props: BoundCheckboxProps<V, K>) {
+
+function handleCheckboxChange(e: ChangeEvent<HTMLInputElement>): any {
+	const ct = e.currentTarget;
+	return ct.checked;
+}
+
+export function BoundCheckbox<V extends object, K extends FilterKeys<V, boolean>>(props: BoundCheckboxProps<V, K>) {
 	const id = React.useId()
 
 	const disabled = (!props.onChange) || props.disabled;
@@ -214,8 +266,85 @@ export function BoundCheckbox<V, K extends keyof V>(props: BoundCheckboxProps<V,
 				id={id}
 				checked={props.value[props.name] as boolean ?? props.defaultValue ?? false}
 				disabled={disabled}
-				onChange={bindChangeHandler(props.value, props.name, props.onChange)}
+				onChange={bindChangeHandler(props.value, props.name, props.onChange, handleCheckboxChange)}
 			/>
 		</Tooltip>
 	</div>);
+}
+
+export interface BoundListRenderItemProps<E> {
+	index: number;
+	item: E;
+	onChange?(next: E): void;
+	onDelete?(): void
+}
+
+interface BoundListItemProps<E> {
+	disabled?: boolean;
+	index: number;
+
+	value: E;
+	renderItem(props: BoundListRenderItemProps<E>): JSX.Element;
+	onChange?(index: number, value: E): void;
+	onDelete?(index: number): void;
+}
+
+function BoundListItem<E>(props: BoundListItemProps<E>) {
+	const { onChange, onDelete, index, value } = props;
+	const _onChange = React.useCallback((next: E) => onChange?.(index, next), [onChange, value]);
+	const _onDelete = React.useCallback(() => onDelete?.(index), [onDelete, index]);
+
+	return props.renderItem({
+		item: value,
+		index: index,
+		onChange: onChange ? _onChange : undefined,
+		onDelete: onDelete ? _onDelete : undefined,
+	})
+}
+interface BoundListProps<E> {
+	value: E[];
+	disabled?: boolean;
+	canDelete?: boolean;
+
+	renderItem(props: BoundListRenderItemProps<E>): JSX.Element;
+	onChange?(value: E[]): void;
+}
+
+export function BoundList<E>(props: BoundListProps<E>) {
+
+	const {
+		onChange,
+		value,
+	} = props;
+
+	const canChange = (!onChange) || props.disabled;
+	const canDelete = !!(props.canDelete && onChange);
+	const _onChange = React.useCallback((index: number, item: E) => {
+		onChange?.([
+			...value.slice(0, index),
+			item,
+			...value.slice(index + 1),
+		])
+	}, [onChange, value, canChange]);
+
+	const _onDelete = React.useCallback((index: number) => {
+		onChange?.([
+			...value.slice(0, index),
+			...value.slice(index + 1),
+		])
+	}, [props.onChange, props.canDelete]);
+	// const onChange = boundUpdateIdx(idx, boundUpdateKey('camera_selectors', updateConfig, []));
+
+	const children = props.value.map((value, index) => {
+		return <BoundListItem
+			key={index}
+			value={value}
+			index={index}
+			renderItem={props.renderItem}
+			onChange={canChange ? _onChange : undefined}
+			onDelete={canDelete ? _onDelete : undefined}
+		/>
+	});
+
+	return (<>{...children}</>)
 }

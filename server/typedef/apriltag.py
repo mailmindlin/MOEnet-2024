@@ -300,7 +300,7 @@ class AprilTagFieldInlineWpi(_AprilTagFieldInline, _AprilTagFieldWpi):
             field=self.field,
             tags=[
                 tag.to_sai(self.tagFamily, self.tagSize)
-                for tag in self.tags
+                for tag in sorted(self.tags, key=lambda tag: tag.ID)
             ]
         )
     def as_inline_wpi(self, path: Path | None = None) -> 'AprilTagFieldInlineWpi':

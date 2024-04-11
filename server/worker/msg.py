@@ -2,7 +2,7 @@
 Type definitions for communicating between the master and worker processes
 """
 
-from typing import Optional, Any, Literal, Union, TypeAlias
+from typing import Optional, Any, Literal, Union
 from enum import IntEnum, auto
 from pydantic import BaseModel, Field
 from dataclasses import dataclass
@@ -13,9 +13,10 @@ from typedef.geom import Pose3d, Translation3d, Transform3d
 from typedef.geom_cov import Pose3dCov, Twist3dCov
 from typedef.pipeline import PipelineConfigWorker
 
-Mat33 = np.ndarray[tuple[Literal[3], Literal[3]], np.dtype[np.floating]]
-Mat44 = np.ndarray[tuple[Literal[4], Literal[4]], np.dtype[np.floating]]
-Mat66 = np.ndarray[tuple[Literal[6], Literal[6]], np.dtype[np.floating]]
+type Mat[R: int, C: int] = np.ndarray[tuple[R, C], np.dtype[np.floating]]
+type Mat33 = Mat[Literal[3], Literal[3]]
+type Mat44 = Mat[Literal[4], Literal[4]]
+type Mat66 = Mat[Literal[6], Literal[6]]
 
 class WorkerInitConfig(BaseModel):
     "Config for worker.main"
@@ -61,7 +62,7 @@ class CmdEnableStream(BaseModel):
     stream: str
     enable: bool
 
-AnyCmd = Union[
+type AnyCmd = Union[
     CmdPoseOverride,
     CmdFlush,
     CmdChangeState,
@@ -194,7 +195,7 @@ class MsgFrame:
     timestamp_insert: int = 0
     timestamp_extract: int = 0
 
-WorkerMsg: TypeAlias = Union[
+type WorkerMsg = Union[
     MsgChangeState,
     MsgFlush,
     MsgDetections,
@@ -204,7 +205,7 @@ WorkerMsg: TypeAlias = Union[
 ]
 "Worker message types"
 
-AnyMsg = Union[
+type AnyMsg = Union[
     MsgDetections,
     MsgPose,
     MsgAprilTagDetections,

@@ -152,7 +152,7 @@ class LogFormatterSpec(BaseModel):
 	format: str | None = Field(default=None)
 	datefmt: str | None = Field(default=None)
 	style: str | None = Field(default=None)
-	validate: bool = Field(default=False) # type: ignore
+	validate_fmt: bool = Field(default=False) # type: ignore
 
 class LogHandlerSpec(BaseModel):
 	formatter: str | LogFormatterSpec | None = Field(default=None, description="Formatter to use")

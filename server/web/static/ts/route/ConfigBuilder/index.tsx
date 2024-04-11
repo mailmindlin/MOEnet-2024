@@ -1,17 +1,18 @@
-import React, { ChangeEvent, FormEvent } from 'react';
+import React, { ChangeEvent } from 'react';
 import { RouteProps } from '../../routing';
-import { Camera, CameraConfig, CameraSelectorDefinition, Cameras, LocalConfig, NetworkTablesConfig, OakSelector, Pipeline, PipelineConfig, PipelineDefinition, Selector } from '../../config';
+import { CameraConfig, CameraSelectorDefinition, LocalConfig, OakSelector, PipelineConfig, PipelineDefinition, Selector } from '../../config';
 import Loading from '../../components/Loading';
-import SelectorForm, { CameraSelector, PoseEditor } from './camera';
+import SelectorForm, { CameraFilterEditor, PoseEditor } from './camera';
 import PipelineStages from './stages';
 import { JsonSchemaLike, JsonSchemaRoot } from './jsonschema';
 import NetworkTablesEditor from './nt';
-import { BoundTextInput, Collapsible, bindChangeHandler } from './bound';
+import { BoundList, BoundListRenderItemProps, BoundTextInput } from './bound';
 import LogConfigEditor from './logging';
 import DatalogConfigEdtior from './datalog';
 import WebConfigEditor from './web';
 import EstimatorConfigEditor from './estimator';
-import { boundReplaceKey, boundUpdateIdx, boundUpdateKey } from './ds';
+import { boundReplaceKey, boundUpdateKey } from './ds';
+import Collapsible from '../../components/Collapsible';
 
 
 interface Props extends RouteProps {
@@ -35,7 +36,7 @@ interface State {
 }
 
 interface InnerProps {
-	cameras: CameraInfo[];
+	camera_templates: CameraInfo[];
 	schema: JsonSchemaLike<LocalConfig> & JsonSchemaRoot;
 	config: LocalConfig;
 }
@@ -104,14 +105,11 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 		}))
 	}
 
-	private deleteCameraSelector(index: number) {
+	private readonly setCameraSelectors = (selectors: CameraSelectorDefinition[]) => {
 		this.setState(({ config }) => ({
 			config: {
 				...config,
-				camera_selectors: [
-					...(config.camera_selectors ?? []).slice(0, index),
-					...(config.camera_selectors ?? []).slice(index + 1),
-				]
+				camera_selectors: selectors
 			}
 		}))
 	}
@@ -267,6 +265,17 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 	private handleEstimatorChange = this.handleSubpropChange('estimator');
 	private handleWebChange = this.handleSubpropChange('web');
 
+	private readonly renderCameraTemplate = ({ item, onChange, onDelete }: BoundListRenderItemProps<CameraSelectorDefinition>) => (
+		<CameraFilterEditor
+			legend={<BoundTextInput value={item} name='id' label='Selector' onChange={onChange} placeholder='Selector name' />}
+			templates={this.props.camera_templates}
+			selector={item}
+			definitions={[] /* This could get recursive */}
+			onChange={onChange}
+			onDelete={onDelete}
+		/>
+	);
+
 	private downloadJson = async () => {
 		const text = JSON.stringify(this.state.config,undefined, '\t');
 		try {
@@ -332,18 +341,12 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 				onChange={this.handleWebChange}
 			/>
 			<Collapsible legend="Camera Templates">
-				{(this.state.config.camera_selectors ?? []).map((selector, idx) => {
-					const onChange = boundUpdateIdx(idx, boundUpdateKey('camera_selectors', updateConfig, []));
-					return <CameraSelector
-						key={idx}
-						legend={<BoundTextInput value={selector} name='id' label='Selector' onChange={onChange} placeholder='Selector name' />}
-						cameras={this.props.cameras}
-						selector={selector}
-						definitions={[]}
-						onChange={onChange}
-						onDelete={this.deleteCameraSelector.bind(this, idx)}
-					/>
-				})}
+				<BoundList
+					value={this.state.config.camera_selectors ?? []}
+					onChange={this.setCameraSelectors}
+					canDelete
+					renderItem={this.renderCameraTemplate}
+				/>
 				<button onClick={this.addCameraSelector}>Add new</button>
 			</Collapsible>
 			<Collapsible legend="Pipeline Templates">
@@ -375,9 +378,9 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 				</legend>
 				{ selector && <>
 					<SelectorForm
-						cameras={this.props.cameras}
-						selector={selector ?? {}}
+						templates={this.props.camera_templates}
 						definitions={this.state.config.camera_selectors}
+						selector={selector}
 						onChange={this.handleSelectorChange}
 					/>
 					<PipelineStages
@@ -488,7 +491,7 @@ export default class ConfigBuilder extends React.Component<Props, State> {
 		
 		return (
 			<ConfigBuilderInner
-				cameras={this.state.cameras}
+				camera_templates={this.state.cameras}
 				schema={this.state.schema}
 				config={this.state.config}
 			/>

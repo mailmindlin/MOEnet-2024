@@ -1,7 +1,7 @@
 import React, { ChangeEvent } from 'react';
 import { CameraSelectorDefinition, OakSelector, Pose2, Quaternion, Selector } from '../../config';
 import type { CameraInfo } from './index';
-import { BoundNumericInput, BoundSelect, BoundTextInput } from './bound';
+import { Binding, BoundNumericInput, BoundSelect, BoundTextInput } from './bound';
 import { boundReplaceKey } from './ds';
 
 interface PoseEditorProps {
@@ -9,6 +9,9 @@ interface PoseEditorProps {
     onChange?(value: Pose2): void;
 }
 
+/**
+ * Edit pose
+ */
 export function PoseEditor({ value, onChange }: PoseEditorProps) {
     const id = React.useId();
     const [rotationFormat, setRotationFormat] = React.useState('quat');
@@ -88,86 +91,84 @@ export function PoseEditor({ value, onChange }: PoseEditorProps) {
 
 interface CameraSelectorProps<T extends OakSelector> {
     legend: React.ReactNode;
-    cameras: CameraInfo[];
+    /** Known attached cameras (templates) */
+    templates: CameraInfo[];
     selector: T;
     definitions: CameraSelectorDefinition[] | undefined;
     onChange?(cb: T | ((value: T) => T)): void;
     onDelete?(): void;
 }
 
-export function CameraSelector<T extends OakSelector>({ cameras, selector, definitions, onChange, onDelete, ...props }: CameraSelectorProps<T>) {
+export function CameraFilterEditor<T extends OakSelector>({ templates, selector, definitions, onChange, onDelete, ...props }: CameraSelectorProps<T>) {
     if ((definitions?.length ?? 0) == 0)
         definitions = undefined;
 
-    const [copySrc, setCopySrc] = React.useState(cameras.length > 0 ? cameras[0].mxid : '');
+    const [copySrc, setCopySrc] = React.useState(templates.length > 0 ? templates[0].mxid : '');
     const handleCopy = React.useCallback(() => {
-        const selectedIdx = cameras.findIndex(camera => camera.mxid == copySrc);
+        const selectedIdx = templates.findIndex(camera => camera.mxid == copySrc);
         if (selectedIdx == -1)
             return;
-        const selected = cameras[selectedIdx];
+        const selected = templates[selectedIdx];
         onChange?.({
             ...(selector as any),
             devname: selected.name,
             mxid: selected.mxid,
             ordinal: selectedIdx + 1,
         });
-    }, [copySrc, cameras, onChange]);
+    }, [copySrc, templates, onChange]);
 
     const _onChange: ((value: T) => void) | undefined = onChange;
+    const Bound: Binding<OakSelector> = Binding<T>(selector, _onChange);
 
     const csId = React.useId()
 
     return (
         <fieldset>
             <legend>{props.legend}</legend>
-            {cameras.length > 0 && onChange && (<>
+            {templates.length > 0 && onChange && (<>
                 <label htmlFor={csId}>Template</label>
                 <select id={csId} value={copySrc} onChange={e => setCopySrc(e.currentTarget.value)}>
-                    {cameras.map(camera => (
+                    {templates.map(camera => (
                         <option key={camera.mxid} value={camera.mxid}>OAK (mxid={camera.mxid})</option>
                     ))}
                 </select>
                 <button onClick={handleCopy}>Apply</button>
                 </>
             )}
-            <BoundNumericInput
-                value={selector}
-                onChange={_onChange}
+            <Bound.Number
                 name='ordinal'
                 label='Ordinal'
                 help='Filter OAK cameras by ordinal'
                 min={1}
                 nullable
             />
-            <BoundTextInput
-                value={selector}
-                onChange={_onChange}
+            <Bound.Text
                 name='mxid'
                 placeholder='(Match all)'
                 help='Filter OAK cameras by MxId'
                 label='MxId'
+                nullable
             />
-            <BoundTextInput
-                value={selector}
-                onChange={_onChange}
+            <Bound.Text
                 name='devname'
                 placeholder='(Match all)'
                 help='Filter OAK cameras by device name'
                 label='Device Name'
+                nullable
             />
-            <BoundSelect value={selector} onChange={_onChange} name='platform' label='OAK Platform filter'>
+            <Bound.Select name='platform' label='OAK Platform filter'>
                 <option value="X_LINK_ANY_PLATFORM">Any (you probably want this)</option>
                 <option value="X_LINK_MYRIAD_2">Myraid 2</option>
                 <option value="X_LINK_MYRIAD_X">Myraid X</option>
-            </BoundSelect>
-            <BoundSelect value={selector} onChange={_onChange} name='protocol' label='USB Speed'>
+            </Bound.Select>
+            <Bound.Select name='protocol' label='USB Speed' nullable>
                 <option value="$null">Default</option>
                 <option value="LOW">Low (USB 1.0, 1.5mbps)</option>
                 <option value="FULL">Full (USB 1.0, 12mbps)</option>
                 <option value="HIGH">High (USB 2.0, 480mbps)</option>
                 <option value="SUPER">Super (USB 3.0, 5gbps)</option>
                 <option value="SUPER_PLUS">Super+ (USB 3.0, 10gbps)</option>
-            </BoundSelect>
+            </Bound.Select>
             {onDelete && <button onClick={onDelete}>Delete</button>}
         </fieldset>
     )
@@ -176,13 +177,13 @@ export function CameraSelector<T extends OakSelector>({ cameras, selector, defin
 
 
 interface Props {
-    cameras: CameraInfo[];
+    templates: CameraInfo[];
     selector: string | OakSelector;
     definitions: CameraSelectorDefinition[] | undefined;
     onChange(selector: OakSelector | string): void;
 }
 
-export default function SelectorForm({ selector, cameras, onChange, definitions }: Props) {
+export default function SelectorForm({ selector, templates, onChange, definitions }: Props) {
     let selectorInner: OakSelector | undefined;
     if (typeof selector === 'string') {
         selectorInner = definitions!.find(definition => definition.id == selector)!;
@@ -206,8 +207,8 @@ export default function SelectorForm({ selector, cameras, onChange, definitions 
 
     const templateId = React.useId();
     return (
-        <CameraSelector
-            cameras={cameras}
+        <CameraFilterEditor
+            templates={templates}
             selector={selectorInner}
             definitions={definitions}
             onChange={typeof selector === 'string' ? undefined : (onChange as (v: OakSelector) => void)}
@@ -226,50 +227,5 @@ export default function SelectorForm({ selector, cameras, onChange, definitions 
                 </select>
             </>}
         />
-    );/*
-        <fieldset>
-            <legend>
-                
-                </select>
-            </legend>
-            {cameras.length > 0 && (<>
-                <label htmlFor='camera_copysrc'>Template</label>
-                <select id="camera_copysrc" value={copySrc} onChange={e => setCopySrc(e.currentTarget.value)}>
-                    {cameras.map(camera => (
-                        <option key={camera.mxid} value={camera.mxid}>OAK (mxid={camera.mxid})</option>
-                    ))}
-                </select>
-                <button onClick={handleCopy}>Apply</button>
-                </>
-            )}
-            <div>
-                <label htmlFor='camera_ordinal'>Ordinal</label>
-                <input
-                    id="camera_ordinal"
-                    type="number"
-                    min="0"
-                    value={selector.ordinal!}
-                    onChange={e => onChange({...selector, ordinal: e.currentTarget.value == '0' ? undefined : parseInt(e.currentTarget.value)})}
-                />
-            </div>
-            <div>
-                <label htmlFor="camera_mxid">MxId</label>
-                <input
-                    id="camera_mxid_enable"
-                    type="text"
-                    value={selector.mxid ?? ''}
-                    onChange={e => onChange({...selector, mxid: e.currentTarget.value == '' ? undefined : e.currentTarget.value})}
-                />
-            </div>
-            <div>
-                <label htmlFor="camera_name">Device Name</label>
-                <input
-                    id="camera_name"
-                    type="text"
-                    value={selector.devname ?? ''}
-                    onChange={e => onChange({...selector, devname: e.currentTarget.value == '' ? undefined : e.currentTarget.value})}
-                />
-            </div>
-        </fieldset>
-    )*/
+    );
 }

@@ -27,32 +27,22 @@ interface RenderStageProps<S> {
 }
 
 function RenderStage<S extends AnyStage>({ stage, title, description, children, onChange, onDelete }: RenderStageProps<S>) {
-	const id = React.useId();
+	const Bound: Binding<AnyStage> = Binding(stage, onChange);
 
 	return (
 		<fieldset>
 			{ title && <legend>{title}</legend>}
 			{description && <div>{description}</div>}
-			<div>
-				<label htmlFor={`${id}-enabled`}>Enabled</label>
-				<input
-					id={`${id}-enabled`}
-					type="checkbox"
-					checked={stage.enabled ?? true}
-					disabled={!onChange}
-					onChange={bindChangeHandler(stage, 'enabled', onChange)}
-				/>
-			</div>
-			<div>
-				<label htmlFor={`${id}-optional`}>Optional</label>
-				<input
-					id={`${id}-optional`}
-					type="checkbox"
-					checked={stage.optional ?? false}
-					disabled={!onChange}
-					onChange={bindChangeHandler(stage, 'optional', onChange)}
-				/>
-			</div>
+			<Bound.Checkbox
+				name='enabled'
+				label='Enabled'
+				defaultValue={true}
+			/>
+			<Bound.Checkbox
+				name='optional'
+				label='Optional'
+				defaultValue={false}
+			/>
 			{ children }
 			{onDelete && (
 				<div>
@@ -68,13 +58,13 @@ function StageInherit({ config, stage, onChange, ...props }: StageProps<InheritS
 		<RenderStage title='Inherit' stage={stage} onChange={onChange} {...props}>
 			<PipelineStages
 				config={config}
-				stages={config.pipelines!.find(p => p.id == stage.id)!.stages}
+				stages={ /* TODO: Handle inconsistency */ (config.pipelines ?? []).find(p => p.id == stage.id)!.stages}
 				legend={(
-					<select value={stage.id} disabled={!onChange} onChange={bindChangeHandler(stage, 'stage', onChange)}>
+					<BoundSelect value={stage} name='id' onChange={onChange} label='Pipeline'>
 						{config.pipelines!.map(pipeline => (
-							<option key={pipeline.id}>Pipeline {pipeline.id}</option>
+							<option key={pipeline.id}>{pipeline.id}</option>
 						))}
-					</select>
+					</BoundSelect>
 				)}
 			/>
 		</RenderStage>

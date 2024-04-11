@@ -110,7 +110,7 @@ class DataFusion:
 		self.pose_estimator.observe_f2r(timestamp, robot_to_camera, pose)
 
 		if self.datalog is not None:
-			simple_f2o = msg.pose.transformBy(robot_to_camera.value.inverse())
+			simple_f2o = msg.pose.transformBy(robot_to_camera.current.inverse())
 			self.log_f2o.append(simple_f2o)
 			
 			delta = timestamp - self._last_f2r_ts
@@ -143,7 +143,7 @@ class DataFusion:
 		"Get the best estimated `odom`→`robot` corrective transform"
 		if fresh and (not self.fresh_o2r):
 			return None
-		res = self.pose_estimator.track_tf(ReferenceFrame.ODOM, ReferenceFrame.ROBOT).value
+		res = self.pose_estimator.track_tf(ReferenceFrame.ODOM, ReferenceFrame.ROBOT).current
 		if res is None:
 			return None
 		if fresh:
@@ -161,7 +161,7 @@ class DataFusion:
 		if fresh and (not self.fresh_f2r):
 			return None
 		ts = self.clock.now()
-		res = self.pose_estimator.track_tf(ReferenceFrame.FIELD, ReferenceFrame.ROBOT, ts).value
+		res = self.pose_estimator.track_tf(ReferenceFrame.FIELD, ReferenceFrame.ROBOT, ts).current
 		if res is None:
 			return None
 		res = Pose3d().transformBy(res) # Convert to pose

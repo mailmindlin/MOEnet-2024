@@ -1,8 +1,9 @@
 from unittest import TestCase
 from datetime import timedelta
 
-from util.timestamp import Timestamp
+from util.timestamp import Timestamp, Stamped
 from typedef.geom import Pose3d, Translation3d
+from typedef.geom_cov import Pose3dCov
 from typedef.cfg import PoseEstimatorConfig
 
 from .pose_simple import (
@@ -11,6 +12,7 @@ from .pose_simple import (
     Pose3d, Rotation3d, Translation3d,
     Clock,
 )
+from .util.cascade import StaticValue
 
 
 class PoseEstimatorTest(TestCase):
@@ -32,29 +34,61 @@ class PoseEstimatorTest(TestCase):
             ),
             clock=self.clock,
         )
-        r2c = Transform3d()
+
+        r2c = StaticValue(Transform3d())
         # Start at f2r (0, 0, 0) t=0
-        f2r_0 = Pose3d(Translation3d(0, 0, 0), Rotation3d())
+        f2r_0 = Pose3dCov(Pose3d(Translation3d(0, 0, 0), Rotation3d()))
         estimator.observe_f2r(Timestamp(0), r2c, f2r_0)
         # End at f2r (0, 0, 0) t=2s
-        f2r_2 = Pose3d(Translation3d(2, 0, 0), Rotation3d())
-        estimator.observe_f2r(Timestamp(int(2e9)), r2c, f2r_2)
+        f2r_2 = Pose3dCov(Pose3d(Translation3d(2, 0, 0), Rotation3d()))
+        estimator.observe_f2r(Timestamp.from_seconds(2), r2c, f2r_2)
 
         # Check simple lookups
-        assert estimator.field_to_robot(Timestamp(0)) == Pose3d()
-        assert estimator.field_to_robot(Timestamp(int(2e9))) == Pose3d(Translation3d(x=2,y=0,z=0), Rotation3d())
+        self.assertEqual(estimator.field_to_robot(Timestamp(0)), Pose3d())
+        self.assertEqual(estimator.field_to_robot(Timestamp.from_seconds(2)), Pose3d(Translation3d(x=2,y=0,z=0), Rotation3d()))
 
         # Check lerp (t=1s)
-        assert estimator.field_to_robot(Timestamp(int(1e9))) == Pose3d(Translation3d(x=1,y=0,z=0), Rotation3d())
+        self.assertEqual(estimator.field_to_robot(Timestamp.from_seconds(1)), Pose3d(Translation3d(x=1,y=0,z=0), Rotation3d()))
 
         # We haven't provided any odometry info, so it should be empty
-        assert estimator.odom_to_robot() == Transform3d()
+        self.assertEqual(estimator.latest_odom_to_robot().current.value, Transform3d())
 
-        # Provide odometry
+    
+    def test_correct(self):
+        estimator = SimplePoseEstimator(
+            PoseEstimatorConfig(
+                history=timedelta(seconds=10.0),
+                force2d=False,
+            ),
+            clock=self.clock,
+        )
+        r2c = StaticValue(Transform3d())
+        # Start at f2r (0, 0, 0) t=0
+        f2r_0 = Pose3dCov(Pose3d(Translation3d(0, 0, 0), Rotation3d()))
+        estimator.observe_f2r(Timestamp(0), r2c, f2r_0)
+        # End at f2r (2, 0, 0) t=2s
+        f2r_2 = Pose3dCov(Pose3d(Translation3d(2, 0, 0), Rotation3d()))
+        estimator.observe_f2r(Timestamp.from_seconds(2), r2c, f2r_2)
+
+        # We haven't provided any odometry info, so it should be empty
+        tr = estimator.latest_odom_to_robot()
+        self.assertEqual(tr.current.value, Transform3d())
+        self.assertTrue(tr.is_fresh)
+
+        # Provide odometry (1,1,0) t=1
         f2o_1 = Pose3d(Translation3d(x=1,y=1,z=0), Rotation3d())
-        estimator.observe_f2o(Timestamp(int(1e9)), f2o_1)
+        estimator.observe_f2o(Timestamp.from_seconds(1), f2o_1)
+        self.assertFalse(tr.is_fresh)
+        self.assertEqual(estimator.field_to_odom(Timestamp.from_seconds(1)), f2o_1)
 
-        f2r_1 = estimator.field_to_robot(Timestamp(int(1e9))) # Correct value
-        o2r_1 = estimator.odom_to_robot()
-        f2r_1_ = f2o_1 + o2r_1 # Apply odometry correction
-        assert f2r_1 == f2r_1_
+        # Correct robot position at t=1
+        f2r_1 = estimator.field_to_robot(Timestamp.from_seconds(1))
+        self.assertEqual(f2r_1, Pose3d(Translation3d(x=1,y=0,z=0), Rotation3d()))
+
+        # Retrieve odometry correction
+        o2r_1 = estimator.latest_odom_to_robot().current
+        self.assertEqual(o2r_1.ts, Timestamp.from_seconds(1), "Overlap should be at t=1")
+        self.assertEqual(o2r_1.value, Transform3d(Translation3d(0, -1, 0), Rotation3d()))
+        
+        f2r_1_ = f2o_1 + o2r_1.value # Apply odometry correction
+        self.assertEqual(f2r_1, f2r_1_)

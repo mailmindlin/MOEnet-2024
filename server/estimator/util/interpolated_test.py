@@ -51,16 +51,16 @@ class TestInterpolate(TestCase):
         for t in ts:
             self.assertTrue(t.is_fresh)
             self.assertFalse(t.is_static)
-            self.assertIsNone(t.value)
+            self.assertIsNone(t.current)
         
         buffer.add(1, 1)
         self.assertEqual(len(buffer), 1)
         for t in ts:
             self.assertFalse(t.is_fresh)
-            self.assertIsNone(t.value)
+            self.assertIsNone(t.current)
         for t in ts:
             t.refresh()
-            self.assertEqual(t.value, 1)
+            self.assertEqual(t.current, 1)
             self.assertTrue(t.is_fresh)
         
         buffer.add(3, 2)
@@ -69,12 +69,12 @@ class TestInterpolate(TestCase):
         # Points 0, 1 don't change
         for i,t in enumerate(ts[:2]):
             self.assertTrue(t.is_fresh, f"Tracker {i} is fresh")
-            self.assertEqual(t.value, 1)
+            self.assertEqual(t.current, 1)
         # Points 2, 3 change
         for t in ts[2:]:
             self.assertFalse(t.is_fresh)
-            self.assertEqual(t.value, 1)
+            self.assertEqual(t.current, 1)
         # Refresh updates value
         for k,t in zip(ks,ts):
             t.refresh()
-            self.assertEqual(t.value, buffer.get(k))
+            self.assertEqual(t.current, buffer.get(k))

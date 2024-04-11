@@ -1,29 +1,29 @@
-from typing import TypeVar, Self, Generic, ClassVar, overload
+from typing import Self, ClassVar, overload
 from abc import ABC, abstractmethod
 
 from pydantic import PositiveInt
 import numpy as np
 
+type Vec[N: int] = np.ndarray[tuple[N], np.dtype[np.floating]]
+type Mat[M: int, N: int] = np.ndarray[tuple[M, N], np.dtype[np.floating]]
 
-T = TypeVar('T')
-N = TypeVar('N', bound=int)
 
-def mahalanobisDistance2(mean_diff: np.ndarray[tuple[N], np.dtype[np.floating]], cov_sum: np.ndarray[tuple[N, N], np.dtype[np.floating]]) -> float:
+def mahalanobisDistance2[N: int](mean_diff: Vec[N], cov_sum: Mat[N, N]) -> float:
 	"Squared mahalanobis distance"
 	cov_inv = np.linalg.inv(cov_sum)
 	return (cov_inv.T @ mean_diff @ cov_inv).item(0)
 
-def mahalanobisDistance(mean_diff: np.ndarray[tuple[N], np.dtype[np.floating]], cov_sum: np.ndarray[tuple[N, N], np.dtype[np.floating]]) -> float:
+def mahalanobisDistance[N: int](mean_diff: Vec[N], cov_sum: Mat[N, N]) -> float:
 	return np.sqrt(mahalanobisDistance2(mean_diff, cov_sum))
 
-class Covariant(ABC, Generic[N]):
+class Covariant[N: int](ABC):
 	"Abstract base type for data with mean and covariance matrix"
 	STATE_LEN: ClassVar[int] = 0
 
-	cov: np.ndarray[tuple[N, N], np.dtype[np.floating]]
+	cov: Mat[N, N]
 	"Covariance matrix"
 
-	def __init__(self, cov: np.ndarray[tuple[N, N], np.dtype[np.floating]] | None = None) -> None:
+	def __init__(self, cov: Mat[N, N] | None = None) -> None:
 		super().__init__()
 		if cov is None:
 			cov = np.zeros((self.STATE_LEN, self.STATE_LEN), dtype=float)
@@ -37,19 +37,20 @@ class Covariant(ABC, Generic[N]):
 		return bool(np.all(np.isfinite(self.mean_vec())) and np.all(np.isfinite(self.cov)))
 	
 	@abstractmethod
-	def mean_vec(self) -> np.ndarray[tuple[N], np.dtype[np.floating]]:
+	def mean_vec(self) -> Vec[N]:
 		"Get mean, as numpy array"
-		pass
+		...
 
 
-class CovariantWrapper(Covariant[N], Generic[T, N]):
+class CovariantWrapper[T, N: int](Covariant[N]):
 	"Wrapper to help add covariance matrix to a type"
 	@classmethod
-	def parse_numpy(cls, mean: T | np.ndarray[tuple[N], np.dtype[np.floating]]) -> T:
+	def parse_numpy(cls, mean: T | Vec[N]) -> T:
 		"Parse numpy array as datatype"
+		assert not isinstance(mean, np.ndarray)
 		return mean
 	
-	def __init__(self, mean: T | np.ndarray[tuple[N], np.dtype[np.floating]], cov: np.ndarray[tuple[N, N], np.dtype[np.floating]] | None = None):
+	def __init__(self, mean: T | Vec[N], cov: Mat[N, N] | None = None):
 		super().__init__(cov)
 		self.mean = type(self).parse_numpy(mean)
 	
@@ -72,7 +73,7 @@ class CovariantWrapper(Covariant[N], Generic[T, N]):
 		sample = np.random.multivariate_normal(mean_np, self.cov, n)
 
 		# We need to help out the type checker a bit
-		def parse_numpy(v: np.ndarray[tuple[N], np.dtype[np.floating]]) -> T:
+		def parse_numpy(v: Vec[N]) -> T:
 			return type(self).parse_numpy(v)
 		
 		if n is None:
@@ -85,13 +86,13 @@ class CovariantWrapper(Covariant[N], Generic[T, N]):
 	
 	def __repr__(self):
 		return f'{type(self).__name__}(mean={self.mean!r}, cov={self.cov})'
-	# def __matmul__(self, tf: np.ndarray[tuple[N], np.dtype[np.floating]]):
+	# def __matmul__(self, tf: Vec[N]):
 	# 	pass
 
-class LinearCovariantBase(CovariantWrapper[T, N]):
+class LinearCovariantBase[T, N: int](CovariantWrapper[T, N]):
 	"CovariantWrapper with some extra methods assuming T is linear"
 	@classmethod
-	def _try_wrap(cls, other: T | Self | np.ndarray[tuple[N], np.dtype[np.floating]]) -> Self:
+	def _try_wrap(cls, other: T | Self | Vec[N]) -> Self:
 		if isinstance(other, cls):
 			return other
 		try:
@@ -107,7 +108,7 @@ class LinearCovariantBase(CovariantWrapper[T, N]):
 	def __pos__(self):
 		return self
 
-	def __add__(self, other: T | Self | np.ndarray[tuple[N], np.dtype[np.floating]]) -> Self:
+	def __add__(self, other: T | Self | Vec[N]) -> Self:
 		cls = type(self)
 		other = cls._try_wrap(other)
 		if isinstance(other, cls):
@@ -116,14 +117,14 @@ class LinearCovariantBase(CovariantWrapper[T, N]):
 	
 	__radd__ = __add__
 	
-	def __sub__(self, other: T | Self | np.ndarray[tuple[N], np.dtype[np.floating]]) -> Self:
+	def __sub__(self, other: T | Self | Vec[N]) -> Self:
 		cls = type(self)
 		other = cls._try_wrap(other)
 		if isinstance(other, cls):
 			return cls(self.mean_vec() - other.mean_vec(), self.cov + other.cov)
 		return NotImplemented
 	
-	def __rsub__(self, other: T | Self | np.ndarray[tuple[N], np.dtype[np.floating]]) -> Self:
+	def __rsub__(self, other: T | Self | Vec[N]) -> Self:
 		cls = type(self)
 		other = cls._try_wrap(other)
 		if isinstance(other, cls):

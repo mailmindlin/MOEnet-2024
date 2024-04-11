@@ -1,10 +1,9 @@
-from typing import Literal, Tuple, overload, TypeVar, TYPE_CHECKING
+from typing import Literal, overload, TYPE_CHECKING, Any
 from numpy.typing import NDArray, ArrayLike
 import numpy as np
 from util.timestamp import Timestamp
 from datetime import timedelta
 from util.clock import Clock
-from dataclasses import dataclass
 from enum import IntFlag, auto, Flag
 from abc import ABC, abstractmethod, abstractproperty
 from contextlib import contextmanager
@@ -14,19 +13,25 @@ from . import angles
 if TYPE_CHECKING:
 	from .filter import DataSource
 
-T = TypeVar('T')
+type Vec[N: int] = np.ndarray[tuple[N], np.dtype[np.floating]]
+type Mat[M: int, N: int] = np.ndarray[tuple[M, N], np.dtype[np.floating]]
 
-@overload
-def block(idxs: list[int] | IntFlag) -> np.ndarray[int]: ...
-@overload
-def block(base: np.ndarray[T] | ArrayLike, idxs: list[int] | IntFlag) -> np.ndarray[T]: ...
-def block(arg0: np.ndarray[T] | ArrayLike | list[int] | IntFlag, arg1 = None) -> np.ndarray:
-	if arg1 is None:
-		base = np.asarray(arg0)
-		idxs = arg1
+def block_idxs(idxs: list[int] | IntFlag):
+	if isinstance(idxs, IntFlag):
+		_idxs = np.array(list(idxs), dtype=int)
 	else:
-		base = None
-		idxs = arg0
+		_idxs = np.asanyarray(idxs, dtype=int)
+	# Check if consecutive
+	if len(_idxs) == 1:
+		idx: int = _idxs[0]
+		return (idx, idx)
+	
+	if np.all(np.ediff1d(_idxs) == 1):
+		r = range(_idxs[0], _idxs[-1] + 1)
+		return (r, r)
+	raise ValueError()
+
+def block[T](base: np.ndarray[T] | ArrayLike, idxs: list[int] | IntFlag) -> np.ndarray[T]:
 	
 	if isinstance(idxs, IntFlag):
 		idxs = np.array(list(idxs), dtype=int)
@@ -104,9 +109,9 @@ class Measurement:
 	latest_control: Any
 	"The most recent control vector (needed for lagged data)"
 
-	measurement: NDArray
+	measurement: Vec[int]
 	"The measurement and its associated covariance"
-	covariance: NDArray
+	covariance: Mat[int, int]
 
 	def __init__(self, ts: Timestamp, source: 'DataSource', *, update_vector: StateMembers = StateMembers.NONE) -> None:
 		self.stamp = ts
@@ -116,7 +121,7 @@ class Measurement:
 		self.covariance = np.zeros((15, 15), dtype=float)
 		self.mahalanobis_threshold = None
 
-	def measure(self, idxs: StateMembers, value: float | np.ndarray[float], cov: float | np.ndarray[float] | None = None):
+	def measure(self, idxs: StateMembers, value: float | Vec[...], cov: float | Vec[int] | None = None):
 		self.measurement[idxs.idxs()] = value
 		if cov is not None:
 			cov_idxs = np.diag_indices(15)[idxs.idxs()]
@@ -126,31 +131,31 @@ class Measurement:
 		pass
 
 	@property
-	def mean_dense(self):
+	def mean_dense(self) -> Vec[Literal[15]]:
 		return self.measurement
 	@property
-	def covariance_dense(self):
+	def covariance_dense(self) -> Mat[Literal[15], Literal[15]]:
 		return self.covariance
 
-S = Literal[15]
+type S = Literal[15]
 
 class FilterBase:
 	debug: bool
-	estimate_error_covariance: np.ndarray[float, tuple[S, S]]
-	process_noise_covariance: np.ndarray[float, tuple[S, S]]
+	process_noise_covariance: Mat[S, S]
 	"Gets the filter's process noise covariance"
 
-	dynamic_process_noise_covariance: np.ndarray[float, tuple[S, S]]
+	dynamic_process_noise_covariance: Mat[S, S]
 	def __init__(self, log: logging.Logger, clock: Clock):
 		self.log = log
 		self.debug = False
 		self.is_initialized = False
 		"True if we've received our first measurement, false otherwise"
 		self.state_len = 15
-		self.state = np.zeros((self.state_len), dtype=float)
-		self.estimate_error_covariance = np.zeros()
+		self.state: Vec[S] = np.zeros((self.state_len), dtype=float)
+		"Current state vector"
+		self.estimate_error_covariance: Mat[S, S] = np.zeros((15, 15))
 		"The estimated error covariance"
-		self.predicted_state = np.zeros()
+		self.predicted_state: Mat[S, S] = np.zeros((15, 15))
 		"The filter's predicted state, i.e., the state estimate before correct() is called."
 		self.use_control = False
 		"Whether or not we apply the control term"
@@ -167,11 +172,12 @@ class FilterBase:
 		self.sensor_timeout = timedelta(0)
 		"Gets the sensor timeout value"
 	
+	@abstractmethod
 	def reset(self):
 		"Resets filter to its unintialized state"
 		...
 
-	def computeDynamicProcessNoiseCovariance(self, state: np.ndarray[float, S]):
+	def computeDynamicProcessNoiseCovariance(self, state: Vec[S]):
 		"""
 		Computes a dynamic process noise covariance matrix using the
 	 		parameterized state This allows us to, e.g., not increase the pose
@@ -192,7 +198,7 @@ class FilterBase:
 		velocity_matrix = np.zeros(len(StateMembers.TWIST), dtype=float)
 		np.fill_diagonal(velocity_matrix, np.linalg.norm(state[list(StateMembers.TWIST)]))
 
-		twist_idxs = block(StateMembers.TWIST)
+		twist_idxs = block_idxs(StateMembers.TWIST)
 		self.dynamic_process_noise_covariance[twist_idxs] = velocity_matrix @ self.process_noise_covariance[twist_idxs] @ velocity_matrix.T
 	
 	@contextmanager
@@ -209,15 +215,16 @@ class FilterBase:
 		"""
 		pass
 
-	@abstractproperty
+	@property
+	@abstractmethod
 	def control(self) -> np.floating[T]:
 		"The control vector currently being used"
 		...
 	
-	@abstractproperty
-	def control_time(self) -> Timestamp:
-		
-		...
+	# @property
+	# @abstractmethod
+	# def control_time(self) -> Timestamp:
+	# 	...
 
 	def getState(self) -> np.ndarray[float, S]:
 		"Gets the filter state"
@@ -309,7 +316,7 @@ class FilterBase:
 				# prediction and correction.
 				self.last_measurement_time = measurement.stamp
 
-	def set_control(self, control: np.ndarray[float, S], control_time: Timestamp):
+	def set_control(self, control: Vec[S], control_time: Timestamp):
 		"""
 		Sets the most recent control term
 		@param[in] control - The control term to be applied

@@ -10,9 +10,7 @@ from .cascade import Tracked
 undefined = object()
 
 if TYPE_CHECKING:
-	SK = TypeVar('SK')
-	SV = TypeVar('SV')
-	class SortedDict(dict[SK, SV]):
+	class SortedDict[SK, SV](dict[SK, SV]):
 		def peekitem(self, idx: int = -1) -> tuple[SK, SV]: ...
 		def bisect_right(self, value: SK) -> int: ...
 else:

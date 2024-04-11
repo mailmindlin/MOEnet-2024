@@ -1,4 +1,4 @@
-from typing import Literal, Generic, TypeVar
+from typing import Literal
 from enum import IntFlag
 from dataclasses import dataclass
 from collections import deque
@@ -32,8 +32,7 @@ class SensorMode(Enum):
 	RELATIVE = auto()
 	DIFFERENTIAL = auto()
 
-T = TypeVar('T')
-class DataSource(Generic[T]):
+class DataSource[T]:
 	name: str
 	robot_to_sensor: Transform3d
 	initial_measurement: Transform3d | None = None
@@ -164,7 +163,7 @@ class PoseEstimator:
 		# Init the last measurement time so we don't get a huge initial delta
 		self._filter.last_measurement_time = self.clock.now()
 		
-	def set_pose(self, msg: Stamped[Pose3d | Pose3dCov]):
+	def set_pose(self, msg: Stamped[Pose3dCov]):
 		# RCLCPP_INFO_STREAM(
 		# 	get_logger(),
 		# 	"Received set_pose request with value\n" << geometry_msgs.msg.to_yaml(*msg))
@@ -185,14 +184,15 @@ class PoseEstimator:
 
 		# Set the state vector to the reported pose
 		ALL = reduce(lambda a, b: a|b, StateMembers)
-		measurement = Measurement(msg.ts, None, update_vector=ALL)
+		source: DataSource = None
+		measurement = Measurement(msg.ts, source, update_vector=ALL)
 		# We only measure pose variables, so initialize the vector to 0
 		measurement.measure(ALL, 0.0, 1e-6)
 
 		# Prepare the pose data (really just using this to transform it into the
 		# target frame). Twist data is going to get zeroed out.
 		# Since pose messages do not provide a child_frame_id, it defaults to baseLinkFrameId_
-		measurement = self.prepare_pose(None, msg, SensorMode.ABSOLUTE)
+		measurement = self.prepare_pose(source, msg, StateMembers.POSE, SensorMode.ABSOLUTE)
 		assert measurement
 
 		# For the state

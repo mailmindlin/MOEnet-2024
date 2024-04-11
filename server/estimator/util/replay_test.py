@@ -32,6 +32,7 @@ class LinearFilter(ReplayableFilter[Measurement, State]):
 	
 	@last_measurement_ts.setter
 	def last_measurement_ts(self, value: Timestamp):
+		print("Set last_measurement_ts to", value)
 		self.state.ts = value
 	
 	def snapshot(self) -> State:
@@ -56,16 +57,16 @@ class TestReplay(TestCase):
 		self.assertEqual(filter.last_measurement_ts, Timestamp(0))
 		self.assertEqual(filter.state.x, 1)
 
-		filter.predict(Timestamp(1e9), timedelta(seconds=1))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		filter.predict(Timestamp.from_seconds(1), timedelta(seconds=1))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 2)
 
-		filter.observe(Measurement(Timestamp(1e9), 3, 4))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		filter.observe(Measurement(Timestamp.from_seconds(1), 3, 4))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 3)
 
-		filter.predict(Timestamp(2e9), timedelta(seconds=1))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(2e9))
+		filter.predict(Timestamp.from_seconds(2), timedelta(seconds=1))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(2))
 		self.assertEqual(filter.state.x, 7)
 	
 	def test_inorder(self):
@@ -80,17 +81,17 @@ class TestReplay(TestCase):
 		rf.observe(Measurement(Timestamp(0), 1, 1))
 		# self.assertFalse(filter.is_initialized)
 
-		rf.predict(Timestamp(1e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		rf.predict(Timestamp.from_seconds(1))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 2)
 
-		rf.observe(Measurement(Timestamp(1e9), 3, 4))
+		rf.observe(Measurement(Timestamp.from_seconds(1), 3, 4))
 		# Not processed
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 2)
 
-		rf.predict(Timestamp(2e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(2e9))
+		rf.predict(Timestamp.from_seconds(2))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(2))
 		self.assertEqual(filter.state.x, 7)
 	
 	def test_replay(self):
@@ -100,39 +101,47 @@ class TestReplay(TestCase):
 		rf = ReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
 
 		with self.assertNoLogs(log, logging.INFO + 1):
-			rf.observe(Measurement(Timestamp(0e9), 1, 1))
-			rf.observe(Measurement(Timestamp(1e9), 3, 4))
-			rf.predict(Timestamp(3e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+			rf.observe(Measurement(Timestamp.from_seconds(0), 1, 1))
+			rf.observe(Measurement(Timestamp.from_seconds(1), 3, 4))
+			rf.predict(Timestamp.from_seconds(3))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(3))
 		self.assertEqual(filter.state.x, 11)
 
 
 		with self.assertNoLogs(log, logging.INFO + 1):
-			rf.observe(Measurement(Timestamp(2e9), 1, 1))
-			rf.predict(Timestamp(4e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(4e9))
+			rf.observe(Measurement(Timestamp.from_seconds(2), 1, 1))
+			rf.predict(Timestamp.from_seconds(4))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(4))
 		self.assertEqual(filter.state.x, 3)
 
 
 class TestCascade(TestCase):
 	def test_inorder(self):
 		log = logging.getLogger("filter")
+		import sys
+		from util.log import ColorFormatter
+		h = logging.StreamHandler(sys.stdout)
+		h.setLevel(logging.DEBUG)
+		h.setFormatter(ColorFormatter())
+		log.addHandler(h)
+		log.setLevel(logging.DEBUG)
 		filter = LinearFilter()
 		cf = CascadingReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
 
 		cf.observe(Measurement(Timestamp(0), 1, 1))
 
-		cf.predict(Timestamp(1e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		cf.predict(Timestamp.from_seconds(1))
+		print(repr(filter.state))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 2)
 
-		cf.observe(Measurement(Timestamp(1e9), 3, 4))
+		cf.observe(Measurement(Timestamp.from_seconds(1), 3, 4))
 		# Not processed
-		self.assertEqual(filter.last_measurement_ts, Timestamp(1e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(1))
 		self.assertEqual(filter.state.x, 2)
 
-		cf.predict(Timestamp(2e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(2e9))
+		cf.predict(Timestamp.from_seconds(2))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(2))
 		self.assertEqual(filter.state.x, 7)
 	
 	def test_replay(self):
@@ -141,17 +150,17 @@ class TestCascade(TestCase):
 		cf = CascadingReplayFilter(filter, timedelta(seconds=10), log=log, smooth_lagged_data=True, predict_to_current_time=True)
 
 		with self.assertNoLogs(log, logging.INFO + 1):
-			cf.observe(Measurement(Timestamp(0e9), 1, 1))
-			cf.observe(Measurement(Timestamp(1e9), 3, 4))
-			cf.predict(Timestamp(3e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+			cf.observe(Measurement(Timestamp.from_seconds(0), 1, 1))
+			cf.observe(Measurement(Timestamp.from_seconds(1), 3, 4))
+			cf.predict(Timestamp.from_seconds(3))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(3))
 		self.assertEqual(filter.state.x, 11)
 
 
 		with self.assertNoLogs(log, logging.INFO + 1):
-			cf.observe(Measurement(Timestamp(2e9), 1, 1))
-			cf.predict(Timestamp(4e9))
-		self.assertEqual(filter.last_measurement_ts, Timestamp(4e9))
+			cf.observe(Measurement(Timestamp.from_seconds(2), 1, 1))
+			cf.predict(Timestamp.from_seconds(4))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(4))
 		self.assertEqual(filter.state.x, 3)
 	
 	def test_cascade(self):
@@ -163,17 +172,17 @@ class TestCascade(TestCase):
 		t_dx = PushValue(4.0)
 
 		with self.assertNoLogs(log, logging.INFO + 1):
-			cf.observe(Measurement(Timestamp(0e9), 1, 1))
-			cf.observe(t_dx.map(lambda dx: Measurement(Timestamp(1e9), 3, dx)))
-			cf.predict(Timestamp(3e9))
+			cf.observe(Measurement(Timestamp.from_seconds(0), 1, 1))
+			cf.observe(t_dx.map(lambda dx: Measurement(Timestamp.from_seconds(1), 3, dx)))
+			cf.predict(Timestamp.from_seconds(3))
 		
-		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(3))
 		self.assertEqual(filter.state.x, 3 + 4*2)
 
 
 		with self.assertNoLogs(log, logging.INFO + 1):
 			t_dx.update(5.0) # Trigger cascade
-			cf.predict(Timestamp(3e9)) # recalculate
+			cf.predict(Timestamp.from_seconds(3)) # recalculate
 		
-		self.assertEqual(filter.last_measurement_ts, Timestamp(3e9))
+		self.assertEqual(filter.last_measurement_ts, Timestamp.from_seconds(3))
 		self.assertEqual(filter.state.x, 3 + 5 * 2)

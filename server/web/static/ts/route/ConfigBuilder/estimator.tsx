@@ -1,6 +1,7 @@
 import React from 'react';
-import { EstimatorConfig, NetworkTablesConfig } from "../../config";
-import { BoundCheckbox, BoundSelect, Binding, Collapsible } from './bound';
+import { EstimatorConfig } from "../../config";
+import { Binding } from './bound';
+import Collapsible from '../../components/Collapsible';
 
 interface EstimatorConfigEditorProps {
 	config?: EstimatorConfig;

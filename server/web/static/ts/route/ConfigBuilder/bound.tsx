@@ -105,18 +105,6 @@ export function BoundSelect<V, K extends keyof V>(props: BoundSelectProps<V, K>)
 	</div>);
 }
 
-function Tooltip(props: { help?: React.ReactNode; children: React.ReactNode }) {
-	if (props.help) {
-		return (
-			<span className='tooltip'>
-				{props.children}
-				<div className='tooltiptext'>{props.help}</div>
-			</span>
-		)
-	} else {
-		return props.children;
-	}
-}
 
 interface BoundNumericInputProps<V, K extends keyof V> {
 	label: string;
@@ -204,22 +192,7 @@ export function BoundTextInput<V, K extends keyof V>(props: BoundTextInputProps<
 	</div>);
 }
 
-export function Collapsible(props: { children: React.ReactNode, legend?: React.ReactNode }) {
-	const [expanded, setExpanded] = React.useState(true);
-
-	let legend = (<legend onClick={() => setExpanded(!expanded)}>
-		<span>{props.legend}</span>
-	</legend>)
-
-	return (
-		<fieldset className={expanded ? 'toggleAble expanded' : 'toggleAble'}>
-			{ legend }
-			{ props.children }
-		</fieldset>
-	)
-}
-
-interface BoundCheckboxProps<V, K extends keyof V> {
+interface BoundCheckboxProps<V extends object, K extends FilterKeys<V, boolean>> {
 	label: string;
 	value: V;
 	name: K;

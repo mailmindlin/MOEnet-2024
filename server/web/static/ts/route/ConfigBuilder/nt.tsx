@@ -1,6 +1,7 @@
 import React from 'react';
 import { NetworkTablesConfig } from "../../config";
-import { BoundCheckbox, BoundSelect, Binding, Collapsible } from './bound';
+import { Binding } from './bound';
+import Collapsible from '../../components/Collapsible';
 
 interface NetworkTablesEditorProps {
 	nt?: NetworkTablesConfig;

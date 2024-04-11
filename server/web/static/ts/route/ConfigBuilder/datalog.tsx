@@ -1,6 +1,7 @@
 import React from 'react';
-import { DataLogConfig, NetworkTablesConfig } from "../../config";
+import { DataLogConfig } from "../../config";
 import { BoundCheckbox, BoundSelect, Binding } from './bound';
+import Collapsible from '../../components/Collapsible';
 
 interface DatalogConfigEdtiorProps {
 	config?: DataLogConfig;
@@ -9,12 +10,26 @@ interface DatalogConfigEdtiorProps {
 
 export default function DatalogConfigEdtior(props: DatalogConfigEdtiorProps) {
 	const config = props.config ?? {};
-
+	
 	const Bound = Binding(config, props.onChange);
 	return (
-		<fieldset>
-			<legend>Datalog</legend>
-			<Bound.Checkbox name='enabled' label='Enabled' defaultValue={true} />
+		<Collapsible legend='Datalog'>
+			<Bound.Checkbox
+				name='enabled'
+				label='Enabled'
+				help='Enable data logs'
+				defaultValue={true}
+			/>
+			<Bound.Text
+				name='folder'
+				label='Folder'
+				help='Folder to save data logs in'
+			/>
+			<Bound.Number
+				name='free_space'
+				label='Free space'
+				help='Minimum free space'
+			/>
 			<Bound.Checkbox
 				name='mkdir'
 				label='mkdir'
@@ -27,6 +42,6 @@ export default function DatalogConfigEdtior(props: DatalogConfigEdtiorProps) {
 				defaultValue={false}
 				help="Should we clean up old log files? (see free_space and max_logs)"
 			/>
-		</fieldset>
+		</Collapsible>
 	);
 }

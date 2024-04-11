@@ -1,6 +1,7 @@
 import React from 'react';
-import { LogConfig, NetworkTablesConfig } from "../../config";
-import { BoundCheckbox, BoundSelect, Binding } from './bound';
+import { LogConfig } from "../../config";
+import { Binding } from './bound';
+import Collapsible from '../../components/Collapsible';
 
 interface LogConfigEditorProps {
 	config?: LogConfig;
@@ -12,8 +13,7 @@ export default function LogConfigEditor(props: LogConfigEditorProps) {
 
 	const Bound = Binding(config, props.onChange);
 	return (
-		<fieldset>
-			<legend>Logging</legend>
+		<Collapsible legend='Logging'>
 			<Bound.Select name='level' label='Log Level' defaultValue='ERROR'>
 				<option value="DEBUG">Debug</option>
 				<option value="INFO">Info</option>
@@ -21,6 +21,7 @@ export default function LogConfigEditor(props: LogConfigEditorProps) {
 				<option value="ERROR">Error</option>
 				<option value="FATAL">Fatal</option>
 			</Bound.Select>
-		</fieldset>
+			
+		</Collapsible>
 	);
 }

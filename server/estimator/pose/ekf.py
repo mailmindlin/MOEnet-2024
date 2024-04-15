@@ -2,7 +2,7 @@ from datetime import timedelta
 import numpy as np
 from typing import Literal, TypeVar
 
-from server.util.timestamp import Timestamp
+from util.timestamp import Timestamp
 from .base import FilterBase, Measurement, StateMembers, ControlMembers
 from . import angles
 
@@ -163,16 +163,16 @@ class EKF(FilterBase):
 		self.prepareControl(reference_time, delta)
 
 		# Prepare the transfer function
-		def set_tfj(src: StateMembers, dst: StateMembers, val: float):
-			self.transfer_function[src.idx(), dst.idx()] = val
+		def set_tf(src: StateMembers, dst: StateMembers, val: np.ndarray):
+			self.transfer_function[src.idxs(), dst.idxs()] = val
 		
 		x_vxyz = np.array([
 			cy * cp,
 			cy * sp * sr - sy * cr,
 			cy * sp * cr + sy * sr
 		]) * delta_sec
-		self.transfer_function[StateMembers.X.idx(), StateMembers.VEL_LIN.idxs()] = x_vxyz
-		self.transfer_function[StateMembers.X.idx(), StateMembers.ACC_LIN.idxs()] = 0.5 * x_vxyz * delta_sec
+		set_tf(StateMembers.X, StateMembers.VEL_LIN, x_vxyz)
+		set_tf(StateMembers.X, StateMembers.ACC_LIN, 0.5 * x_vxyz * delta_sec)
 		
 		y_vxyz = np.array([
 			sy * cp,

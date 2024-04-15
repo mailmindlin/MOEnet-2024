@@ -8,7 +8,7 @@ from logging import Logger
 from dataclasses import dataclass
 
 from . import msg as worker
-from typedef import apriltag
+from typedef import apriltag, geom
 from typedef.pipeline import (
 	PipelineConfig, PipelineConfigWorker, PipelineStage, PipelineStageWorker,
 	AprilTagStageConfig, WorkerAprilTagStageConfig,
@@ -50,17 +50,23 @@ class WorkerConfigResolver:
 		self.config = config
 		self.config_path = config_path
 		self._tempdir = None
-		self.pipelines: dict[str, PipelineDefinition] = dict()
+		self.pipelines: dict[str, PipelineConfigWorker] = dict()
 		"Pipeline presets"
 
 		# Resolve presets
 		for pipeline in self.config.pipelines:
-			self.pipelines[pipeline.id] = self._resolve_pipeline(PipelinePresetId(pipeline.id), pipeline.stages)
+			resolved = self._resolve_pipeline(PipelinePresetId(pipeline.id), pipeline.stages)
+			assert resolved is not None
+			self.pipelines[pipeline.id] = resolved
 
 	@property
 	def _base_path(self):
 		"Base to resolve relative paths in the config relative to"
-		return Path(self.config_path).parent
+		config_path = self.config_path
+		if config_path is None:
+			#TODO: We don't need config_path if we're not loading anything
+			raise ValueError('Missing config path')
+		return Path(config_path).parent
 	
 	def _resolve_path(self, relpart: str | Path) -> Path:
 		"Resolve a path relative to the config directory"
@@ -106,7 +112,7 @@ class WorkerConfigResolver:
 			apriltags=apriltags,
 		)
 
-	def _resolve_stage_nn(self, cid: CameraId, nn_stage: ObjectDetectionStageConfig) -> ObjectDetectionStageConfig:
+	def _resolve_stage_nn(self, cid: CameraId | PipelinePresetId, nn_stage: ObjectDetectionStageConfig) -> ObjectDetectionStageConfig:
 		"Resolve a 'nn' pipeline stage"
 
 		self.log.debug("%s resolving nn", cid)
@@ -218,18 +224,25 @@ class WorkerConfigResolver:
 		pipeline = self._resolve_pipeline(cid, camera.pipeline)
 
 		if pipeline is None:
-			pipeline = []
+			pipeline = PipelineConfigWorker([])
 		
 		name = camera.name
 		robot_to_camera = camera.pose
 		dynamic_pose = camera.dynamic_pose
 		if dfn is not None:
+			# Inherit fields from camera selector definition
 			if name is None:
 				name = dfn.name
 			if robot_to_camera is None:
 				robot_to_camera = dfn.pose
 			if dynamic_pose is None:
 				dynamic_pose = dfn.dynamic_pose
+		
+		# Validation
+		if robot_to_camera is None:
+			if dynamic_pose is None:
+				self.log.error('Camera %s is missing robot_to_camera, but also does NOT have dynamic pose', cid)
+			robot_to_camera = geom.Transform3d()
 		
 		# We need name to exist for logging
 		if name is None:

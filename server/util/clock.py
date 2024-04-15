@@ -4,9 +4,6 @@ from datetime import timedelta
 from .timestamp import Timestamp
 from .decorators import Singleton
 
-if TYPE_CHECKING:
-	from .timemap import TimeMapper
-
 
 class Clock(abc.ABC):
 	@abc.abstractmethod

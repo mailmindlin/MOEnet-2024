@@ -18,7 +18,7 @@ from util.timemap import TimeMapper, IdentityTimeMapper
 from util.timestamp import Timestamp
 
 from .pose_simple import SimplePoseEstimator
-from .tracker import ObjectTracker
+from .obect_tracker import ObjectTracker
 from .tf import TfTracker, ReferenceFrameKind, TfProvider, ReferenceFrame
 from .camera_tracker import CamerasTracker
 

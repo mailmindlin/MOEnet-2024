@@ -147,6 +147,8 @@ class CameraConfig(BaseModel):
 	dynamic_pose: Optional[str] = Field(None, description="If this camera can move, this is it's network name")
 	pipeline: Union[PipelineConfig, str, None] = Field(None, description="Configure pipeline")
 
+type DebugLevel = Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
+
 class LogFormatterSpec(BaseModel):
 	"Define a logging formatter"
 	format: str | None = Field(default=None)
@@ -157,7 +159,7 @@ class LogFormatterSpec(BaseModel):
 class LogHandlerSpec(BaseModel):
 	formatter: str | LogFormatterSpec | None = Field(default=None, description="Formatter to use")
 	handler: str = Field(default=None)
-	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG', description="Logging level to handle")
+	level: DebugLevel = Field(default='DEBUG', description="Logging level to handle")
 	filters: list[str] = Field(default_factory=list)
 
 class LoggerSpec(BaseModel):
@@ -165,7 +167,7 @@ class LoggerSpec(BaseModel):
 
 class LogConfig(BaseModel):
 	"Configuration for logging output"
-	level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'] = Field(default='DEBUG', description="Default logging level")
+	level: DebugLevel = Field(default='DEBUG', description="Default logging level")
 	file: Optional[Path] = Field(default=None)
 	formatters: dict[str, LogFormatterSpec] = Field(default_factory=dict)
 	handlers: dict[str, LogHandlerSpec] = Field(default_factory=dict)

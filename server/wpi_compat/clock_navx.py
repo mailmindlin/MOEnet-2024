@@ -18,6 +18,7 @@ def _map_port(port: Literal['usb', 'usb1', 'usb2']) -> wpilib._wpilib.SerialPort
 			return wpilib._wpilib.SerialPort.Port.kUSB2
 
 class NavXClock(OffsetClock):
+	"NavX-synchronized clock"
 	def __init__(self, clock: Clock, config: NavXConfig) -> None:
 		super().__init__(clock)
 		port = _map_port(config.port)

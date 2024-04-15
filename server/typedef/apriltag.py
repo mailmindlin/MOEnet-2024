@@ -514,4 +514,4 @@ AprilTagField = Union[
 ]
 "Any AprilTag field data"
 
-F = TypeVar('F', AprilTagFieldRefWpi, AprilTagFieldInlineWpi, AprilTagFieldInlineWpi, AprilTagFieldInlineSai)
+F = TypeVar('F', AprilTagFieldRefWpi, AprilTagFieldInlineWpi, AprilTagFieldRefSai, AprilTagFieldInlineSai)

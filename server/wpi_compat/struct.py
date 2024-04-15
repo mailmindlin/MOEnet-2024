@@ -1,11 +1,12 @@
 "Helpers for dealing with WPIstruct data"
-from typing import TYPE_CHECKING, Protocol, ClassVar, Any, TypeVar, Type, Union
+from typing import TYPE_CHECKING, Protocol, ClassVar, Any, TypeVar, Type, Union, Never, overload, runtime_checkable
 from wpiutil import wpistruct
 from util.timestamp import Timestamp
 
 if TYPE_CHECKING:
     from .typedef import SchemaRegistry
 
+@runtime_checkable
 class StructSerializable(Protocol):
     WPIStruct: ClassVar[Any]
 
@@ -16,8 +17,11 @@ class StructDescriptorBuilder:
 
 T = TypeVar('T', bound=StructSerializable)
 
-
-def get_descriptor(type: Type[T]) -> wpistruct.StructDescriptor:
+@overload
+def get_descriptor(type: type[StructSerializable]) -> wpistruct.StructDescriptor: ...
+@overload
+def get_descriptor(type: Any) -> Union[Never, wpistruct.StructDescriptor]: ...
+def get_descriptor[T: StructSerializable](type: type[T]) -> wpistruct.StructDescriptor:
     """
     Get StructDescriptor for type
 

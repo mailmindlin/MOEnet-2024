@@ -23,10 +23,10 @@ class WorkerInitConfig(BaseModel):
     name: str
     selector: OakSelector
     retry: RetryConfig
-    max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(None)
-    maxRefresh: float = Field(20, description="Maximum polling rate (Hz)")
+    max_usb: Literal["FULL", "HIGH", "LOW", "SUPER", "SUPER_PLUS", "UNKNOWN", None] = Field(default=None)
+    maxRefresh: float = Field(default=20, description="Maximum polling rate (Hz)")
     robot_to_camera: Transform3d
-    dynamic_pose: Optional[str] = Field(None)
+    dynamic_pose: Optional[str] = Field(default=None)
     pipeline: PipelineConfigWorker = Field(default_factory=lambda: PipelineConfigWorker([]))
 
 class WorkerState(IntEnum):

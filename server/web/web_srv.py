@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 from queue import Full
 from . import msg as ty
 from util.subproc import Subprocess
@@ -10,9 +10,6 @@ def app_main(config, msgq, cmdq, vidq):
     # Lazy import
     from .app import app_main
     app_main(config, msgq, cmdq, vidq)
-
-
-T = TypeVar('T')
 
 class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
     "Cross-process comms to WebServer"
@@ -66,7 +63,7 @@ class RemoteWebServer(Subprocess[ty.WMsgAny, ty.WCmdAny, None]):
             self.vid_queue,
         ]
     
-    def _respond(self, request: ty.WMsgRequest[T], payload: T):
+    def _respond[T](self, request: ty.WMsgRequest[T], payload: T):
         cmd = ty.WCmdResponse(
             request_id=request.request_id,
             target=request.target,

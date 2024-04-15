@@ -73,9 +73,12 @@ class Watchdog:
 	def block_args(self) -> 'BlockArgs':
 		if remaining := self.remaining_seconds():
 			if remaining > 0:
+				# Block with timeout
 				return { 'block': True, 'timeout': remaining }
 			else:
+				# Timeout expired, nonblocking mode
 				return { 'block': False, 'timeout': None }
+		# Not running
 		return { 'block': None, 'timeout': None }
 	
 	def skip(self):

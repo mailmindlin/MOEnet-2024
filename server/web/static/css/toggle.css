@@ -1,0 +1,24 @@
+fieldset.toggleAble {
+	height: 8px;
+	/* for IE purposes, this can't be 0 */
+	overflow: hidden;
+}
+
+fieldset.toggleAble.expanded {
+	height: auto;
+	/* if it is active then make the height as big as it needs to be */
+}
+
+fieldset.toggleAble>legend span:before {
+	content: "+";
+	/* add a plus sign to indicate that it can be expanded still (since not active) */
+	padding: 10px 10px 10px 10px;
+	margin: 10px 10px 10px 10px;
+}
+
+fieldset.toggleAble.expanded>legend span:before {
+	content: "-";
+	/* add a minus sign to indicate that it is already expanded */
+	padding: 10px 10px 10px 0;
+	margin: 10px 10px 10px 10px;
+}

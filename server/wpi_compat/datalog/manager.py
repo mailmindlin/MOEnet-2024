@@ -1,6 +1,6 @@
 from typedef.cfg import DataLogConfig
 from pathlib import Path
-import errno, stat, os
+import errno, stat, os, logging
 
 _WINERROR_NOT_READY = 21  # drive exists but is not accessible
 _WINERROR_INVALID_NAME = 123  # fix for bpo-35306
@@ -13,24 +13,26 @@ _IGNORED_WINERRORS = (
     _WINERROR_INVALID_NAME,
     _WINERROR_CANT_RESOLVE_FILENAME)
 
-def _ignore_error(exception):
+def _ignore_error(exception: OSError):
     return (getattr(exception, 'errno', None) in _IGNORED_ERRNOS or
             getattr(exception, 'winerror', None) in _IGNORED_WINERRORS)
 
 class DataLogManager:
     "Helper for data logs"
-    def __init__(self, config: DataLogConfig) -> None:
+    def __init__(self, config: DataLogConfig, log: logging.Logger | None) -> None:
         self.config = config
+        self.log = log or logging.getLogger('datalog')
     
     @property
     def folder(self):
+        "Log folder"
         if logDir := self.config.folder:
             return logDir
     
-    def folder_stat(self):
+    def _folder_stat(self):
         if folder := self.folder:
             try:
-                return folder.is_dir.stat()
+                return folder.stat()
             except OSError as e:
                 if not _ignore_error(e):
                     raise
@@ -43,38 +45,54 @@ class DataLogManager:
         return None
     
     def free_space(self):
+
         return 0
     
+    @property
     def enabled(self):
+        "Are datalogs enabled?"
         if not self.config.enabled:
             return False
-        if st := self.folder_stat():
+        if st := self._folder_stat():
             if not stat.S_ISDIR(st.st_mode):
                 return False
+        return True
+    
+    def _might_cleanup(self):
+        "Might this DataLogManager clean up logs under any circumstances?"
+        if not self.enabled:
+            return False
+        if not self.config.cleanup:
+            return False
         return True
     
     def should_cleanup(self):
         if not self.config.cleanup:
             return False
-        self.config.f
+        
     
-    def log_files(self, include_current: bool = True) -> list[Path]:
+    def log_files(self, include_current: bool = True):
+        """
+        Enumerate datalog files
+        
+        Parameters
+        ----------
+        :param include_current: Should we include files that are 
+        
+        """
         folder = self.folder
         if not folder:
-            return []
-        res = list()
+            return
+        
         for file in folder.glob("FRC_*.wpilog"):
-            if (not include_current) and file.name.startswith('FRC_TBD_'):
-                continue
-            res.append(file)
-        return res
+            if include_current or (not file.name.startswith('FRC_TBD_')):
+                yield file
     
     def start(self):
         # This is inefficient, but should only be called once
         while self.should_cleanup():
             # Delete oldest FRC_*.wpilog files (ignore FRC_TBD_*.wpilog as we just created one)
-            prev_files = self.log_files(include_current=False)
-            prev_files.sort(key=os.path.getmtime)
+            prev_files = sorted(self.log_files(include_current=False), key=os.path.getmtime)
             print(f"Deleting file {prev_files[0]}")
             prev_files[0].unlink()
         

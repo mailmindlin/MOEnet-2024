@@ -6,10 +6,11 @@ import enum, abc
 import numpy as np
 from scipy.spatial.transform import Rotation
 import tempfile
-try:
-    from . import geom, common
-except ImportError:
+if __package__ is None:
     import geom, common
+else:
+    from . import geom, common
+
 if TYPE_CHECKING:
     import robotpy_apriltag
     import depthai as dai

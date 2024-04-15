@@ -8,10 +8,10 @@ from enum import StrEnum
 from abc import ABC
 import depthai as dai
 
-try:
-	from . import apriltag, util
-except ImportError:
+if __package__ is None:
 	import apriltag, util
+else:
+	from . import apriltag, util
 
 # Helper for DAI types
 if TYPE_CHECKING:

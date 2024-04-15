@@ -93,5 +93,6 @@ def add_pydantic_validator(t: Type[T], fields: list[FieldInfo]):
 	def __get_pydantic_json_schema__(cls: Type[T], _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
 		return handler(schema.schema)
 	
-	t.__get_pydantic_core_schema__ = __get_pydantic_core_schema__
-	t.__get_pydantic_json_schema__ = __get_pydantic_json_schema__
+	# Modify class
+	setattr(t, '__get_pydantic_core_schema__', __get_pydantic_core_schema__)
+	setattr(t, '__get_pydantic_json_schema__', __get_pydantic_json_schema__)

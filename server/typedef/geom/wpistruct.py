@@ -57,6 +57,6 @@ def fix_struct(t: Type[T], fields: list[FieldInfo]):
 	s = Struct(f"<{''.join(fmts)}")
 	sd = _build_sd(t, s, "; ".join(schema), fields)
 	if not getattr(t, 'WPIStruct', None):
-		t.WPIStruct = sd
-	t._WPIStruct = sd
+		setattr(t, 'WPIStruct', sd)
+	setattr(t, '_WPIStruct', sd)
 	return sd

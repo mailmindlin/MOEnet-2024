@@ -144,8 +144,8 @@ class Comms:
 
 		if not self.config.nt.enabled:
 			self.log.warning("NetworkTables is disabled")
-			self.nt = None
-			self.table = None
+			self.nt = None # type: ignore
+			self.table = None # type: ignore
 			return
 		
 		# Connect to NT
@@ -305,4 +305,4 @@ class Comms:
 		del self.moenet
 		if self.nt is not None:
 			self.nt.disconnect()
-			self.nt = None
+			self.nt = None # type: ignore

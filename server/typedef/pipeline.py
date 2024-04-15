@@ -1,7 +1,8 @@
 "Pipeline stage configuration"
 
-from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, TypeVar, Generic, ClassVar, TypeAlias
-from pydantic import BaseModel, Field, Tag, Discriminator, RootModel, create_model
+from typing import TYPE_CHECKING, Literal, Optional, Union, Annotated, ClassVar, Self
+import typing
+from pydantic import BaseModel, Field, Tag, Discriminator, RootModel
 from pathlib import Path
 from enum import StrEnum
 from abc import ABC
@@ -34,14 +35,30 @@ class NNConfig(BaseModel):
 	anchors: list[float]
 	anchor_masks: dict[str, list[int]]
 
-S = TypeVar('S', bound=str)
-class BaseStageConfig(BaseModel, ABC):
+class BaseStageConfig[S: str](BaseModel, ABC):
 	infer: ClassVar[bool] = False
 	"Can we infer this stage?"
 	merge: ClassVar[bool] = False
 	"Should we merge stages with the same name?"
 
-	stage: str = Field(description="Stage name")
+	@classmethod
+	def factory(cls, *, merge: bool = False, implicit: bool = False) -> type[Self]:
+		"Make customized BaseStageConfig inheritance (fix 'stage' field)"
+		_merge = merge
+		S_val: type[S] = cls.__pydantic_generic_metadata__['args'][0]
+		assert typing.get_origin(S_val) == Literal
+		name: S = typing.get_args(S_val)[0]
+
+		class _ModelHelper(cls, ABC):
+			merge: ClassVar[bool] = _merge
+			infer: ClassVar[bool] = implicit
+			# Use default_factory to exclude default JSON
+			stage: S_val = (# type: ignore
+				Field(description="Stage name", default_factory=lambda: name) 
+			)
+		return typing.cast(type[Self], _ModelHelper)
+	
+	stage: S = Field(description="Stage name", default_factory=lambda: NotImplementedError())
 	enabled: bool = Field(default=True, description="Is this stage enabled?")
 	optional: bool = Field(default=False, description="If there's an error constructing this stage, is that a pipeline failure?")
 
@@ -51,39 +68,24 @@ class BaseStageConfig(BaseModel, ABC):
 			return f'{self.stage}.{target}'
 		return self.stage
 
-def _stage_base(name: S, *, merge: bool = False, implicit: bool = False):
-	"Make customized BaseStageConfig inheritance (fix 'stage' field)"
-	_merge = merge
-	_S: S = S
-	if not TYPE_CHECKING:
-		_S = Literal[name]
-	
-	class _ModelHelper(BaseStageConfig, ABC):
-		merge: ClassVar[bool] = _merge
-		infer: ClassVar[bool] = implicit
-		# Use default_factory to exclude default JSON
-		stage: _S = Field(description="Stage name", default_factory=lambda: name)
-	
-	return _ModelHelper
-
-class InheritStageConfig(_stage_base('inherit')):
+class InheritStageConfig(BaseStageConfig[Literal['inherit']].factory()):
 	"Include another defined pipeline"
 	id: str
 
-class ColorCameraStageConfig(_stage_base('rgb', merge=True, implicit=True)):
+class ColorCameraStageConfig(BaseStageConfig[Literal['rgb']].factory(merge=True, implicit=True)):
 	"Configure the RGB camera"
 	resolution: RgbSensorResolution | None = Field(default=None, description="Camera sensor resolution")
 	fps: float | None = Field(default=None, description='Max FPS')
 
 
-class MonoCameraStageConfig(_stage_base('mono', implicit=True)):
+class MonoCameraStageConfig(BaseStageConfig[Literal['mono']].factory(implicit=True)):
 	"Configure mono camera"
 	target: Literal["left", "right"]
 	resolution: MonoSensorResolution | None = Field(default=None, description='Camera sensor resolution')
 	fps: float | None = Field(default=None, description='Max FPS')
 	
 
-class StereoDepthStageConfig(_stage_base('depth')):
+class StereoDepthStageConfig(BaseStageConfig[Literal['depth']].factory()):
 	"Configure stereo depth"
 	checkLeftRight: bool | None = Field(default=None, description="Enable Left-Right check")
 	extendedDisparity: bool | None = Field(default=None, description="Enable extended disparity mode")
@@ -94,7 +96,7 @@ class StereoDepthStageConfig(_stage_base('depth')):
 	] = Field(default=None, description='Set preset profile')
 
 
-class ObjectDetectionStageConfig(_stage_base("nn")):
+class ObjectDetectionStageConfig(BaseStageConfig[Literal['nn']].factory()):
 	config: Union[NNConfig, Path]
 	blobPath: Path
 
@@ -108,7 +110,7 @@ class VideoDisplayTarget(StrEnum):
 	"Color camera"
 	DEPTH = 'depth'
 
-class WebStreamStageConfig(_stage_base("web")):
+class WebStreamStageConfig(BaseStageConfig[Literal['web']].factory()):
 	"Stream data to web"
 	target: VideoDisplayTarget
 	maxFramerate: Optional[int] = Field(None, gt=0, description="Maximum framerate for stream")
@@ -116,17 +118,17 @@ class WebStreamStageConfig(_stage_base("web")):
 	def name(self):
 		return f'{self.stage}.{self.target}'
 
-class SaveStageConfig(_stage_base("save")):
+class SaveStageConfig(BaseStageConfig[Literal['save']].factory()):
 	"Save images to file"
 	target: VideoDisplayTarget
 	path: Path
 	maxFramerate: Optional[float] = Field(default=None, gt=0, description="Maximum framerate for stream")
 
-class ShowStageConfig(_stage_base('show')):
+class ShowStageConfig(BaseStageConfig[Literal['show']].factory()):
 	"Show video stream as GUI"
 	target: VideoDisplayTarget
 
-class AprilTagStageConfigBase(_stage_base('apriltag')):
+class AprilTagStageConfigBase(BaseStageConfig[Literal['apriltag']].factory()):
 	runtime: Literal["device", "host"] = Field("host")
 	camera: Literal["left", "right", "rgb"] = Field("left")
 
@@ -157,7 +159,7 @@ class WorkerAprilTagStageConfig(AprilTagStageConfigBase):
 	apriltags: apriltag.AprilTagFieldInlineWpi
 
 
-class SlamStageConfig(_stage_base('slam')):
+class SlamStageConfig(BaseStageConfig[Literal['slam']].factory()):
 	"SAI slam"
 	slam: bool = Field(default=True)
 	vio: bool = Field(default=False, description="Enable VIO")
@@ -170,10 +172,10 @@ class WorkerSlamStageConfig(SlamStageConfig):
 	"Resolved version of 'SlamStageConfig"
 	apriltags: Optional[apriltag.AprilTagFieldRefSai]
 
-class TelemetryStageConfig(_stage_base('telemetry')):
+class TelemetryStageConfig(BaseStageConfig[Literal['telemetry']].factory()):
 	pass
 
-class ImuStageConfig(_stage_base('imu')):
+class ImuStageConfig(BaseStageConfig[Literal['imu']].factory()):
 	pass
 
 PipelineStage = Annotated[

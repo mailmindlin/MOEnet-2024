@@ -9,6 +9,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.geometry.proto.Pose3dProto;
+import edu.wpi.first.math.kinematics.Kinematics;
 import edu.wpi.first.math.kinematics.Odometry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -48,12 +49,16 @@ public class Vision implements PoseSensor {
 			return this;
 		}
 
+		public <S, P> Builder addOdometry(Kinematics<S, P> kinematics) {
+			return this;
+		}
+
 		public Vision build() {
 			return new Vision();
 		}
 	}
 
-	private Pose3d fieldToRobot = new Transform3d();
+	private Pose3d fieldToRobot = new Pose3d();
 	private Transform3d odomToRobot = new Transform3d();
 	private List<ObjectDetection> objects = new ArrayList<>();
 	private MoeNet moenet;

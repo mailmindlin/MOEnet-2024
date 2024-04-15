@@ -24,6 +24,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
 import frc.robot.sensor.time.TimeUtil;
 import frc.robot.sensor.time.Timestamped;
+import frc.robot.sensor.vision.SoftwareSubsystem;
 import frc.robot.sensor.vision.VisionSystem.Status;
 import frc.robot.sensor.vision.io.InstantProto;
 import frc.robot.sensor.vision.io.InstantStruct;
@@ -34,11 +35,11 @@ import frc.robot.sensor.vision.io.PositionEstimate;
 import frc.robot.sensor.vision.io.Translation3dProto;
 import frc.robot.sensor.vision.moenet.MoeNetConfig.TransformDirection;
 
-public class MoeNet implements AutoCloseable {
+public class MoeNet implements AutoCloseable, SoftwareSubsystem {
 	public static final long TIMEOUT_US = 5_000_000; // 5 seconds
 	public static final String DEFAULT_NAME = "moenet";
 	
-	private Status state = Status.NOT_READY;
+	private Status status = Status.NOT_READY;
 
 	private final NetworkTableInstance nt;
 	private final String name;
@@ -138,7 +139,7 @@ public class MoeNet implements AutoCloseable {
 		this.pubConfig.set(configString);
 	}
 
-	public Status getState() {
+	public Status getStatus() {
 		long stateId = this.subStatus.get(0);
 		switch ((int) stateId) {
 			case 0:

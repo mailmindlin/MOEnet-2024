@@ -1,10 +1,9 @@
 from typing import Type, TypeVar
 from unittest import TestCase, SkipTest
 
+from wpiutil.wpistruct import StructDescriptor
 from .testutil import make_rand
 from . import impl as geom
-
-T = TypeVar('T')
 
 class TestStruct(TestCase):
     "Test that we can serialize data types to struct"
@@ -12,15 +11,16 @@ class TestStruct(TestCase):
         self.rng = make_rand()
         return super().setUp()
     
-    def check_struct(self, type: Type[T]):
+    def check_struct[T](self, type: type[T]):
         t0 = self.rng(type)
-        if not getattr(type, '_WPIStruct', None):
-            raise SkipTest()
+        ws: StructDescriptor | None = getattr(type, '_WPIStruct', None)
+        if not ws:
+            raise SkipTest("wpistruct not implemented")
 
-        ser = type._WPIStruct.pack(t0)
-        t1 = type._WPIStruct.unpack(ser)
+        ser = ws.pack(t0)
+        t1 = ws.unpack(ser)
 
-        assert t0 == t1
+        self.assertEqual(t0, t1)
     
     def test_Rotation2d(self):
         self.check_struct(geom.Rotation2d)

@@ -25,7 +25,7 @@ class TestJson(TestCase):
         ser = m0.model_dump_json()
         m1 = Model.model_validate_json(ser)
         t1 = m1.value
-        assert t0 == t1
+        self.assertEqual(t0, t1)
     
     def test_Rotation2d(self):
         self.check_json(geom.Rotation2d)

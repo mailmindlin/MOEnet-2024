@@ -18,7 +18,7 @@ class TestPickle(TestCase):
         t0 = self.rng(type)
         ser = pickle.dumps(t0)
         t1 = pickle.loads(ser)
-        assert t0 == t1
+        self.assertEqual(t0, t1)
     
     def test_Rotation2d(self):
         self.check_pickle(geom.Rotation2d)

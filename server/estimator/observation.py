@@ -1,47 +1,60 @@
-from typing import TypeAlias, Union
+from typing import TypeAlias, Union, Annotated, Protocol
+
+from pydantic import BaseModel, AllowInfNan
+from annotated_types import Ge, Le
 
 from util.timestamp import Timestamp
-from typedef.geom import Pose3d
+from typedef.geom_cov import Pose3dCov, Twist3dCov, Translation3dCov
 
-class ObservationBase:
+from .tf import ReferenceFrame
+
+class ObservationBase(BaseModel):
 	ts: Timestamp
-	is_control: bool = False
+	"Timestamp when the observation happened"
+	target_frame: ReferenceFrame
+	"Measurement frame"
 	
-	def __init__(self, ts: Timestamp) -> None:
-		self.ts = ts
+	# is_control: bool = False
+	# "Is this a control term?"
 
-class PoseOverrideObservation(ObservationBase):
-	"Pose override from Rio"
-	pose: Pose3d
-	is_control: bool = True
-	def __init__(self, ts: Timestamp, pose: Pose3d) -> None:
-		super().__init__(ts)
-		self.pose = pose
+class PoseObservation(BaseModel):
+	"Position data"
+	pose: Pose3dCov | None = None
+	twist: Twist3dCov | None = None
+	base_frame: ReferenceFrame
+	"Transform base frame"
 
 
-class OdometryObservation(ObservationBase):
-	"Rio odometry"
-	pass
+class AprilTagDetection(BaseModel):
+	ID: int
 
-class SlamObservation(ObservationBase):
-	"Camera SLAM"
-	pass
-
-class AprilTagObservation(ObservationBase):
+class AprilTagObservation(BaseModel):
 	"Camera AprilTag"
-	pass
+	pose: Pose3dCov | None
+	detections: list[AprilTagDetection]
 
-class ObjectDetectionObservation(ObservationBase):
+class ObjectDetectionEntry(BaseModel):
+	label: str
+	confidence: Annotated[float, Ge(0), Le(1), AllowInfNan(False)]
+	pose: Translation3dCov
+
+class ObjectDetectionObservation(BaseModel):
 	"Object detection"
+	detections: list[ObjectDetectionEntry]
+
+type Observation = PoseObservation | AprilTagObservation | ObjectDetectionObservation
+
+class DataSource(Protocol):
+	name: str
+	"Source name"
+	frame: ReferenceFrame
+	"Data reference frame"
+
+class PoseEstimator[M, D: DataSource]:
+	def get_source(self, name: str, frame: ReferenceFrame) -> D:
+		...
+	def observe(self, source: D, ts: Timestamp, value: M):
+		...
 	
-
-Observation: TypeAlias = Union[
-	PoseOverrideObservation,
-	OdometryObservation,
-	SlamObservation,
-	AprilTagObservation,
-]
-
-class PoseEstimator:
-	def observe(self, observation: Observation):
+	def predict(self, now: Timestamp):
 		pass

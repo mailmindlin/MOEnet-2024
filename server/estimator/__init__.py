@@ -1,4 +1,3 @@
-from os import times
 from typing import Optional, overload, TYPE_CHECKING, Protocol
 import logging
 from collections import OrderedDict
@@ -34,7 +33,9 @@ class DataFusion:
 	We need to fuse data together from many different sources:
 	 - AprilTag detections (field -> camera)
 	 - Object detections (camera -> object)
-	 - 
+	 - Moving cameras (robot -> camera)
+	
+	All of this gets harder because we might recieve data out-of-order.
 	"""
 	pose_estimator: PoseEstimator
 	object_tracker: ObjectTracker

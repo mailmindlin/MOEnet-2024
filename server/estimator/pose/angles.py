@@ -1,3 +1,5 @@
+"Angle math helpers"
+
 import numpy as np
 def normalize_angle_positive(angle: float):
 	""" Normalizes the angle to be 0 to 2*pi

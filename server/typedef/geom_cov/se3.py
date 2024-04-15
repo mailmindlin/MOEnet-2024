@@ -1,4 +1,4 @@
-from typing import Literal, ClassVar, Self
+from typing import Literal, ClassVar, Self, Union
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -9,7 +9,7 @@ from .se2 import Translation2dCov
 from ..geom import Rotation3d, Translation3d, Pose3d, Quaternion, Transform3d, Twist3d
 
 def rot3_to_mat(rotation: Rotation3d) -> np.ndarray[tuple[Literal[3], Literal[3]], np.dtype[np.floating]]:
-	"Rotation3d into rotation matrix"
+	"Rotation3d into 3x3 rotation matrix"
 	q = rotation.getQuaternion()
 	i = q.X()
 	j = q.Y()
@@ -23,7 +23,7 @@ def rot3_to_mat(rotation: Rotation3d) -> np.ndarray[tuple[Literal[3], Literal[3]
 def rot3_to_mat6(rotation: Rotation3d) -> np.ndarray[tuple[Literal[6], Literal[6]], np.dtype[np.floating]]:
 	"Make 6d-rotation matrix"
 	rmat = rot3_to_mat(rotation)
-	rot6d = np.eye(6, 6, dtype=np.floating)
+	rot6d = np.zeros((6, 6), dtype=np.floating)
 	rot6d[:3,:3] = rmat
 	rot6d[3:,3:] = rmat
 	return rot6d
@@ -561,7 +561,7 @@ class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 
 	def relativeTo(self, other: Pose3d) -> Self:
 		tf = Transform3d(other, self.mean)
-		return self.transformBy()
+		return self.transformBy(tf)
 	
 	def transformBy(self, tf: Transform3d) -> 'Pose3dCov':
 		rot = rot3_to_mat6(tf.rotation())
@@ -584,6 +584,69 @@ class Pose3dCov(CovariantWrapper[Pose3d, Literal[6]]):
 	
 	def log(self, end: 'Pose3dCov') -> 'Twist3dCov':
 		pass
+
+class Transform3dCov(CovariantWrapper[Transform3d, Literal[6]]):
+	STATE_LEN: ClassVar[int] = 6
+	@classmethod
+	def parse_numpy(cls, mean: Transform3d | np.ndarray[tuple[Literal[6]], np.dtype[np.floating]]) -> Transform3d:
+		"Parse numpy array as datatype"
+		if isinstance(mean, Transform3d):
+			return mean
+		assert np.shape(mean) == (6,)
+		return Transform3d(
+			Translation3d(
+				mean[0],
+				mean[1],
+				mean[2],
+			),
+			Rotation3d(
+				mean[3],
+				mean[4],
+				mean[5],
+			)
+		)
+	
+	@property
+	def rotation(self):
+		"Get mean rotation"
+		return self.mean.rotation()
+	
+	@property
+	def translation(self):
+		"Get translation"
+		return Translation3dCov(
+			mean=self.mean.translation(),
+			cov=self.cov[:3, :3],
+		)
+	
+	def inverse(self) -> 'Transform3dCov':
+		"Inverse pose"
+		# This is like: b=(0,0,0)
+		#  OUT = b - THIS
+		zero = Transform3dCov(Transform3d(), np.zeros_like(self.cov))
+		return zero - self
+	
+	def mean_vec(self) -> np.ndarray[tuple[Literal[6]], np.dtype[np.float64]]:
+		rot = self.mean.rotation()
+		return np.array([
+			self.mean.x,
+			self.mean.y,
+			self.mean.z,
+			rot.X(),
+			rot.Y(),
+			rot.Z(),
+		], dtype=np.float64)
+	
+	def __add__(self, tf: Transform3d | Self) -> Self:
+		if isinstance(tf, Transform3dCov):
+			#TODO
+			pass
+		elif isinstance(tf, Transform3d):
+			rot = rot3_to_mat6(tf.rotation())
+			cov_rotated = rot @ self.cov @ rot.T
+			return type(self)(self.mean + tf, cov_rotated)
+		return NotImplemented
+
 
 class Twist3dCov(CovariantWrapper[Twist3d, Literal[6]]):
 	STATE_LEN: ClassVar[int] = 6

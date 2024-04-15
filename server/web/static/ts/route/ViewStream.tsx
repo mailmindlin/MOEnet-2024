@@ -17,13 +17,13 @@ export default class ViewStream extends React.Component<Props, State> {
     static readonly title: string = 'Stream';
 
     private video?: RtcVideo;
-    handleStart = () => {
+    private readonly handleStart = () => {
         this.video?.start();
     }
-    handleStop = () => {
+    private readonly handleStop = () => {
         this.video?.stop();
     }
-    handleVideoRef = (vid: RtcVideo) => {
+    private readonly handleVideoRef = (vid: RtcVideo) => {
         this.video = vid;
         if (vid && this.props.route.search.groups['autoplay']) {
             console.log('start');
@@ -31,7 +31,7 @@ export default class ViewStream extends React.Component<Props, State> {
         }
     }
     
-    render(): React.ReactNode {
+    override render(): React.ReactNode {
         const worker = this.props.route.pathname.groups['worker']!;
         const stream = this.props.route.pathname.groups['stream']!;
         return (<>

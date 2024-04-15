@@ -1,8 +1,7 @@
-import React, { ChangeEvent } from 'react';
+import React from 'react';
 import {  AprilTagStageConfig, Apriltags, ColorCameraStageConfig, InheritStageConfig, LocalConfig, MonoCameraStageConfig, ObjectDetectionStageConfig, PipelineConfig, SaveStageConfig, ShowStageConfig, SlamStageConfig, StereoDepthStageConfig, TelemetryStageConfig, WebStreamStageConfig } from '../../config';
-import { Binding, BoundCheckbox, BoundSelect, bindChangeHandler } from './bound';
+import { Binding, BoundCheckbox, BoundSelect } from './bound';
 import { AprilTagFieldSelector } from './apriltag';
-import { boundUpdateKey } from './ds';
 
 type ArrayElement<ArrayType extends readonly unknown[]> = 
   ArrayType extends readonly (infer ElementType)[] ? ElementType : never;

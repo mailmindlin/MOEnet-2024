@@ -1,4 +1,4 @@
-import React, { ChangeEvent } from 'react';
+import React from 'react';
 import { RouteProps } from '../../routing';
 import { CameraConfig, CameraSelectorDefinition, LocalConfig, OakSelector, PipelineConfig, PipelineDefinition, Selector } from '../../config';
 import Loading from '../../components/Loading';
@@ -11,7 +11,7 @@ import LogConfigEditor from './logging';
 import DatalogConfigEdtior from './datalog';
 import WebConfigEditor from './web';
 import EstimatorConfigEditor from './estimator';
-import { boundReplaceKey, boundUpdateKey } from './ds';
+import { boundReplaceKey } from './ds';
 import Collapsible from '../../components/Collapsible';
 
 
@@ -309,8 +309,7 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 		}
 	}
 
-	render(): React.ReactNode {
-		const updateConfig = boundUpdateKey<InnerState, 'config'>('config', (cb) => this.setState(cb));
+	override render(): React.ReactNode {
 		const [currentCameraConfig, pipeline, selector] = this.getCurrentSelector()
 		const cameras = this.state.config.cameras ?? [];
 
@@ -370,7 +369,7 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 					<select id="cameras" onChange={this.handleCameraChange} value={`camera-${this.state.selectedCamera}`}>
 						{cameras.length == 0 && <option key="-">Select Camera</option>}
 						
-						{cameras.map((camera, i) => (
+						{cameras.map((_camera, i) => (
 							<option key={i} value={`camera-${i}`}>Camera {i}</option>
 						))}
 						<option key="new" value="new">New Camera...</option>
@@ -403,7 +402,7 @@ class ConfigBuilderInner extends React.Component<InnerProps, InnerState> {
 						<legend>Config</legend>
 						<PoseEditor
 							value={currentCameraConfig?.pose!}
-							onChange={boundReplaceKey('pose', currentCameraConfig!, s => this.updateCurrent(c => s))}
+							onChange={boundReplaceKey('pose', currentCameraConfig!, s => this.updateCurrent(_ => s))}
 						/>
 					</fieldset>
 				</>}
@@ -426,13 +425,13 @@ export default class ConfigBuilder extends React.Component<Props, State> {
 		}
 	}
 
-	componentDidMount(): void {
+	override componentDidMount(): void {
 		this.fetchConfig();
 		this.fetchCameras();
 		this.fetchSchema();
 	}
 
-	componentWillUnmount(): void {
+	override componentWillUnmount(): void {
 		this.state.cancel.abort();
 	}
 
@@ -485,7 +484,7 @@ export default class ConfigBuilder extends React.Component<Props, State> {
         })
     }
 
-	render(): React.ReactNode {
+	override render(): React.ReactNode {
 		if (this.state.config === null || this.state.cameras === null || this.state.schema === null)
 			return <Loading />;
 		

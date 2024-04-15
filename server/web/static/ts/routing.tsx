@@ -47,11 +47,11 @@ interface RouterState {
 }
 
 export class Router extends React.Component<{}, RouterState> {
-	componentDidMount(): void {
+	override componentDidMount(): void {
 		window.addEventListener('hashchange', this.handleHashChange);
 	}
 	
-	componentWillUnmount(): void {
+	override componentWillUnmount(): void {
 		window.removeEventListener('hashchange', this.handleHashChange);
 	}
 	static stateFromURL(url: URL): RouterState {
@@ -86,7 +86,7 @@ export class Router extends React.Component<{}, RouterState> {
 	handleHashChange = (e: HashChangeEvent) => {
 		this.setState(Router.stateFromURL(new URL(e.newURL)));
 	}
-	render(): React.ReactNode {
+	override render(): React.ReactNode {
 		return (<>
 			<nav>
 				{

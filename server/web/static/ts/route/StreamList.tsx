@@ -1,5 +1,4 @@
 import React from 'react';
-import RtcVideo from '../components/RtcVideo';
 import { RouteProps } from '../routing';
 import ErrorMsg from '../components/ErrorMsg';
 import Loading from '../components/Loading';
@@ -26,14 +25,14 @@ export default class StreamList extends React.Component<Props, State> {
             error: null,
         };
     }
-    componentDidMount(): void {
+    override componentDidMount(): void {
         this.loadHeaders();
     }
-    componentWillUnmount(): void {
+    override componentWillUnmount(): void {
         this.state.cancel.abort();
     }
 
-    async loadHeaders() {
+    private async loadHeaders() {
         try {
             var rsp = await fetch('/api/streams', {
                 headers: { 'Content-Type': 'application/json' },
@@ -65,12 +64,13 @@ export default class StreamList extends React.Component<Props, State> {
         }
         this.setState({ error: null, streams: json });
     }
-    render(): React.ReactNode {
+    override render(): React.ReactNode {
         if (this.state.error)
             return <ErrorMsg>{this.state.error}</ErrorMsg>;
         else if (typeof this.state.streams === 'undefined')
             return <Loading />;
         
+        // Coallate streams by camera name
         const streamsByCamera = new Map<string, string[]>();
         for (const stream of this.state.streams ?? []) {
             if (!streamsByCamera.has(stream.worker))

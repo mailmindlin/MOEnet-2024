@@ -26,9 +26,9 @@ interface StringSchema extends BaseSchema {
 type ResolvedSchema = ObjectSchema | StringSchema;
 
 function getSchema(schema: any, path: string[]): ResolvedSchema | undefined {
-    const defs = schema['$defs'] ?? {};
+    // const defs = schema['$defs'] ?? {};
     const current = schema;
-    for (const section of path) {
+    for (const _section of path) {
         if (current['title'])
         if (current['type'] == 'object') {
         }
@@ -36,7 +36,7 @@ function getSchema(schema: any, path: string[]): ResolvedSchema | undefined {
     return schema;
 }
 
-export default function JsonEditor({ schema, value, path = [] }: JsonSchemaProps) {
+export default function JsonEditor({ schema, path = [] }: JsonSchemaProps) {
     const res = React.useMemo(() => getSchema(schema, path), [schema, path]);
     const id = React.useId();
 
@@ -69,4 +69,5 @@ export default function JsonEditor({ schema, value, path = [] }: JsonSchemaProps
             }
         }
     }
+    throw new RangeError(`Unknown type: ${res.type}`);
 }

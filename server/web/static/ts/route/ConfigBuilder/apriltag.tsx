@@ -1,7 +1,7 @@
 import React, { ChangeEvent } from 'react';
-import { AprilTagFieldInlineWpi, AprilTagFieldRefSai, AprilTagFieldRefWpi, Apriltags, FieldLayout } from '../../config';
+import { AprilTagFieldInlineWpi, AprilTagFieldRefWpi, Apriltags, FieldLayout } from '../../config';
 import { BoundNumericInput, BoundSelect, BoundTextInput } from './bound';
-import { boundReplaceKey, boundUpdateKey } from './ds';
+import { boundReplaceKey } from './ds';
 
 interface Props {
 	value: Apriltags,
@@ -90,7 +90,7 @@ export function AprilTagFieldSelector(props: Props) {
 	if (typeof value === 'string') {
 		// Skip
 	} else {
-		const internal = 'path' in value;
+		// const internal = 'path' in value;
 		if (value.format === 'wpi') {
 			const c: ((value: AprilTagFieldInlineWpi | AprilTagFieldRefWpi) => void) | undefined = onChange;
 			inner.push(

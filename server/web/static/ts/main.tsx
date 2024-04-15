@@ -1,24 +1,17 @@
 import React from 'react';
 import type * as ReactDOMT from 'react-dom/client';
 declare var ReactDOM: typeof ReactDOMT;
-import EditConfig from './route/EditConfig';
-import ViewStream from './route/ViewStream';
 import { Router } from './routing';
-
-const routes = {
-
-}
-
 
 interface State {
     
 }
 
 class App extends React.Component<{}, State> {
-    componentDidMount(): void {
+    override componentDidMount(): void {
         
     }
-    render(): React.ReactElement {
+    override render(): React.ReactElement {
         return <>
             <Router />
         </>;

@@ -1,4 +1,4 @@
 import React from 'react';
-export default function Loading(props: { }) {
+export default function Loading(_props: { }) {
     return (<div>Loading...</div>);
 }

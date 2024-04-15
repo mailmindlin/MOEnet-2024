@@ -1,3 +1,4 @@
+/** Fix react loading from import map */
 // @ts-ignore
 import * as React from './react-fix';
 

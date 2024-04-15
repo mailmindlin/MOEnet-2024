@@ -12,11 +12,12 @@ interface JsonSchemaString {
 
 interface JsonSchemaObject<T> {
 	"type": "object";
-	
+	value: T;
 }
 
 interface JsonSchemaRef<T> {
 	"$ref": string;
+	value: T;
 }
 
 export type JsonSchemaLike<T> =

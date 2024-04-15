@@ -1,6 +1,6 @@
 import React from 'react';
 import { DataLogConfig } from "../../config";
-import { BoundCheckbox, BoundSelect, Binding } from './bound';
+import { Binding } from './bound';
 import Collapsible from '../../components/Collapsible';
 
 interface DatalogConfigEdtiorProps {

@@ -39,7 +39,7 @@ export default class EditConfig extends React.Component<Props, State> {
         return `${name}${this.suffix}`;
     }
 
-    componentDidMount(): void {
+    override componentDidMount(): void {
         this.fetchConfig();
         this.fetchSchema();
     }
@@ -95,7 +95,7 @@ export default class EditConfig extends React.Component<Props, State> {
         this.setState({ editingRaw: e.currentTarget.checked });
     }
 
-    render(): React.ReactNode {
+    override render(): React.ReactNode {
         return (
             <div>
                 <label

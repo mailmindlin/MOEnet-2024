@@ -6,7 +6,7 @@ export default class HomeView extends React.Component<RouteProps, {}> {
     static readonly title: string = 'Home';
     static readonly base: string = '/';
 
-    render(): React.ReactNode {
+    override render(): React.ReactNode {
         return (
             <div>Home</div>
         );

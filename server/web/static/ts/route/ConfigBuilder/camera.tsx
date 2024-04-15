@@ -1,7 +1,7 @@
 import React, { ChangeEvent } from 'react';
-import { CameraSelectorDefinition, OakSelector, Pose2, Quaternion, Selector } from '../../config';
+import { CameraSelectorDefinition, OakSelector, Pose2, Quaternion } from '../../config';
 import type { CameraInfo } from './index';
-import { Binding, BoundNumericInput, BoundSelect, BoundTextInput } from './bound';
+import { Binding, BoundNumericInput } from './bound';
 import { boundReplaceKey } from './ds';
 
 interface PoseEditorProps {
@@ -14,6 +14,7 @@ interface PoseEditorProps {
  */
 export function PoseEditor({ value, onChange }: PoseEditorProps) {
     const id = React.useId();
+    //@ts-ignore
     const [rotationFormat, setRotationFormat] = React.useState('quat');
 
     const rotationInner = [];

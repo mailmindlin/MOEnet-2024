@@ -10,7 +10,7 @@ export default class RtcVideo extends React.Component<Props> {
 	private pc?: RTCPeerConnection;
 	private readonly videoRef = React.createRef<HTMLVideoElement>();
 
-	componentWillUnmount(): void {
+	override componentWillUnmount(): void {
 		console.log('unmount');
 		this.stop();
 	}
@@ -94,7 +94,7 @@ export default class RtcVideo extends React.Component<Props> {
 		this.pc?.close();
 	}
 
-	render(): React.ReactNode {
+	override render(): React.ReactNode {
 		return (
 			<video
 				playsInline

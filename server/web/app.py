@@ -86,9 +86,9 @@ async def index(request):
 	return web.Response(content_type="text/html", text=content)
 
 class JsStatic(web.StaticResource):
-	def url_for(self, *, filename: str | Path, append_version: bool | None = None) -> URL:
+	def url_for(self, *, filename: str | os.PathLike, append_version: bool | None = None) -> URL:
 		filename = Path(filename)
-		if not filename.endswith('.js'):
+		if not filename.name.endswith('.js'):
 			filename = filename.with_suffix('.js')
 		return super().url_for(filename=filename, append_version=append_version)
 	def _handle(self, request: Request) -> Coroutine[Any, Any, StreamResponse]:
@@ -320,6 +320,7 @@ class WebServer:
 		await pc.setRemoteDescription(offer)
 
 		answer = await pc.createAnswer()
+		assert answer is not None
 		await pc.setLocalDescription(answer)
 
 		return web.Response(
@@ -362,7 +363,7 @@ class WebServer:
 		self._vid_thread.start()
 		web.run_app(app, host=self.config.host, port=self.config.port, ssl_context=ssl_context)
 
-def app_main(config: ty.WebConfig, msgq: Queue, cmdq: Queue, vidq: Queue):
+def app_main(config: ty.AppConfig, msgq: Queue, cmdq: Queue, vidq: Queue):
 	app = WebServer(config, msgq, cmdq, vidq)
 	app.run()
 
@@ -370,6 +371,7 @@ if __name__ == "__main__":
 	import argparse
 	msgq = Queue(1)
 	cmdq = Queue(1)
+	vidq = Queue(1)
 	parser = argparse.ArgumentParser(description="WebRTC webcam demo")
 	parser.add_argument("--cert-file", help="SSL certificate file (for HTTPS)")
 	parser.add_argument("--key-file", help="SSL key file (for HTTPS)")
@@ -398,13 +400,14 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	config = ty.WebConfig(
+	config = ty.AppConfig(
 		enabled=True,
 		host=args.host,
 		port=args.port,
 		video_codec=args.video_codec,
 		cert_file=args.cert_file,
-		key_file=args.key_file
+		key_file=args.key_file,
+		logs=ty.DataLogConfig(enabled=False)
 	)
 
 	if args.verbose:
@@ -412,5 +415,5 @@ if __name__ == "__main__":
 	else:
 		logging.basicConfig(level=logging.INFO)
 	
-	app = WebServer(config, msgq, cmdq)
+	app = WebServer(config, msgq, cmdq, vidq)
 	app.run()

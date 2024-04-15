@@ -1,3 +1,5 @@
-"Type definitions"
+"""
+Type definitions.
 
-from . import geom
+Contains the config schema
+"""

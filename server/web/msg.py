@@ -1,14 +1,10 @@
 "Message typedefs for comms between main/worker processes"
 
-from typing import Literal, Any, Generic, TypeVar, Union
+from typing import Literal, Union
 from pydantic import BaseModel, Field, RootModel
 
 from typedef.cfg import WebConfig, LocalConfig, RemoteConfig, DataLogConfig
 from worker.msg import MsgFrame
-
-R = TypeVar('R')
-"Response type"
-
 
 class AppConfig(WebConfig):
     logs: DataLogConfig
@@ -30,16 +26,16 @@ Streams = RootModel[list[StreamInfo]]
 
 request_idgen = auto_increment()
 
-class WMsgRequest(BaseModel, Generic[R]):
+class WMsgRequest[R](BaseModel):
     "Base class for WebServer to request data from main process"
     request_id: int = Field(default_factory=auto_increment(), description="Request id (for matching responses)")
     target: Literal['config', 'streams']
 
 class WMsgRequestConfig(WMsgRequest[LocalConfig]):
-    target: Literal['config'] = Field('config')
+    target: Literal['config'] = Field(default='config')
 
 class WMsgRequestStreams(WMsgRequest[Streams]):
-    target: Literal['streams'] = Field('streams')
+    target: Literal['streams'] = Field(default='streams')
 
 class WMsgStreamCtl(BaseModel):
     """
@@ -51,7 +47,7 @@ class WMsgStreamCtl(BaseModel):
 
 WMsgAny = Union[WMsgRequestConfig, WMsgRequestStreams, WMsgStreamCtl]
 
-class WCmdResponse(BaseModel, Generic[R]):
+class WCmdResponse[R](BaseModel):
     "Response to a [WMsgRequest]"
     request_id: int
     target: str

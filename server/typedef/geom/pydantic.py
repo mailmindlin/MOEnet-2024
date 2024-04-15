@@ -1,5 +1,5 @@
 "Add compatibility between wpilib geometry/Pydantic schemas"
-from typing import TypeVar, Type, Any, Generic
+from typing import Any
 from dataclasses import dataclass
 from wpiutil import wpistruct
 from pydantic_core import core_schema
@@ -11,19 +11,17 @@ from pydantic.json_schema import JsonSchemaValue
 
 from .repr import FieldInfo
 
-T = TypeVar('T')
-
 SCHEMA_LUT = {
 	int: core_schema.int_schema(),
 	float: core_schema.float_schema(),
 	wpistruct.double: core_schema.float_schema(),
 }
 "python type -> schema lookup"
-CUSTOM_SCHEMA: dict[Type, 'CustomSchemaInfo'] = dict()
+CUSTOM_SCHEMA: dict[type, 'CustomSchemaInfo'] = dict()
 
 @dataclass
-class CustomSchemaInfo(Generic[T]):
-	type: Type[T]
+class CustomSchemaInfo[T]:
+	type: type[T]
 	fields: list[FieldInfo]
 	schema: Any
 
@@ -45,7 +43,7 @@ class CustomSchemaInfo(Generic[T]):
 		return self.type(*values)
 
 
-def make_schema(t: Type[T], fields: list[FieldInfo]):
+def make_schema[T](t: type[T], fields: list[FieldInfo]):
 	tdfs = dict()
 	for field in fields:
 		base = SCHEMA_LUT.get(field.type, None) or CUSTOM_SCHEMA[field.type].schema
@@ -61,12 +59,12 @@ def make_schema(t: Type[T], fields: list[FieldInfo]):
 	CUSTOM_SCHEMA[t] = result
 	return result
 
-def add_pydantic_validator(t: Type[T], fields: list[FieldInfo]):
+def add_pydantic_validator[T](t: type[T], fields: list[FieldInfo]):
 	schema = make_schema(t, fields)
 
 	@classmethod
 	def __get_pydantic_core_schema__(
-		cls: Type[T],
+		cls: type[T],
 		_source_type: Any,
 		_handler: GetCoreSchemaHandler,
 	) -> core_schema.CoreSchema:
@@ -90,7 +88,7 @@ def add_pydantic_validator(t: Type[T], fields: list[FieldInfo]):
 		)
 
 	@classmethod
-	def __get_pydantic_json_schema__(cls: Type[T], _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
+	def __get_pydantic_json_schema__(cls: type[T], _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler) -> JsonSchemaValue:
 		return handler(schema.schema)
 	
 	# Modify class

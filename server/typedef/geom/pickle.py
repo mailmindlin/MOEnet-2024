@@ -1,18 +1,16 @@
-from typing import TYPE_CHECKING, TypeVar, Type, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 if TYPE_CHECKING:
 	from wpiutil.wpistruct import StructDescriptor
-from wpi_compat.struct import get_descriptor
-from .repr import FieldDesc, lookup_fields
+from wpi_compat.struct import get_descriptor, StructSerializable
+from .repr import lookup_fields, FieldInfo
 
-T = TypeVar('T')
-
-STRUCT_LUT = []
+STRUCT_LUT: list[type[StructSerializable]] = []
 def _pickle_unpack_struct(idx: int, value: bytes):
 	t = STRUCT_LUT[idx]
 	desc = get_descriptor(t)
 	return desc.unpack(value)
 
-def add_pickle_with_wpistruct(t: Type[T], sd: 'StructDescriptor', reduce: bool = True, add_hash: bool = False):
+def add_pickle_with_wpistruct[T: StructSerializable](t: type[T], sd: 'StructDescriptor', reduce: bool = True, add_hash: bool = False):
 	"Add pickle support for a type, serializing it into its wpistruct representation"
 	if t in STRUCT_LUT:
 		return
@@ -32,12 +30,12 @@ def add_pickle_with_wpistruct(t: Type[T], sd: 'StructDescriptor', reduce: bool =
 			return hash(ser)
 		t.__hash__ = _hash
 
-FIELDORDER_LUT: list[Type] = []
+FIELDORDER_LUT: list[type] = []
 def _dict_unpack_struct(idx: int, *args):
 	type = FIELDORDER_LUT[idx]
 	return type(*args)
 
-def add_pickle_dict(t: Type[T], fields: list[FieldDesc], reduce: bool = True, add_hash: bool = False):
+def add_pickle_dict[T, R](t: type[T], fields: Sequence[FieldInfo[T, R]], reduce: bool = True, add_hash: bool = False):
 	# Pickle with dict
 	idx = len(FIELDORDER_LUT)
 	FIELDORDER_LUT.append(t)
@@ -53,7 +51,7 @@ def add_pickle_dict(t: Type[T], fields: list[FieldDesc], reduce: bool = True, ad
 			return hash(values)
 		t.__hash__ = _hash
 
-def add_pickle_support(t: Type[T], fields: list, sd: Optional['StructDescriptor'] = None, *, reduce: bool = True, hash: bool = False):
+def add_pickle_support[T](t: type[T], fields: list[FieldInfo], sd: Optional['StructDescriptor'] = None, *, reduce: bool = True, hash: bool = False):
 	"Add pickle support for a type"
 	if sd is None:
 		try:
@@ -62,6 +60,7 @@ def add_pickle_support(t: Type[T], fields: list, sd: Optional['StructDescriptor'
 			pass
 	
 	if sd is not None:
+		if TYPE_CHECKING: assert isinstance(t, StructSerializable)
 		add_pickle_with_wpistruct(t, sd, reduce=reduce, add_hash=hash)
 	else:
 		add_pickle_dict(t, fields, reduce=reduce, add_hash=hash)

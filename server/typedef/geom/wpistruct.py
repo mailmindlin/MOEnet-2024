@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Type, TypeVar, Any
+from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
 	from typing_extensions import Buffer
 from struct import Struct
@@ -8,10 +8,8 @@ from wpiutil.wpistruct.dataclass import _type_to_fmt # This is probably bad to d
 
 from .repr import lookup_fields, FieldInfo
 
-T = TypeVar('T')
 
-
-def _build_sd(t: Type[T], s: Struct, schema: str, fields: list[FieldInfo[T, Any]]):
+def _build_sd[T](t: type[T], s: Struct, schema: str, fields: list[FieldInfo[T, Any]]):
 	"Build StructDescriptor. Called by fix_struct (saves memory by preserving a smaller scope)"
 	name = f'struct:{t.__name__}'
 	
@@ -41,7 +39,7 @@ def _build_sd(t: Type[T], s: Struct, schema: str, fields: list[FieldInfo[T, Any]
 		None
 	)
 
-def fix_struct(t: Type[T], fields: list[FieldInfo]):
+def fix_struct[T](t: type[T], fields: list[FieldInfo]):
 	"Fixes types missing WPIStruct"
 	fmts = []
 	schema = []

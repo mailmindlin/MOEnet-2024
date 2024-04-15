@@ -1,30 +1,27 @@
 "Field representation"
-from typing import TypeVar, Generic, Type, Optional, Union, Any
+from typing import Optional, Union, Self, Sequence
 from dataclasses import dataclass
 
-T = TypeVar('T')
-F = TypeVar('F')
-
 @dataclass
-class FieldDesc(Generic[F]):
+class FieldDesc[F]:
 	"Explicitly describe a field"
-	type: Type[F]
+	type: type[F]
 	"Field type"
 	getter: Optional[str] = None
 	"Field getter method name"
 
 
 @dataclass
-class FieldInfo(Generic[T, F]):
-	@staticmethod
-	def wrap(name: str, base: Type[T], value: Union[Type[F], FieldDesc]) -> 'FieldInfo[T, F]':
+class FieldInfo[T, F]:
+	@classmethod
+	def wrap(cls, name: str, base: type[T], value: Union[type[F], FieldDesc]) -> Self:
 		getter = None
 		if isinstance(value, FieldDesc):
 			type = value.type
 			getter = value.getter
 		else:
 			type = value
-		return FieldInfo(
+		return cls(
 			name=name,
 			base=base,
 			type=type,
@@ -33,9 +30,9 @@ class FieldInfo(Generic[T, F]):
 	
 	name: str
 	"Field name"
-	base: Type[T]
+	base: type[T]
 	"Data type that owns this field"
-	type: Type[F]
+	type: type[F]
 	"Field type"
 	getter: Optional[str] = None
 	"Field getter method name"
@@ -55,7 +52,7 @@ class FieldInfo(Generic[T, F]):
 		return res
 
 
-def lookup_fields(fields: list[FieldInfo[T, Any]], value: T):
+def lookup_fields[T, R](fields: Sequence[FieldInfo[T, R]], value: T):
 	"Get named fields as a list"
 	for field in fields:
 		yield field.get(value)

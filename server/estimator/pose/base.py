@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod, abstractproperty
 from contextlib import contextmanager
 import logging
 from . import angles
+from .idx import Slicable
 
 if TYPE_CHECKING:
 	from .filter import DataSource
@@ -32,7 +33,6 @@ def block_idxs(idxs: list[int] | IntFlag):
 	raise ValueError()
 
 def block[T](base: np.ndarray[T] | ArrayLike, idxs: list[int] | IntFlag) -> np.ndarray[T]:
-	
 	if isinstance(idxs, IntFlag):
 		idxs = np.array(list(idxs), dtype=int)
 	
@@ -40,9 +40,11 @@ def block[T](base: np.ndarray[T] | ArrayLike, idxs: list[int] | IntFlag) -> np.n
 		return base[idxs, :][:, idxs]
 	raise NotImplemented
 	# return base[idxs, :][:, idxs]
+ 
+
 
 class StateMembers(IntFlag):
-	_ignore_ = { 'POS_LIN', 'POS_ANG', 'POSE', 'VEL_LIN', 'VEL_ANG', 'TWIST', 'ACC_LIN', 'idxs'}
+	_ignore_ = [ 'POS_LIN', 'POS_ANG', 'POSE', 'VEL_LIN', 'VEL_ANG', 'TWIST', 'ACC_LIN', 'idxs' ]
 	NONE = 0
 	X = auto()
 	Y = auto()
